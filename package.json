@@ -1,0 +1,21 @@
+{
+  "name": "ai-work",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "work": "tsx src/work.ts",
+    "claim-todo": "tsx src/claim-todo.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "commander": "^14.0.3",
+    "zx": "^8.8.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "tsx": "^4.21.0",
+    "typescript": "^5",
+    "vitest": "^4.0.18"
+  }
+}

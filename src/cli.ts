@@ -1,0 +1,59 @@
+import { Command } from "commander";
+import type { CliName, CliOptions } from "./types.js";
+
+const VALID_CLIS = new Set<CliName>(["claude", "codex", "gemini"]);
+
+export function parseCliOptions(argv: string[]): CliOptions {
+  const program = new Command();
+
+  program
+    .name("work")
+    .description("Orchestrate isolated dev environments for AI coding agents")
+    .argument("[cli]", "CLI to use (claude, codex, or gemini)")
+    .option("--cli <name>", "CLI to use")
+    .option("--worktree-dir <dir>", "Worktree directory", ".worktrees")
+    .option("--reuse-worktree", "Reuse latest worktree (default)")
+    .option("--fresh-worktree", "Force new worktree")
+    .option("--cleanup", "Remove worktree on exit (default)")
+    .option("--no-cleanup", "Keep worktree on exit")
+    .option("--cleanup-stale", "Remove stale worktrees before starting (default)")
+    .option("--no-cleanup-stale", "Skip stale worktree cleanup")
+    .option("--interactive", "Interactive agent mode")
+    .option("--fully-automated", "Non-interactive agent mode (default)")
+    .option("--no-isolated-runtime", "Skip isolated runtime setup")
+    .option("--setup-only", "Setup worktree + runtime, then exit")
+    .option("--no-todo", "Launch agent without claiming a TODO")
+    .option("--model <name>", "Override agent model (e.g. opus, sonnet)")
+    .option("--reasoning-effort <level>", "Override reasoning effort (low, medium, high, xhigh)");
+
+  const cleanedArgv = argv.filter((arg) => arg !== "--");
+  program.parse(cleanedArgv);
+
+  const opts = program.opts();
+  const positionalCli = program.args[0] as CliName | undefined;
+
+  const cli = (opts.cli ?? positionalCli ?? "claude") as CliName;
+
+  if (!VALID_CLIS.has(cli)) {
+    throw new Error(
+      `Unsupported CLI: ${cli} (expected: claude, codex, gemini)`,
+    );
+  }
+
+  const reuseWorktree = opts.freshWorktree ? false : true;
+  const interactive = opts.interactive ? true : false;
+
+  return {
+    cli,
+    worktreeDir: opts.worktreeDir ?? ".worktrees",
+    reuseWorktree,
+    cleanup: opts.cleanup ?? true,
+    cleanupStale: opts.cleanupStale ?? true,
+    interactive,
+    isolatedRuntime: opts.isolatedRuntime ?? true,
+    setupOnly: opts.setupOnly ?? false,
+    noTodo: opts.todo === false,
+    model: opts.model,
+    reasoningEffort: opts.reasoningEffort,
+  };
+}
