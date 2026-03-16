@@ -72,6 +72,51 @@ async function ensureInitialCommit(repoPath: string, createdTodo: boolean): Prom
   }
 }
 
+function resolveBashrcPath(): string {
+  const overridePath = process.env.WORKERS_BASHRC_PATH?.trim();
+  if (overridePath) {
+    return path.resolve(process.cwd(), overridePath);
+  }
+  const homeDir = process.env.HOME;
+  if (!homeDir) {
+    throw new Error("HOME is not set, cannot locate ~/.bashrc");
+  }
+  return path.join(homeDir, ".bashrc");
+}
+
+function ensureBashrcExport(repoPath: string): string {
+  const bashrcPath = resolveBashrcPath();
+  const exportLine = `export WORKERS_TODO_REPO=${repoPath}`;
+
+  let content = "";
+  if (existsSync(bashrcPath)) {
+    content = readFileSync(bashrcPath, "utf8");
+  } else {
+    mkdirSync(path.dirname(bashrcPath), { recursive: true });
+  }
+
+  const lines = content === "" ? [] : content.split(/\r?\n/);
+  let replaced = false;
+  const nextLines = lines.map((line) => {
+    if (/^\s*export\s+WORKERS_TODO_REPO=/.test(line)) {
+      replaced = true;
+      return exportLine;
+    }
+    return line;
+  });
+
+  if (!replaced) {
+    while (nextLines.length > 0 && nextLines[nextLines.length - 1] === "") {
+      nextLines.pop();
+    }
+    if (nextLines.length > 0) nextLines.push("");
+    nextLines.push(exportLine);
+  }
+
+  writeFileSync(bashrcPath, `${nextLines.join("\n")}\n`, "utf8");
+  return bashrcPath;
+}
+
 async function main(): Promise<void> {
   const repoPath = await promptTargetRepo(process.argv);
   const currentFile = fileURLToPath(import.meta.url);
@@ -88,12 +133,12 @@ async function main(): Promise<void> {
   }
 
   await ensureInitialCommit(repoPath, createdTodo);
+  const bashrcPath = ensureBashrcExport(repoPath);
 
   console.log(`Shared TODO repo ready: ${repoPath}`);
   console.log(`TODO file: ${todoPath}`);
-  if (!process.env.WORKERS_TODO_REPO?.trim()) {
-    console.log(`Export this in your shell: export WORKERS_TODO_REPO=${repoPath}`);
-  }
+  console.log(`Updated WORKERS_TODO_REPO in: ${bashrcPath}`);
+  console.log("Run: source ~/.bashrc");
 }
 
 main().catch((error) => {

@@ -39,6 +39,7 @@ The command will:
 - initialize a git repo there if needed
 - create `TODO.md` from `TODO.template.md` if it does not exist
 - create an initial commit when it creates the first `TODO.md`
+- update `WORKERS_TODO_REPO` in `~/.bashrc` automatically
 
 Example:
 
@@ -47,10 +48,10 @@ cd ~/my-shared-todos
 /path/to/workers/init-todo-repo.sh
 ```
 
-Then add this to your shell config:
+Then reload your shell config:
 
 ```bash
-export WORKERS_TODO_REPO="$HOME/my-shared-todos"
+source ~/.bashrc
 ```
 
 ## Run Workers

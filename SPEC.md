@@ -32,6 +32,7 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - If the target directory is not yet a git repo, the command must initialize one.
 - If `TODO.md` does not exist, the command must create it from `TODO.template.md`.
 - The init command should create an initial commit when it creates the first `TODO.md`.
+- The init command must update `WORKERS_TODO_REPO` in `~/.bashrc` automatically.
 
 ## 5. TODO Template
 
