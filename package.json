@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "work": "tsx src/work.ts",
+    "init-todo-repo": "tsx src/init-todo-repo.ts",
     "claim-todo": "tsx src/claim-todo.ts",
     "test": "vitest run"
   },

@@ -53,6 +53,10 @@ Instructions:
    NEVER use "git push origin HEAD" without ":main". NEVER skip the push.`;
 }
 
+function usesSharedTodoRepo(): boolean {
+  return Boolean(process.env.WORKERS_TODO_REPO?.trim());
+}
+
 const DEFAULT_CLAUDE_ALLOWED_TOOLS = [
   "Edit",
   "Bash",
@@ -82,7 +86,7 @@ export async function launchAgent(
       : defaultPrompt(
           claimedTodoItem,
           claimedTodoItemType,
-          Boolean(config?.todo?.sharedPath),
+          usesSharedTodoRepo(),
         );
 
   const env: NodeJS.ProcessEnv = {
