@@ -27,13 +27,18 @@ import {
   setupSignalHandlers,
 } from "./cleanup.js";
 import * as log from "./log.js";
-import type { WorkConfig, WorktreeInfo } from "./types.js";
+import type { WorktreeInfo } from "./types.js";
 
 interface TodoPaths {
   localTodoPath: string;
   sharedTodoPath: string;
   sharedTodoRepoRoot: string;
   sharedTodoRelativePath: string;
+}
+
+function readEnv(name: string): string | undefined {
+  const value = process.env[name]?.trim();
+  return value ? value : undefined;
 }
 
 async function resolveGitRepoRoot(startPath: string): Promise<string> {
@@ -48,13 +53,26 @@ async function resolveGitRepoRoot(startPath: string): Promise<string> {
 async function resolveTodoPaths(
   repoRoot: string,
   worktreePath: string,
-  config: WorkConfig,
 ): Promise<TodoPaths> {
-  const localPath = config.todo?.localPath ?? "TODO.md";
-  const sharedPath = config.todo?.sharedPath ?? localPath;
+  const localPath =
+    readEnv("WORKERS_LOCAL_TODO_PATH")
+    ?? "TODO.md";
+  const sharedRepoPath = readEnv("WORKERS_TODO_REPO");
+  const sharedFilePath =
+    readEnv("WORKERS_TODO_FILE")
+    ?? "TODO.md";
+
   const localTodoPath = path.resolve(worktreePath, localPath);
-  const sharedTodoPath = path.resolve(repoRoot, sharedPath);
-  const sharedTodoRepoRoot = await resolveGitRepoRoot(path.dirname(sharedTodoPath));
+
+  if (!sharedRepoPath) {
+    throw new Error(
+      "WORKERS_TODO_REPO is required. Point it at the shared TODO git repo.",
+    );
+  }
+  const sharedTodoRepoRoot =
+    await resolveGitRepoRoot(path.resolve(repoRoot, sharedRepoPath));
+  const sharedTodoPath = path.resolve(sharedTodoRepoRoot, sharedFilePath);
+
   const sharedTodoRelativePath = path.relative(sharedTodoRepoRoot, sharedTodoPath);
 
   return {
@@ -200,7 +218,7 @@ async function main(): Promise<void> {
   // Change cwd to worktree
   process.chdir(worktree.path);
 
-  const todoConfig = await resolveTodoPaths(repoRoot, worktree.path, config);
+  const todoConfig = await resolveTodoPaths(repoRoot, worktree.path);
 
   // Setup signal handlers
   setupSignalHandlers(() =>

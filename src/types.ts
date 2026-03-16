@@ -37,13 +37,6 @@ export interface AgentEnvContext {
 export interface WorkConfig {
   projectName: string;
 
-  todo?: {
-    /** Authoritative TODO.md path. Relative paths resolve from the project repo root. */
-    sharedPath?: string;
-    /** Local TODO.md copy path inside the worktree. Relative paths resolve from the worktree root. */
-    localPath?: string;
-  };
-
   /** Called after creating a new worktree (e.g., copy certs, link deps). */
   onWorktreeCreated?: (repoRoot: string, worktreePath: string) => void | Promise<void>;
 
