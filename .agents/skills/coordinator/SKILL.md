@@ -28,16 +28,19 @@ Queue the request into `TODO.md` when it is larger, including cases like:
 
 ## For Larger Tasks
 
-1. Turn the request into a concise markdown TODO item for `## Planned`.
-2. Include useful context or acceptance bullets when they are already clear.
-3. Add it with `./add-todo.sh` so it lands in the shared TODO repo.
-4. Tell the user that the task was queued instead of pretending it was started.
+1. Turn the request into a concise markdown TODO item.
+2. Put it in `## Planned` by default.
+3. If the task is already autonomous and safe for a worker to start immediately, add it straight to
+   `## Ready to be picked up` with `./add-todo.sh --ready`.
+4. Include useful context or acceptance bullets when they are already clear.
+5. Add it with `./add-todo.sh` so it lands in the shared TODO repo.
+6. Tell the user that the task was queued instead of pretending it was started.
 
 If the queued task is too ambiguous for a worker to execute safely:
 
-5. Use the clarification skill to ask the missing questions and promote it toward `## Ready to be picked up`.
-6. After clarification finishes, return to `coordinator`.
-7. Tell the user whether the task is now ready for worker pickup or still remains queued with open questions.
+7. Use the clarification skill to ask the missing questions and promote it toward `## Ready to be picked up`.
+8. After clarification finishes, return to `coordinator`.
+9. Tell the user whether the task is now ready for worker pickup or still remains queued with open questions.
 
 Example:
 

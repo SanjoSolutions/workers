@@ -5,7 +5,12 @@ import path from "path";
 import readline from "readline/promises";
 import { $ } from "zx";
 
-const PLANNED_HEADER = "## Planned";
+const SECTION_HEADERS = {
+  planned: "## Planned",
+  ready: "## Ready to be picked up",
+} as const;
+
+type TodoSection = keyof typeof SECTION_HEADERS;
 
 function readEnv(name: string): string | undefined {
   const value = process.env[name]?.trim();
@@ -32,8 +37,39 @@ async function resolveSharedTodoPath(): Promise<string> {
   return path.resolve(repoRoot, todoFilePath);
 }
 
-async function readTodoText(argv: string[]): Promise<string> {
-  const argText = argv.slice(2).join(" ").trim();
+function parseArgs(argv: string[]): { section: TodoSection; text: string } {
+  let section: TodoSection = "planned";
+  const textArgs: string[] = [];
+
+  for (let index = 2; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === "--ready") {
+      section = "ready";
+      continue;
+    }
+    if (arg === "--planned") {
+      section = "planned";
+      continue;
+    }
+    if (arg === "--section") {
+      const value = argv[index + 1]?.trim().toLowerCase();
+      if (!value || !(value in SECTION_HEADERS)) {
+        throw new Error(`--section must be one of: ${Object.keys(SECTION_HEADERS).join(", ")}`);
+      }
+      section = value as TodoSection;
+      index += 1;
+      continue;
+    }
+    textArgs.push(arg);
+  }
+
+  return {
+    section,
+    text: textArgs.join(" ").trim(),
+  };
+}
+
+async function readTodoText(argText: string): Promise<string> {
   if (argText) return argText;
 
   if (!process.stdin.isTTY) {
@@ -94,9 +130,14 @@ function findSectionEnd(lines: string[], startIndex: number): number {
   return lines.length;
 }
 
-function insertIntoPlannedSection(content: string, itemLines: string[]): string {
+export function insertIntoSection(
+  content: string,
+  itemLines: string[],
+  section: TodoSection,
+): string {
   const lines = content.split(/\r?\n/);
-  const plannedIndex = lines.findIndex((line) => line.trim() === PLANNED_HEADER);
+  const sectionHeader = SECTION_HEADERS[section];
+  const plannedIndex = lines.findIndex((line) => line.trim() === sectionHeader);
 
   if (plannedIndex < 0) {
     const nextLines = lines.slice();
@@ -104,7 +145,7 @@ function insertIntoPlannedSection(content: string, itemLines: string[]): string 
       nextLines.pop();
     }
     if (nextLines.length > 0) nextLines.push("");
-    nextLines.push(PLANNED_HEADER, "", ...itemLines, "");
+    nextLines.push(sectionHeader, "", ...itemLines, "");
     return `${nextLines.join("\n")}\n`;
   }
 
@@ -122,15 +163,17 @@ function insertIntoPlannedSection(content: string, itemLines: string[]): string 
 }
 
 async function main(): Promise<void> {
-  const todoText = await readTodoText(process.argv);
+  const args = parseArgs(process.argv);
+  const todoText = await readTodoText(args.text);
   const todoPath = await resolveSharedTodoPath();
   const original = readFileSync(todoPath, "utf8");
-  const nextContent = insertIntoPlannedSection(
+  const nextContent = insertIntoSection(
     original,
     normalizeTodoItem(todoText),
+    args.section,
   );
   writeFileSync(todoPath, nextContent, "utf8");
-  console.log(`Added TODO to ${todoPath}`);
+  console.log(`Added TODO to ${args.section} in ${todoPath}`);
 }
 
 main().catch((error) => {

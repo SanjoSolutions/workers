@@ -14,6 +14,9 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - A single shared TODO repository owns the authoritative `TODO.md`.
 - Each project repository may have its own worker runtime configuration and isolated worktrees.
 - Each worktree keeps a local `TODO.md` copy for agent context, but the source of truth remains the shared TODO repo.
+- Workers must also support bootstrap tasks that begin from the shared TODO repo, create a brand new
+  target project directory, initialize a git repository there, and then continue in a worker
+  worktree for that new project repo.
 
 ## 3. Shared TODO Repository
 
@@ -37,6 +40,8 @@ Workers orchestrates isolated development work for AI coding agents across multi
 ## 4.1 TODO Intake
 
 - Workers must provide a command to append new queued work to `## Planned` in the shared TODO repo.
+- The TODO intake command must also support explicitly placing already-autonomous tasks into
+  `## Ready to be picked up`.
 - This intake command is intended for a direct user-facing Codex session that captures bigger tasks instead of attempting them immediately.
 - The intake command must use the shared TODO repo configured via environment variable.
 - Workers must also provide a shared intake skill for the direct user-facing Codex session so this behavior can be applied by default.
@@ -50,9 +55,20 @@ Workers orchestrates isolated development work for AI coding agents across multi
 
 ## 6. Worktree Execution
 
-- Each worker run executes in a dedicated git worktree for the target project repo.
+- Each worker run must first synchronize and claim from the shared TODO repo before deciding whether
+  a target project repo and worktree are needed.
+- When a claimed task targets an existing project repo, the worker run executes in a dedicated git
+  worktree for that target project repo.
+- When a claimed task does not require an existing project repo yet, workers may defer worktree
+  creation until after the task has created or selected the target project repo.
+- By default, worker worktrees live outside the project checkout under `~/.worktrees`.
+- The default external worktree layout must namespace each project to avoid collisions between repos
+  that share the same directory name.
 - Reused worktrees must be synced with the latest project repository state before agent work starts.
 - Claim selection must avoid tasks blocked by dependencies or active conflict-risk annotations.
+- Workers must leave completed work on the worker branch/worktree by default.
+- Workers must not automatically merge or push worker output back to the tracked branch; the
+  coordinator is responsible for landing completed work.
 
 ## 7. Agent Support
 

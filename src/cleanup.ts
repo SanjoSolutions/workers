@@ -21,26 +21,23 @@ export async function cleanup(
     await $`git -C ${repoRoot} worktree remove --force ${worktree.path}`
       .quiet()
       .nothrow()
-      .then(() => {
-        if (worktree.branchName) {
-          return $`git -C ${repoRoot} branch -D ${worktree.branchName}`
-            .quiet()
-            .nothrow();
-        }
-      })
       .catch(() => {});
   }
 }
 
 export async function cleanupStaleWorktrees(
   repoRoot: string,
-  worktreeDir: string,
+  projectWorktreeDir: string,
   options: CliOptions,
   keepPath: string,
   worktreeLockRoot: string,
   stopRuntime?: (worktreePath: string) => Promise<void>,
 ): Promise<void> {
-  const entries = await listCliWorktrees(repoRoot, worktreeDir, options.cli);
+  const entries = await listCliWorktrees(
+    repoRoot,
+    projectWorktreeDir,
+    options.cli,
+  );
 
   for (const entry of entries) {
     if (entry.path === keepPath) {
@@ -64,13 +61,6 @@ export async function cleanupStaleWorktrees(
     await $`git -C ${repoRoot} worktree remove --force ${entry.path}`
       .quiet()
       .nothrow();
-
-    if (entry.branchRef) {
-      const branchShort = entry.branchRef.replace(/^refs\/heads\//, "");
-      await $`git -C ${repoRoot} branch -D ${branchShort}`
-        .quiet()
-        .nothrow();
-    }
   }
 }
 

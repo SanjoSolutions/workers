@@ -15,10 +15,8 @@ import { selectWorktree } from "./worktree.js";
 import { computeRuntimeInfo } from "./runtime.js";
 import {
   hasTodos,
-  pushWorktreeToMain,
   rebaseWorktreeOntoRoot,
   repairReusedWorktreeAfterRebaseFailure,
-  verifyAgentPushed,
 } from "./git-sync.js";
 import { launchAgent } from "./agent.js";
 import {
@@ -28,6 +26,12 @@ import {
 } from "./cleanup.js";
 import * as log from "./log.js";
 import type { WorktreeInfo } from "./types.js";
+import {
+  fetchBranchTarget,
+  requireRemoteBranchTarget,
+  resolveBranchTarget,
+} from "./git-target.js";
+import { resolveProjectWorktreeDir } from "./worktree-paths.js";
 
 interface TodoPaths {
   localTodoPath: string;
@@ -89,25 +93,21 @@ function syncTodoToLocal(sharedTodoPath: string, localTodoPath: string): void {
   writeFileSync(localTodoPath, content, "utf8");
 }
 
-async function getCurrentBranch(repoRoot: string): Promise<string> {
-  const result =
-    await $`git -C ${repoRoot} rev-parse --abbrev-ref HEAD`.quiet().nothrow();
-  const branch = result.stdout.trim();
-  if (result.exitCode !== 0 || !branch || branch === "HEAD") {
-    throw new Error(`Cannot determine current branch for ${repoRoot}`);
-  }
-  return branch;
-}
-
 async function fastForwardRepo(repoRoot: string): Promise<boolean> {
-  const branch = await getCurrentBranch(repoRoot);
-  const fetchResult =
-    await $`git -C ${repoRoot} fetch origin`.quiet().nothrow();
-  if (fetchResult.exitCode !== 0) {
+  const branchTarget = await resolveBranchTarget(repoRoot);
+  if (!branchTarget.hasRemote) {
+    return true;
+  }
+
+  const fetchResult = await fetchBranchTarget(repoRoot, branchTarget);
+  if (!fetchResult) {
     return false;
   }
+
   const pullResult =
-    await $`git -C ${repoRoot} pull --ff-only origin ${branch}`.quiet().nothrow();
+    await $`git -C ${repoRoot} pull --ff-only ${branchTarget.remoteName!} ${branchTarget.remoteBranch!}`
+      .quiet()
+      .nothrow();
   return pullResult.exitCode === 0;
 }
 
@@ -116,7 +116,8 @@ async function commitAndPushTodoRepo(
   todoRelativePath: string,
   message: string,
 ): Promise<boolean> {
-  const branch = await getCurrentBranch(repoRoot);
+  const branchTarget = await resolveBranchTarget(repoRoot);
+  const branch = branchTarget.branch;
 
   const addResult =
     await $`git -C ${repoRoot} add ${todoRelativePath}`.quiet().nothrow();
@@ -139,14 +140,18 @@ async function commitAndPushTodoRepo(
   }
 
   for (let attempt = 1; attempt <= 3; attempt += 1) {
+    if (!branchTarget.hasRemote) {
+      return true;
+    }
+
     const pushResult =
-      await $`git -C ${repoRoot} push origin HEAD:${branch}`.quiet().nothrow();
+      await $`git -C ${repoRoot} push ${branchTarget.remoteName!} HEAD:${branch}`.quiet().nothrow();
     if (pushResult.exitCode === 0) {
       return true;
     }
 
     const rebaseResult =
-      await $`git -C ${repoRoot} pull --rebase origin ${branch}`.quiet().nothrow();
+      await $`git -C ${repoRoot} pull --rebase ${branchTarget.remoteName!} ${branch}`.quiet().nothrow();
     if (rebaseResult.exitCode !== 0) {
       return false;
     }
@@ -171,18 +176,27 @@ async function main(): Promise<void> {
   const config = await loadConfig(repoRoot);
   log.info(`Project: ${config.projectName}`);
 
-  // Fetch latest from origin
-  const fetchResult =
-    await $`git -C ${repoRoot} fetch origin`.quiet().nothrow();
-  if (fetchResult.exitCode !== 0) {
-    log.error("Failed to fetch latest changes from origin.");
-    if (fetchResult.stderr) log.error(fetchResult.stderr.trim());
+  let projectBranchTarget;
+  try {
+    projectBranchTarget = await requireRemoteBranchTarget(repoRoot);
+  } catch (err) {
+    log.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
   }
-  log.info("Fetched latest changes from origin.");
 
-  // Create worktree directory
-  mkdirSync(path.join(repoRoot, options.worktreeDir), { recursive: true });
+  // Fetch latest from the tracked upstream
+  const fetchResult = await fetchBranchTarget(repoRoot, projectBranchTarget);
+  if (!fetchResult) {
+    log.error(`Failed to fetch latest changes from ${projectBranchTarget.displayName}.`);
+    process.exit(1);
+  }
+  log.info(`Fetched latest changes from ${projectBranchTarget.displayName}.`);
+
+  const projectWorktreeDir = resolveProjectWorktreeDir(
+    repoRoot,
+    options.worktreeDir,
+  );
+  mkdirSync(projectWorktreeDir, { recursive: true });
 
   const sessionTag = `${options.cli}-${new Date().toISOString().replace(/[T:]/g, "").replace(/\..+$/, "").replace(/-/g, "").slice(0, 15)}-${process.pid}`;
   const worktreeLockRoot = path.join(repoRoot, ".git", "worktree-active-locks");
@@ -205,6 +219,8 @@ async function main(): Promise<void> {
       sessionTag,
       worktreeLockRoot,
       config,
+      projectBranchTarget,
+      projectWorktreeDir,
     );
     worktree = result.worktree;
     worktreeLockDir = result.lockDir;
@@ -232,6 +248,7 @@ async function main(): Promise<void> {
   const rebaseSuccess = await rebaseWorktreeOntoRoot(
     repoRoot,
     worktree.path,
+    projectBranchTarget,
   );
   if (!rebaseSuccess) {
     if (worktree.reuseMode === "reused") {
@@ -243,6 +260,7 @@ async function main(): Promise<void> {
         repoRoot,
         worktree.path,
         worktree.branchName,
+        projectBranchTarget,
       );
       if (!repaired) {
         log.error(
@@ -255,6 +273,7 @@ async function main(): Promise<void> {
       const retryRebase = await rebaseWorktreeOntoRoot(
         repoRoot,
         worktree.path,
+        projectBranchTarget,
       );
       if (!retryRebase) {
         log.error(
@@ -276,7 +295,7 @@ async function main(): Promise<void> {
   if (options.cleanupStale) {
     await cleanupStaleWorktrees(
       repoRoot,
-      options.worktreeDir,
+      projectWorktreeDir,
       options,
       worktree.path,
       worktreeLockRoot,
@@ -360,12 +379,12 @@ async function main(): Promise<void> {
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    await $`git -C ${repoRoot} fetch origin`.quiet().nothrow();
-    const pullResult =
-      await $`git -C ${worktree.path} pull --ff-only origin main`
-        .quiet()
-        .nothrow();
-    if (pullResult.exitCode !== 0) {
+    const pullResult = await rebaseWorktreeOntoRoot(
+      repoRoot,
+      worktree.path,
+      projectBranchTarget,
+    );
+    if (!pullResult) {
       log.error(
         "Failed to pull latest changes into worktree. Stopping.",
       );
@@ -461,11 +480,6 @@ async function main(): Promise<void> {
       continue;
     }
 
-    // Record HEAD before agent runs
-    const beforeHeadResult =
-      await $`git -C ${worktree.path} rev-parse HEAD`.quiet().nothrow();
-    const beforeHead = beforeHeadResult.stdout.trim();
-
     // Launch agent
     const agentResult = await launchAgent(
       options,
@@ -474,17 +488,6 @@ async function main(): Promise<void> {
       claimResult.itemType,
       config,
     );
-
-    // Verify agent pushed
-    const pushed = await verifyAgentPushed(
-      repoRoot,
-      worktree.path,
-      beforeHead,
-    );
-    if (!pushed) {
-      log.info("Agent did not push to origin/main. Pushing from work.ts...");
-      await pushWorktreeToMain(repoRoot, worktree.path, config);
-    }
 
     const claimedSummary = claimResult.item.split("\n")[0].replace(/^- /, "");
     try {
