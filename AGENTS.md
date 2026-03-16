@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Repository-specific instructions for `/home/jonas/workers`.
+Repository-specific instructions for this repository.
 
 ## Auto-commit
 
