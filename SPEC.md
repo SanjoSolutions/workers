@@ -27,6 +27,16 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - Claiming a TODO must update, commit, and push the authoritative TODO file in the shared TODO repo.
 - Completing a TODO must update, commit, and push the authoritative TODO file in the shared TODO repo when the agent removes the claimed item from the local copy.
 
+## 3.1 Task Tracker Abstraction
+
+- Workers must keep task-tracker operations behind an adapter boundary instead of hard-coding the
+  runtime directly to the Git-backed `TODO.md` implementation.
+- The current shared `TODO.md` git repo is the first backend implementation.
+- Future backends such as GitHub Issues or Jira must be addable without rewriting the worker
+  orchestration flow.
+- Claim, sync, completion, and task-selection operations must be expressible through this backend
+  abstraction.
+
 ## 4. TODO Repo Initialization
 
 - Workers must provide a command to initialize a shared TODO repo from the checked-in template.
