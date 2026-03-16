@@ -11,6 +11,8 @@ Use this skill for the direct user-facing Codex session in the workers workflow.
 
 Be the user's communication partner while keeping larger work queued in the shared TODO repo.
 
+Use the clarification skill as the next step when a queued task needs to become autonomous and ready for worker pickup.
+
 ## Decision Rule
 
 Handle a request directly only when it is small, self-contained, and should reasonably be finished in the current session.
@@ -28,6 +30,10 @@ Queue the request into `TODO.md` when it is larger, including cases like:
 2. Include useful context or acceptance bullets when they are already clear.
 3. Add it with `./add-todo.sh` so it lands in the shared TODO repo.
 4. Tell the user that the task was queued instead of pretending it was started.
+
+If the queued task is too ambiguous for a worker to execute safely:
+
+5. Use the clarification skill to ask the missing questions and promote it toward `## Ready to be picked up`.
 
 Example:
 
@@ -48,3 +54,4 @@ EOF
 
 - Be explicit whether you handled the task now or queued it.
 - If queued, summarize the TODO you added.
+- If clarification is needed next, say that explicitly.
