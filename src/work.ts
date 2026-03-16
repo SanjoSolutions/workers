@@ -25,24 +25,42 @@ import {
   setupSignalHandlers,
 } from "./cleanup.js";
 import * as log from "./log.js";
-import type { WorktreeInfo } from "./types.js";
+import type { RuntimeInfo, WorkConfig, WorktreeInfo } from "./types.js";
 import {
   fetchBranchTarget,
-  requireRemoteBranchTarget,
   resolveBranchTarget,
+  type GitBranchTarget,
 } from "./git-target.js";
 import { resolveProjectWorktreeDir } from "./worktree-paths.js";
+import {
+  ensureTaskRepo,
+  resolveClaimedTaskTarget,
+} from "./task-target.js";
 
-interface TodoPaths {
-  localTodoPath: string;
+interface SharedTodoPaths {
   sharedTodoPath: string;
   sharedTodoRepoRoot: string;
   sharedTodoRelativePath: string;
 }
 
+interface ActiveWorkspace {
+  repoRoot: string;
+  config: WorkConfig;
+  branchTarget: GitBranchTarget;
+  worktree: WorktreeInfo;
+  worktreeLockDir: string;
+  stopRuntime?: (worktreePath: string) => Promise<void>;
+  runtimeInfo: RuntimeInfo | null;
+  localTodoPath: string;
+}
+
 function readEnv(name: string): string | undefined {
   const value = process.env[name]?.trim();
   return value ? value : undefined;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function resolveGitRepoRoot(startPath: string): Promise<string> {
@@ -54,37 +72,40 @@ async function resolveGitRepoRoot(startPath: string): Promise<string> {
   return result.stdout.trim();
 }
 
-async function resolveTodoPaths(
-  repoRoot: string,
-  worktreePath: string,
-): Promise<TodoPaths> {
-  const localPath =
-    readEnv("WORKERS_LOCAL_TODO_PATH")
-    ?? "TODO.md";
+async function findGitRepoRoot(startPath: string): Promise<string | undefined> {
+  const result =
+    await $`git -C ${startPath} rev-parse --show-toplevel`.quiet().nothrow();
+  if (result.exitCode !== 0) {
+    return undefined;
+  }
+  const repoRoot = result.stdout.trim();
+  return repoRoot || undefined;
+}
+
+async function resolveSharedTodoPaths(basePath: string): Promise<SharedTodoPaths> {
   const sharedRepoPath = readEnv("WORKERS_TODO_REPO");
-  const sharedFilePath =
-    readEnv("WORKERS_TODO_FILE")
-    ?? "TODO.md";
-
-  const localTodoPath = path.resolve(worktreePath, localPath);
-
   if (!sharedRepoPath) {
     throw new Error(
       "WORKERS_TODO_REPO is required. Point it at the shared TODO git repo.",
     );
   }
-  const sharedTodoRepoRoot =
-    await resolveGitRepoRoot(path.resolve(repoRoot, sharedRepoPath));
-  const sharedTodoPath = path.resolve(sharedTodoRepoRoot, sharedFilePath);
 
+  const sharedFilePath = readEnv("WORKERS_TODO_FILE") ?? "TODO.md";
+  const sharedTodoRepoRoot =
+    await resolveGitRepoRoot(path.resolve(basePath, sharedRepoPath));
+  const sharedTodoPath = path.resolve(sharedTodoRepoRoot, sharedFilePath);
   const sharedTodoRelativePath = path.relative(sharedTodoRepoRoot, sharedTodoPath);
 
   return {
-    localTodoPath,
     sharedTodoPath,
     sharedTodoRepoRoot,
     sharedTodoRelativePath,
   };
+}
+
+function resolveLocalTodoPath(worktreePath: string): string {
+  const localPath = readEnv("WORKERS_LOCAL_TODO_PATH") ?? "TODO.md";
+  return path.resolve(worktreePath, localPath);
 }
 
 function syncTodoToLocal(sharedTodoPath: string, localTodoPath: string): void {
@@ -151,7 +172,9 @@ async function commitAndPushTodoRepo(
     }
 
     const rebaseResult =
-      await $`git -C ${repoRoot} pull --rebase ${branchTarget.remoteName!} ${branch}`.quiet().nothrow();
+      await $`git -C ${repoRoot} pull --rebase ${branchTarget.remoteName!} ${branch}`
+        .quiet()
+        .nothrow();
     if (rebaseResult.exitCode !== 0) {
       return false;
     }
@@ -160,37 +183,36 @@ async function commitAndPushTodoRepo(
   return false;
 }
 
-async function main(): Promise<void> {
-  const options = parseCliOptions(process.argv);
+function buildSessionTag(cli: string, sequence: number): string {
+  const timestamp = new Date()
+    .toISOString()
+    .replace(/[T:]/g, "")
+    .replace(/\..+$/, "")
+    .replace(/-/g, "")
+    .slice(0, 15);
+  return `${cli}-${timestamp}-${process.pid}-${sequence}`;
+}
 
-  // Validate git repo
-  const repoRoot = process.cwd();
-  const gitCheckResult =
-    await $`git -C ${repoRoot} rev-parse --show-toplevel`.quiet().nothrow();
-  if (gitCheckResult.exitCode !== 0) {
-    log.error(`Cannot find git repository at ${repoRoot}`);
-    process.exit(1);
-  }
-
-  // Load project config
+async function setupWorkspaceForRepo(
+  repoRoot: string,
+  options: ReturnType<typeof parseCliOptions>,
+  sessionTag: string,
+): Promise<ActiveWorkspace> {
   const config = await loadConfig(repoRoot);
   log.info(`Project: ${config.projectName}`);
 
-  let projectBranchTarget;
-  try {
-    projectBranchTarget = await requireRemoteBranchTarget(repoRoot);
-  } catch (err) {
-    log.error(err instanceof Error ? err.message : String(err));
-    process.exit(1);
+  const branchTarget = await resolveBranchTarget(repoRoot);
+  if (branchTarget.hasRemote) {
+    const fetchResult = await fetchBranchTarget(repoRoot, branchTarget);
+    if (!fetchResult) {
+      throw new Error(
+        `Failed to fetch latest changes from ${branchTarget.displayName}.`,
+      );
+    }
+    log.info(`Fetched latest changes from ${branchTarget.displayName}.`);
+  } else {
+    log.info(`Using local branch ${branchTarget.branch} as worktree base.`);
   }
-
-  // Fetch latest from the tracked upstream
-  const fetchResult = await fetchBranchTarget(repoRoot, projectBranchTarget);
-  if (!fetchResult) {
-    log.error(`Failed to fetch latest changes from ${projectBranchTarget.displayName}.`);
-    process.exit(1);
-  }
-  log.info(`Fetched latest changes from ${projectBranchTarget.displayName}.`);
 
   const projectWorktreeDir = resolveProjectWorktreeDir(
     repoRoot,
@@ -198,10 +220,7 @@ async function main(): Promise<void> {
   );
   mkdirSync(projectWorktreeDir, { recursive: true });
 
-  const sessionTag = `${options.cli}-${new Date().toISOString().replace(/[T:]/g, "").replace(/\..+$/, "").replace(/-/g, "").slice(0, 15)}-${process.pid}`;
   const worktreeLockRoot = path.join(repoRoot, ".git", "worktree-active-locks");
-
-  // Build runtime stop function from config
   const stopRuntime = config.runtime?.stop
     ? async (wtPath: string) => {
         const info = computeRuntimeInfo(repoRoot, options.cli, wtPath);
@@ -209,49 +228,32 @@ async function main(): Promise<void> {
       }
     : undefined;
 
-  // Select worktree
-  let worktree: WorktreeInfo;
-  let worktreeLockDir: string;
-  try {
-    const result = await selectWorktree(
-      repoRoot,
-      options,
-      sessionTag,
-      worktreeLockRoot,
-      config,
-      projectBranchTarget,
-      projectWorktreeDir,
-    );
-    worktree = result.worktree;
-    worktreeLockDir = result.lockDir;
-  } catch (err) {
-    log.error(
-      `Failed to select worktree: ${err instanceof Error ? err.message : String(err)}`,
-    );
-    process.exit(1);
-  }
-
-  // Change cwd to worktree
-  process.chdir(worktree.path);
-
-  const todoConfig = await resolveTodoPaths(repoRoot, worktree.path);
-
-  // Setup signal handlers
-  setupSignalHandlers(() =>
-    cleanup(repoRoot, options, worktree, worktreeLockDir, stopRuntime),
-  );
-
-  log.info(`Worktree: ${worktree.path} (${worktree.reuseMode})`);
-  log.info(`Branch: ${worktree.branchName || "detached-head"}`);
-
-  // Initial rebase
-  const rebaseSuccess = await rebaseWorktreeOntoRoot(
+  const { worktree, lockDir } = await selectWorktree(
     repoRoot,
-    worktree.path,
-    projectBranchTarget,
+    options,
+    sessionTag,
+    worktreeLockRoot,
+    config,
+    branchTarget,
+    projectWorktreeDir,
   );
-  if (!rebaseSuccess) {
-    if (worktree.reuseMode === "reused") {
+
+  try {
+    log.info(`Worktree: ${worktree.path} (${worktree.reuseMode})`);
+    log.info(`Branch: ${worktree.branchName || "detached-head"}`);
+
+    const rebaseSuccess = await rebaseWorktreeOntoRoot(
+      repoRoot,
+      worktree.path,
+      branchTarget,
+    );
+    if (!rebaseSuccess) {
+      if (worktree.reuseMode !== "reused") {
+        throw new Error(
+          "Failed to sync worktree with latest root commits before runtime setup.",
+        );
+      }
+
       log.info(
         "Failed to rebase reused worktree onto latest root HEAD. Attempting in-place repair.",
       );
@@ -260,300 +262,328 @@ async function main(): Promise<void> {
         repoRoot,
         worktree.path,
         worktree.branchName,
-        projectBranchTarget,
+        branchTarget,
       );
       if (!repaired) {
-        log.error(
-          "Failed to repair reused worktree after rebase failure. Stopping.",
+        throw new Error(
+          "Failed to repair reused worktree after rebase failure.",
         );
-        await cleanup(repoRoot, options, worktree, worktreeLockDir, stopRuntime);
-        process.exit(1);
       }
 
       const retryRebase = await rebaseWorktreeOntoRoot(
         repoRoot,
         worktree.path,
-        projectBranchTarget,
+        branchTarget,
       );
       if (!retryRebase) {
-        log.error(
-          "Failed to sync repaired reused worktree with latest root commits before runtime setup. Stopping.",
+        throw new Error(
+          "Failed to sync repaired reused worktree with latest root commits before runtime setup.",
         );
-        await cleanup(repoRoot, options, worktree, worktreeLockDir, stopRuntime);
-        process.exit(1);
       }
-    } else {
-      log.error(
-        "Failed to sync worktree with latest root commits before runtime setup. Stopping.",
-      );
-      cleanup(repoRoot, options, worktree, worktreeLockDir, stopRuntime);
-      process.exit(1);
     }
-  }
 
-  // Cleanup stale worktrees
-  if (options.cleanupStale) {
-    await cleanupStaleWorktrees(
-      repoRoot,
-      projectWorktreeDir,
-      options,
-      worktree.path,
-      worktreeLockRoot,
-      stopRuntime,
-    );
-  }
+    if (options.cleanupStale) {
+      await cleanupStaleWorktrees(
+        repoRoot,
+        projectWorktreeDir,
+        options,
+        worktree.path,
+        worktreeLockRoot,
+        stopRuntime,
+      );
+    }
 
-  // Setup isolated runtime
-  let runtimeInfo = null;
-  if (options.isolatedRuntime && config.runtime) {
-    try {
+    let runtimeInfo: RuntimeInfo | null = null;
+    if (options.isolatedRuntime && config.runtime) {
       runtimeInfo = computeRuntimeInfo(repoRoot, options.cli, worktree.path);
       await config.runtime.setup(runtimeInfo, worktree.path, repoRoot);
-    } catch (err) {
-      log.error(
-        `Failed to start isolated runtime services for worktree ${worktree.path}.`,
-      );
-      log.error(err instanceof Error ? err.message : String(err));
-      if (stopRuntime) {
-        await stopRuntime(worktree.path);
-      }
-      await cleanup(repoRoot, options, worktree, worktreeLockDir, stopRuntime);
-      process.exit(1);
     }
+
+    if (options.isolatedRuntime && runtimeInfo && config.runtime?.printStatus) {
+      config.runtime.printStatus(runtimeInfo);
+    }
+
+    return {
+      repoRoot,
+      config,
+      branchTarget,
+      worktree,
+      worktreeLockDir: lockDir,
+      stopRuntime,
+      runtimeInfo,
+      localTodoPath: resolveLocalTodoPath(worktree.path),
+    };
+  } catch (error) {
+    await cleanup(
+      repoRoot,
+      { ...options, cleanup: true },
+      worktree,
+      lockDir,
+      stopRuntime,
+    );
+    throw error;
+  }
+}
+
+async function finalizeWorkspace(
+  workspace: ActiveWorkspace,
+  options: ReturnType<typeof parseCliOptions>,
+): Promise<void> {
+  if (!options.cleanup) {
+    console.log();
+    log.info(`Finished. Worktree left in place: ${workspace.worktree.path}`);
+    if (options.isolatedRuntime && workspace.runtimeInfo) {
+      log.info("Isolated runtime is still running for reuse.");
+    }
+    log.info("Use this branch for review/cherry-pick/merge, then remove it when done.");
   }
 
-  // Print runtime status
-  if (options.isolatedRuntime && runtimeInfo && config.runtime?.printStatus) {
-    config.runtime.printStatus(runtimeInfo);
+  await cleanup(
+    workspace.repoRoot,
+    options,
+    workspace.worktree,
+    workspace.worktreeLockDir,
+    workspace.stopRuntime,
+  );
+}
+
+async function claimTodo(
+  sharedTodo: SharedTodoPaths,
+  cli: string,
+): Promise<ReturnType<typeof claimFromTodoText>> {
+  return withTodoLock(sharedTodo.sharedTodoPath, async () => {
+    const content = readFileSync(sharedTodo.sharedTodoPath, "utf8");
+    const claimResult = claimFromTodoText(content, { agent: cli });
+    if (claimResult.status !== "claimed") {
+      return claimResult;
+    }
+
+    writeFileSync(sharedTodo.sharedTodoPath, claimResult.updatedContent, "utf8");
+
+    const claimSummary = claimResult.item
+      .split("\n")[0]
+      .replace(/^- /, "");
+    const pushed = await commitAndPushTodoRepo(
+      sharedTodo.sharedTodoRepoRoot,
+      sharedTodo.sharedTodoRelativePath,
+      `chore(todo): claim TODO — ${claimSummary}`,
+    );
+    if (!pushed) {
+      throw new Error("Failed to commit/push claimed TODO in shared TODO repo.");
+    }
+
+    return claimResult;
+  });
+}
+
+async function syncCompletedTodo(
+  sharedTodo: SharedTodoPaths,
+  localTodoPath: string,
+  claimedSummary: string,
+): Promise<void> {
+  const localTodoContent = readFileSync(localTodoPath, "utf8");
+  if (todoContainsSummary(localTodoContent, claimedSummary)) {
+    log.info(
+      "Claimed TODO is still present in the local TODO copy; skipping shared TODO completion sync.",
+    );
+    return;
   }
+
+  const syncedCompletion = await withTodoLock(
+    sharedTodo.sharedTodoPath,
+    async () => {
+      const sharedContent = readFileSync(sharedTodo.sharedTodoPath, "utf8");
+      const removal = removeInProgressItemBySummary(sharedContent, claimedSummary);
+      if (removal.status !== "removed") {
+        return true;
+      }
+
+      writeFileSync(sharedTodo.sharedTodoPath, removal.updatedContent, "utf8");
+      return commitAndPushTodoRepo(
+        sharedTodo.sharedTodoRepoRoot,
+        sharedTodo.sharedTodoRelativePath,
+        `chore(todo): complete TODO — ${claimedSummary}`,
+      );
+    },
+  );
+
+  if (!syncedCompletion) {
+    throw new Error("Failed to commit/push completed TODO in shared TODO repo.");
+  }
+
+  syncTodoToLocal(sharedTodo.sharedTodoPath, localTodoPath);
+  log.info("Synced TODO completion to shared TODO repo.");
+}
+
+async function runNoTodoMode(
+  options: ReturnType<typeof parseCliOptions>,
+  invocationRepoRoot: string | undefined,
+): Promise<void> {
+  if (!invocationRepoRoot) {
+    throw new Error("`--no-todo` requires running workers from a git repository.");
+  }
+
+  let activeWorkspace: ActiveWorkspace | null = null;
+  setupSignalHandlers(() =>
+    activeWorkspace
+      ? cleanup(
+          activeWorkspace.repoRoot,
+          options,
+          activeWorkspace.worktree,
+          activeWorkspace.worktreeLockDir,
+          activeWorkspace.stopRuntime,
+        )
+      : Promise.resolve(),
+  );
+
+  activeWorkspace = await setupWorkspaceForRepo(
+    invocationRepoRoot,
+    options,
+    buildSessionTag(options.cli, 1),
+  );
   console.log();
 
-  if (!(await fastForwardRepo(todoConfig.sharedTodoRepoRoot))) {
-    log.error("Failed to sync shared TODO repo.");
-    await cleanup(repoRoot, options, worktree, worktreeLockDir, stopRuntime);
-    process.exit(1);
-  }
-
   try {
-    syncTodoToLocal(todoConfig.sharedTodoPath, todoConfig.localTodoPath);
-  } catch (err) {
-    log.error(
-      `Failed to sync local TODO copy: ${err instanceof Error ? err.message : String(err)}`,
-    );
-    await cleanup(repoRoot, options, worktree, worktreeLockDir, stopRuntime);
-    process.exit(1);
-  }
+    if (options.setupOnly) {
+      log.success("Setup complete. Exiting (--setup-only).");
+      return;
+    }
 
-  // Setup-only mode
-  if (options.setupOnly) {
-    log.success("Setup complete. Exiting (--setup-only).");
-    await cleanup(repoRoot, options, worktree, worktreeLockDir, stopRuntime);
-    process.exit(0);
-  }
-
-  // --no-todo mode
-  if (options.noTodo) {
     log.info("Launching agent without TODO (--no-todo mode).");
-
     const agentResult = await launchAgent(
       options,
-      worktree.path,
+      activeWorkspace.worktree.path,
       "",
       "",
-      config,
+      activeWorkspace.config,
     );
 
     if (agentResult.exitCode !== 0) {
-      log.info(
-        `${options.cli} exited with error (${agentResult.exitCode}).`,
-      );
+      log.info(`${options.cli} exited with error (${agentResult.exitCode}).`);
+      process.exitCode = agentResult.exitCode;
     }
+  } finally {
+    await finalizeWorkspace(activeWorkspace, options);
+  }
+}
 
-    await cleanup(repoRoot, options, worktree, worktreeLockDir, stopRuntime);
-    process.exit(agentResult.exitCode);
+async function main(): Promise<void> {
+  const options = parseCliOptions(process.argv);
+  const invocationPath = process.cwd();
+  const invocationRepoRoot = await findGitRepoRoot(invocationPath);
+
+  if (options.noTodo) {
+    await runNoTodoMode(options, invocationRepoRoot);
+    return;
   }
 
-  // TODO loop
-  const POLL_INTERVAL_MS = 10_000;
-  let first = true;
+  const sharedTodo = await resolveSharedTodoPaths(invocationPath);
+  let activeWorkspace: ActiveWorkspace | null = null;
+
+  setupSignalHandlers(() =>
+    activeWorkspace
+      ? cleanup(
+          activeWorkspace.repoRoot,
+          options,
+          activeWorkspace.worktree,
+          activeWorkspace.worktreeLockDir,
+          activeWorkspace.stopRuntime,
+        )
+      : Promise.resolve(),
+  );
+
+  const pollIntervalMs = 10_000;
+  let firstTask = true;
+  let taskSequence = 0;
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    const pullResult = await rebaseWorktreeOntoRoot(
-      repoRoot,
-      worktree.path,
-      projectBranchTarget,
-    );
-    if (!pullResult) {
-      log.error(
-        "Failed to pull latest changes into worktree. Stopping.",
-      );
-      break;
+    if (!(await fastForwardRepo(sharedTodo.sharedTodoRepoRoot))) {
+      throw new Error("Failed to sync shared TODO repo.");
     }
 
-    if (!(await fastForwardRepo(todoConfig.sharedTodoRepoRoot))) {
-      log.error("Failed to sync shared TODO repo. Stopping.");
-      break;
-    }
-
-    try {
-      syncTodoToLocal(todoConfig.sharedTodoPath, todoConfig.localTodoPath);
-    } catch (err) {
-      log.error(
-        `Failed to sync local TODO copy: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      break;
-    }
-
-    if (!hasTodos(todoConfig.sharedTodoPath)) {
+    if (!hasTodos(sharedTodo.sharedTodoPath)) {
       log.info("No claimable TODOs. Polling for new TODOs...");
-      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      await sleep(pollIntervalMs);
       continue;
     }
 
-    // Claim the next TODO atomically
-    const MAX_CLAIM_ATTEMPTS = 5;
-    let claimResult: ReturnType<typeof claimFromTodoText> | null = null;
-
-    for (let attempt = 1; attempt <= MAX_CLAIM_ATTEMPTS; attempt++) {
-      try {
-        claimResult = await withTodoLock(todoConfig.sharedTodoPath, async () => {
-          const content = readFileSync(todoConfig.sharedTodoPath, "utf8");
-          const nextClaimResult = claimFromTodoText(content, { agent: options.cli });
-          const nextContent =
-            nextClaimResult.status === "claimed"
-              ? nextClaimResult.updatedContent
-              : content;
-
-          mkdirSync(path.dirname(todoConfig.localTodoPath), { recursive: true });
-          writeFileSync(todoConfig.localTodoPath, nextContent, "utf8");
-
-          if (nextClaimResult.status !== "claimed") {
-            return nextClaimResult;
-          }
-
-          writeFileSync(todoConfig.sharedTodoPath, nextClaimResult.updatedContent, "utf8");
-
-          const claimSummary = nextClaimResult.item
-            .split("\n")[0]
-            .replace(/^- /, "");
-          const pushed = await commitAndPushTodoRepo(
-            todoConfig.sharedTodoRepoRoot,
-            todoConfig.sharedTodoRelativePath,
-            `chore(todo): claim TODO — ${claimSummary}`,
-          );
-          if (!pushed) {
-            throw new Error("Failed to commit/push claimed TODO in shared TODO repo.");
-          }
-
-          return nextClaimResult;
-        });
-      } catch (err) {
-        log.error(
-          err instanceof Error ? err.message : String(err),
-        );
-        claimResult = null;
-        break;
-      }
-
-      if (claimResult.status !== "claimed") {
-        break;
-      }
-
-      if (attempt === 1) {
-        if (!first) console.log();
-        first = false;
-        log.heading("=== Starting next TODO ===");
-      }
-      log.info(`Claiming TODO: ${claimResult.item.split("\n")[0]}`);
-      log.info("Claimed and pushed TODO in shared TODO repo.");
-      break;
-    }
-
-    if (!claimResult || claimResult.status !== "claimed") {
-      if (claimResult && claimResult.status !== "claimed") {
-        log.info(`No claimable TODOs (${claimResult.reason}). Polling...`);
-        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-      }
+    const claimResult = await claimTodo(sharedTodo, options.cli);
+    if (claimResult.status !== "claimed") {
+      log.info(`No claimable TODOs (${claimResult.reason}). Polling...`);
+      await sleep(pollIntervalMs);
       continue;
     }
 
-    // Launch agent
-    const agentResult = await launchAgent(
-      options,
-      worktree.path,
-      claimResult.item,
-      claimResult.itemType,
-      config,
-    );
+    if (!firstTask) {
+      console.log();
+    }
+    firstTask = false;
+    taskSequence += 1;
+    log.heading("=== Starting next TODO ===");
+    log.info(`Claiming TODO: ${claimResult.item.split("\n")[0]}`);
+    log.info("Claimed and pushed TODO in shared TODO repo.");
 
-    const claimedSummary = claimResult.item.split("\n")[0].replace(/^- /, "");
     try {
-      const localTodoContent = readFileSync(todoConfig.localTodoPath, "utf8");
-      if (!todoContainsSummary(localTodoContent, claimedSummary)) {
-        const syncedCompletion = await withTodoLock(
-          todoConfig.sharedTodoPath,
-          async () => {
-            const sharedContent = readFileSync(todoConfig.sharedTodoPath, "utf8");
-            const removal = removeInProgressItemBySummary(sharedContent, claimedSummary);
-            if (removal.status !== "removed") {
-              return true;
-            }
-
-            writeFileSync(todoConfig.sharedTodoPath, removal.updatedContent, "utf8");
-            return commitAndPushTodoRepo(
-              todoConfig.sharedTodoRepoRoot,
-              todoConfig.sharedTodoRelativePath,
-              `chore(todo): complete TODO — ${claimedSummary}`,
-            );
-          },
-        );
-
-        if (!syncedCompletion) {
-          log.error("Failed to commit/push completed TODO in shared TODO repo.");
-          break;
-        }
-
-        syncTodoToLocal(todoConfig.sharedTodoPath, todoConfig.localTodoPath);
-        log.info("Synced TODO completion to shared TODO repo.");
+      const target = resolveClaimedTaskTarget(
+        claimResult.item,
+        claimResult.itemType,
+        sharedTodo.sharedTodoRepoRoot,
+        invocationRepoRoot,
+      );
+      const ensuredRepo = await ensureTaskRepo(target);
+      if (ensuredRepo.bootstrapped) {
+        log.info(`Bootstrapped new repo at ${ensuredRepo.repoRoot}.`);
+      } else if (target.source === "invocation-repo") {
+        log.info(`Using invocation repo for TODO: ${ensuredRepo.repoRoot}`);
       } else {
-        log.info(
-          "Claimed TODO is still present in the local TODO copy; skipping shared TODO completion sync.",
-        );
+        log.info(`Resolved target repo: ${ensuredRepo.repoRoot}`);
       }
-    } catch (err) {
-      log.error(
-        `Failed to sync TODO completion: ${err instanceof Error ? err.message : String(err)}`,
+
+      activeWorkspace = await setupWorkspaceForRepo(
+        ensuredRepo.repoRoot,
+        options,
+        buildSessionTag(options.cli, taskSequence),
       );
+      console.log();
+
+      syncTodoToLocal(sharedTodo.sharedTodoPath, activeWorkspace.localTodoPath);
+
+      if (options.setupOnly) {
+        log.success("Setup complete for claimed TODO. Exiting (--setup-only).");
+        return;
+      }
+
+      const agentResult = await launchAgent(
+        options,
+        activeWorkspace.worktree.path,
+        claimResult.item,
+        claimResult.itemType,
+        activeWorkspace.config,
+      );
+
+      const claimedSummary = claimResult.item.split("\n")[0].replace(/^- /, "");
+      await syncCompletedTodo(
+        sharedTodo,
+        activeWorkspace.localTodoPath,
+        claimedSummary,
+      );
+
+      if (agentResult.exitCode !== 0) {
+        log.info(`${options.cli} exited with error (${agentResult.exitCode}).`);
+      }
+    } catch (error) {
+      log.error(error instanceof Error ? error.message : String(error));
       break;
+    } finally {
+      if (activeWorkspace) {
+        await finalizeWorkspace(activeWorkspace, options);
+        activeWorkspace = null;
+      }
     }
 
-    if (agentResult.exitCode !== 0) {
-      log.info(
-        `${options.cli} exited with error (${agentResult.exitCode}).`,
-      );
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await sleep(2000);
   }
-
-  // Final status
-  if (!options.cleanup) {
-    console.log();
-    log.info(`Finished. Worktree left in place: ${worktree.path}`);
-    if (options.isolatedRuntime && runtimeInfo) {
-      log.info(
-        "Isolated runtime is still running for reuse.",
-      );
-    }
-    log.info(
-      "Use this branch for review/cherry-pick/merge, then remove it when done.",
-    );
-  }
-
-  await cleanup(repoRoot, options, worktree, worktreeLockDir, stopRuntime);
 }
 
 main().catch((err) => {

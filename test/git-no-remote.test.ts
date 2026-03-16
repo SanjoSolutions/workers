@@ -6,10 +6,7 @@ import { describe, expect, test } from "vitest";
 import { selectWorktree } from "../src/worktree.js";
 import { rebaseWorktreeOntoRoot } from "../src/git-sync.js";
 import { cleanup } from "../src/cleanup.js";
-import {
-  requireRemoteBranchTarget,
-  resolveBranchTarget,
-} from "../src/git-target.js";
+import { resolveBranchTarget } from "../src/git-target.js";
 import type { CliOptions, WorkConfig } from "../src/types.js";
 
 function git(args: string[], cwd: string): string {
@@ -65,7 +62,7 @@ describe("git flow with a tracked non-origin remote", () => {
     mkdirSync(path.join(repoRoot, ".git", "worktree-active-locks"), {
       recursive: true,
     });
-    const branchTarget = await requireRemoteBranchTarget(repoRoot);
+    const branchTarget = await resolveBranchTarget(repoRoot);
 
     const result = await selectWorktree(
       repoRoot,
@@ -93,7 +90,7 @@ describe("git flow with a tracked non-origin remote", () => {
     mkdirSync(path.join(repoRoot, ".git", "worktree-active-locks"), {
       recursive: true,
     });
-    const branchTarget = await requireRemoteBranchTarget(repoRoot);
+    const branchTarget = await resolveBranchTarget(repoRoot);
 
     const { worktree } = await selectWorktree(
       repoRoot,
@@ -123,7 +120,7 @@ describe("git flow with a tracked non-origin remote", () => {
     mkdirSync(path.join(repoRoot, ".git", "worktree-active-locks"), {
       recursive: true,
     });
-    const branchTarget = await requireRemoteBranchTarget(repoRoot);
+    const branchTarget = await resolveBranchTarget(repoRoot);
 
     const { worktree } = await selectWorktree(
       repoRoot,
@@ -151,15 +148,31 @@ describe("git flow with a tracked non-origin remote", () => {
     expect(git(["rev-parse", "--verify", worktree.branchName], repoRoot)).not.toBe("");
   });
 
-  test("project repos without an upstream remote fail with a clear message", async () => {
+  test("project repos without an upstream remote still expose a usable local branch target", async () => {
     const repoRoot = makeRepo();
+    const projectWorktreeDir = path.join(repoRoot, ".worktrees", "test-project");
+    mkdirSync(path.join(repoRoot, ".git", "worktree-active-locks"), {
+      recursive: true,
+    });
 
-    await expect(requireRemoteBranchTarget(repoRoot)).rejects.toThrow(
-      /track a remote branch/i,
-    );
-    await expect(resolveBranchTarget(repoRoot)).resolves.toMatchObject({
+    const branchTarget = await resolveBranchTarget(repoRoot);
+    expect(branchTarget).toMatchObject({
       branch: "main",
       hasRemote: false,
     });
+
+    const { worktree } = await selectWorktree(
+      repoRoot,
+      options,
+      "codex-126",
+      path.join(repoRoot, ".git", "worktree-active-locks"),
+      config,
+      branchTarget,
+      projectWorktreeDir,
+    );
+
+    expect(git(["rev-parse", "HEAD"], worktree.path)).toBe(
+      git(["rev-parse", "HEAD"], repoRoot),
+    );
   });
 });

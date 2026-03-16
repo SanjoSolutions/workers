@@ -21,8 +21,8 @@ function defaultPrompt(
     ? `2. Remove the completed TODO from TODO.md — delete the entire item (the "- " line and ALL
    indented sub-items) from "## In progress". Do NOT leave it or mark it as done — DELETE it.
 3. Commit your implementation changes on the worker branch for this repo. If this TODO bootstraps
-   a new project, create the project folder, initialize git there, and make the initial commit in
-   that new repo as well.
+   a new project, the workers runtime may already have created the target repo and worktree for you;
+   continue the implementation there unless the TODO explicitly says more bootstrap is needed.
 4. Do NOT merge back to the tracked branch or push directly to main. The coordinator lands finished
    worker branches later.
 5. Do NOT add TODO.md to the code-repo commit when it is untracked or ignored here.
@@ -30,7 +30,7 @@ function defaultPrompt(
     : `2. Remove the completed TODO from TODO.md — delete the entire item (the "- " line and ALL
    indented sub-items) from "## In progress". Do NOT leave it or mark it as done — DELETE it.
 3. Commit your implementation changes in the relevant repo. If this TODO bootstraps a new project,
-   create the project folder, initialize git there, and make the initial commit in that new repo.
+   the runtime may already have created the target repo and worktree for you.
 4. Do NOT merge or push to main automatically. The coordinator handles landing completed work.`;
 
   if (useSharedTodoRepo) {
