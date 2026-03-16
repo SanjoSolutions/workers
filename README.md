@@ -92,7 +92,7 @@ If the task is already worker-ready, use `--ready` to place it directly in
 
 ## Run Workers
 
-From a project repository:
+From the workers repo or from any project repo:
 
 ```bash
 /path/to/workers/work.sh codex
@@ -106,13 +106,22 @@ pnpm work codex
 
 Workers will:
 
-- create or reuse a project worktree
+- sync and claim from the shared TODO repo first
+- resolve the claimed task to either a target project repo, a new project repo to bootstrap, or the
+  invocation repo when the task is repo-less
+- create or reuse a worktree for that resolved repo
 - store worktrees under `~/.worktrees/<project>-<hash>/` by default so different repos do not collide
 - mirror the authoritative `TODO.md` into the local worktree
 - claim TODOs by updating, committing, and pushing the shared TODO repo
 - let the agent work in the project repo
 - sync TODO completion back to the shared TODO repo
 - leave the worker branch/worktree in place by default so the coordinator can review and land it later
+
+Worker-ready task metadata:
+
+- Use `- Repo: /path/to/repo` when a task targets a different repo.
+- Use `- Type: New project` plus `- Repo: /path/to/new/repo` when workers should bootstrap a new repo first.
+- Omit `Repo` only for tasks that should run in the repo where `work.sh` was invoked.
 
 ## Files in This Repo
 

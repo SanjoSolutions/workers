@@ -33,14 +33,16 @@ Queue the request into `TODO.md` when it is larger, including cases like:
 3. If the task is already autonomous and safe for a worker to start immediately, add it straight to
    `## Ready to be picked up` with `./add-todo.sh --ready`.
 4. Include useful context or acceptance bullets when they are already clear.
-5. Add it with `./add-todo.sh` so it lands in the shared TODO repo.
-6. Tell the user that the task was queued instead of pretending it was started.
+5. If the task targets another repo, include `- Repo: /path/to/repo`.
+6. If it is a brand new project, include `- Type: New project` and `- Repo: /path/to/new/repo`.
+7. Add it with `./add-todo.sh` so it lands in the shared TODO repo.
+8. Tell the user that the task was queued instead of pretending it was started.
 
 If the queued task is too ambiguous for a worker to execute safely:
 
-7. Use the clarification skill to ask the missing questions and promote it toward `## Ready to be picked up`.
-8. After clarification finishes, return to `coordinator`.
-9. Tell the user whether the task is now ready for worker pickup or still remains queued with open questions.
+9. Use the clarification skill to ask the missing questions and promote it toward `## Ready to be picked up`.
+10. After clarification finishes, return to `coordinator`.
+11. Tell the user whether the task is now ready for worker pickup or still remains queued with open questions.
 
 Example:
 

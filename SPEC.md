@@ -14,6 +14,8 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - A single shared TODO repository owns the authoritative `TODO.md`.
 - Each project repository may have its own worker runtime configuration and isolated worktrees.
 - Each worktree keeps a local `TODO.md` copy for agent context, but the source of truth remains the shared TODO repo.
+- Workers must also support TODOs that are not tied to a separate project repo and should instead
+  run in the repo from which workers was invoked.
 - Workers must also support bootstrap tasks that begin from the shared TODO repo, create a brand new
   target project directory, initialize a git repository there, and then continue in a worker
   worktree for that new project repo.
@@ -57,6 +59,10 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - Workers must also provide a shared intake skill for the direct user-facing Codex session so this behavior can be applied by default.
 - After larger work is queued, the clarification skill remains responsible for refining it into an autonomous task that can move toward `## Ready to be picked up`.
 - When the coordinator skill invokes clarification, clarification acts as a temporary nested step and control returns to coordinator afterward.
+- Ready-to-pick-up tasks that target another project repo must record that target in structured task
+  metadata.
+- New-project tasks must record the target repo path in structured task metadata.
+- Repo-less tasks may omit repo metadata only when they are intended to run in the invocation repo.
 
 ## 5. TODO Template
 
@@ -67,10 +73,14 @@ Workers orchestrates isolated development work for AI coding agents across multi
 
 - Each worker run must first synchronize and claim from the shared TODO repo before deciding whether
   a target project repo and worktree are needed.
+- Repo selection happens after claim resolution:
+  existing target repo, newly bootstrapped target repo, or the invocation repo for repo-less tasks.
 - When a claimed task targets an existing project repo, the worker run executes in a dedicated git
   worktree for that target project repo.
-- When a claimed task does not require an existing project repo yet, workers may defer worktree
-  creation until after the task has created or selected the target project repo.
+- When a claimed task is `Type: New project`, workers must bootstrap the target repo first and then
+  create the worker worktree from that newly initialized repo.
+- When a claimed task has no separate target repo, workers run it in a worktree for the invocation
+  repo.
 - By default, worker worktrees live outside the project checkout under `~/.worktrees`.
 - The default external worktree layout must namespace each project to avoid collisions between repos
   that share the same directory name.

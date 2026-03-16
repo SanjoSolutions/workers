@@ -43,6 +43,7 @@ Classify each TODO as exactly one of:
 
 - `Type: Bug fix`
 - `Type: Development task`
+- `Type: New project`
 
 ### 3. Analyze overlap and dependencies
 
@@ -76,6 +77,13 @@ For development tasks, clarify:
 - edge cases
 - acceptance criteria
 
+For new-project tasks, clarify:
+
+- target repo path
+- bootstrap expectations
+- required remote, if any
+- initial deliverable and acceptance criteria
+
 Ask only questions that materially change implementation or validation. Skip questions about code placement, naming, or implementation details the agent can decide.
 
 ### 5. Ask questions
@@ -90,7 +98,8 @@ For each fully clarified item, use this structure:
 
 ```markdown
 - Clear, imperative summary of what to do
-  - Type: Development task | Bug fix
+  - Type: Development task | Bug fix | New project
+  - Repo: <target repo path when the task targets another repo or bootstraps a new one>
   - Agent: Claude | Codex | Gemini
   - Decisions:
     - Q: <question>
@@ -105,7 +114,9 @@ For each fully clarified item, use this structure:
 
 Format rules:
 
-- `Type` is required and must be exactly `Development task` or `Bug fix`.
+- `Type` is required and must be exactly `Development task`, `Bug fix`, or `New project`.
+- `Repo` is required for tasks that target another repo and for all `New project` tasks.
+- `Repo` may be omitted only for tasks meant to run in the repo where workers is invoked.
 - `Agent` is optional and must be exactly `Claude`, `Codex`, or `Gemini` when present.
 - `Decisions` is optional and should use `Q:` / `A:` pairs.
 - `Context` is optional and should only include non-obvious repo facts.
