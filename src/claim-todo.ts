@@ -402,6 +402,57 @@ async function withFileLock<T>(
   throw error;
 }
 
+export async function withTodoLock<T>(
+  todoPath: string,
+  fn: () => Promise<T>,
+  options: { retries?: number; retryDelayMs?: number } = {},
+): Promise<T> {
+  const {
+    retries = DEFAULT_RETRIES,
+    retryDelayMs = DEFAULT_RETRY_DELAY_MS,
+  } = options;
+  const absoluteTodoPath = path.resolve(todoPath);
+  const lockPath = `${absoluteTodoPath}.lock`;
+  return withFileLock(lockPath, retries, retryDelayMs, fn);
+}
+
+export function todoContainsSummary(content: string, summary: string): boolean {
+  const lines = ensureInProgressSection(content.split(/\r?\n/));
+  const sections = parseItemsInSection(lines, 0, lines.length);
+  return sections.some((item) => extractItemSummary(lines, item.start) === summary);
+}
+
+export function removeInProgressItemBySummary(
+  content: string,
+  summary: string,
+): { status: "removed" | "not-found"; updatedContent: string } {
+  const lines = ensureInProgressSection(content.split(/\r?\n/));
+  const inProgressHeaderIndex = lines.findIndex((line) => line.trim() === IN_PROGRESS_HEADER);
+
+  if (inProgressHeaderIndex < 0) {
+    return { status: "not-found", updatedContent: content };
+  }
+
+  const inProgressStart = inProgressHeaderIndex + 1;
+  const inProgressEndCandidate = findSectionEnd(lines, inProgressStart, lines.length);
+  const inProgressEnd =
+    inProgressEndCandidate < 0 ? lines.length : inProgressEndCandidate;
+  const inProgressItems = parseItemsInSection(lines, inProgressStart, inProgressEnd);
+  const target = inProgressItems.find(
+    (item) => extractItemSummary(lines, item.start) === summary,
+  );
+
+  if (!target) {
+    return { status: "not-found", updatedContent: content };
+  }
+
+  const nextLines = lines.slice(0, target.start).concat(lines.slice(target.end));
+  return {
+    status: "removed",
+    updatedContent: nextLines.join("\n"),
+  };
+}
+
 export interface ClaimNextReadyTodoOptions {
   todoPath?: string;
   sharedTodoPath?: string;

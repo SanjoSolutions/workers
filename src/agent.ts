@@ -12,7 +12,29 @@ export function extractTodoField(item: string, field: string): string {
   return match ? match[1].trim() : "";
 }
 
-function defaultPrompt(todo: string, todoType: string): string {
+function defaultPrompt(
+  todo: string,
+  todoType: string,
+  useSharedTodoRepo: boolean,
+): string {
+  if (useSharedTodoRepo) {
+    return `A TODO has been pre-claimed for you. It is already in the "## In progress" section of the local TODO.md copy.
+Do NOT claim another TODO — work on this one.
+
+Claimed TODO:
+${todo}
+
+TODO type: ${todoType}
+
+Instructions:
+1. Implement the required changes for this TODO
+2. Remove the completed TODO from TODO.md — delete the entire item (the "- " line and ALL
+   indented sub-items) from "## In progress". Do NOT leave it or mark it as done — DELETE it.
+3. Commit and push the code changes in this repo.
+4. Do NOT add TODO.md to the code-repo commit when it is untracked or ignored here.
+   The workers runtime will sync TODO.md back to the shared TODO repo after your code push.`;
+  }
+
   return `A TODO has been pre-claimed for you. It is already in the "## In progress" section of TODO.md.
 Do NOT claim another TODO — work on this one.
 
@@ -57,7 +79,11 @@ export async function launchAgent(
     ? ""
     : config?.agent?.buildPrompt
       ? config.agent.buildPrompt(claimedTodoItem, claimedTodoItemType)
-      : defaultPrompt(claimedTodoItem, claimedTodoItemType);
+      : defaultPrompt(
+          claimedTodoItem,
+          claimedTodoItemType,
+          Boolean(config?.todo?.sharedPath),
+        );
 
   const env: NodeJS.ProcessEnv = {
     ...process.env,

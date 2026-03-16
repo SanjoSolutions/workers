@@ -7,6 +7,8 @@ description: "Clarify TODO.md work so planned items become autonomous worker tas
 
 Clarify tasks from `TODO.md` -> `## Planned`, then move fully clarified items to `## Ready to be picked up` so the workers workflow can execute them without follow-up questions.
 
+This skill is intended for a shared workers repo that may track work across multiple projects. For each TODO, inspect the relevant project repo or repos before asking questions.
+
 ## Scope
 
 - Only process items in `## Planned`.
@@ -29,11 +31,11 @@ When you are in a non-editing mode:
 
 ## Process
 
-### 1. Read TODO.md and the codebase
+### 1. Read TODO.md and the relevant project code
 
 - Read `TODO.md` and collect all items from `## Planned`.
 - If there are no items, report that nothing needs clarification and stop.
-- Read the relevant codebase areas before asking questions. Do not ask for information you can discover from the repo.
+- Read the relevant project repo areas before asking questions. Do not ask for information you can discover from the code or existing task context.
 
 ### 2. Classify each item
 

@@ -1,9 +1,14 @@
 #!/usr/bin/env tsx
 
-import { readFileSync, writeFileSync } from "fs";
+import { mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 import { $ } from "zx";
-import { claimFromTodoText } from "./claim-todo.js";
+import {
+  claimFromTodoText,
+  removeInProgressItemBySummary,
+  todoContainsSummary,
+  withTodoLock,
+} from "./claim-todo.js";
 import { parseCliOptions } from "./cli.js";
 import { loadConfig } from "./config.js";
 import { selectWorktree } from "./worktree.js";
@@ -22,7 +27,115 @@ import {
   setupSignalHandlers,
 } from "./cleanup.js";
 import * as log from "./log.js";
-import type { WorktreeInfo } from "./types.js";
+import type { WorkConfig, WorktreeInfo } from "./types.js";
+
+interface TodoPaths {
+  localTodoPath: string;
+  sharedTodoPath: string;
+  sharedTodoRepoRoot: string;
+  sharedTodoRelativePath: string;
+}
+
+async function resolveGitRepoRoot(startPath: string): Promise<string> {
+  const result =
+    await $`git -C ${startPath} rev-parse --show-toplevel`.quiet().nothrow();
+  if (result.exitCode !== 0) {
+    throw new Error(`Cannot find git repository for ${startPath}`);
+  }
+  return result.stdout.trim();
+}
+
+async function resolveTodoPaths(
+  repoRoot: string,
+  worktreePath: string,
+  config: WorkConfig,
+): Promise<TodoPaths> {
+  const localPath = config.todo?.localPath ?? "TODO.md";
+  const sharedPath = config.todo?.sharedPath ?? localPath;
+  const localTodoPath = path.resolve(worktreePath, localPath);
+  const sharedTodoPath = path.resolve(repoRoot, sharedPath);
+  const sharedTodoRepoRoot = await resolveGitRepoRoot(path.dirname(sharedTodoPath));
+  const sharedTodoRelativePath = path.relative(sharedTodoRepoRoot, sharedTodoPath);
+
+  return {
+    localTodoPath,
+    sharedTodoPath,
+    sharedTodoRepoRoot,
+    sharedTodoRelativePath,
+  };
+}
+
+function syncTodoToLocal(sharedTodoPath: string, localTodoPath: string): void {
+  const content = readFileSync(sharedTodoPath, "utf8");
+  mkdirSync(path.dirname(localTodoPath), { recursive: true });
+  writeFileSync(localTodoPath, content, "utf8");
+}
+
+async function getCurrentBranch(repoRoot: string): Promise<string> {
+  const result =
+    await $`git -C ${repoRoot} rev-parse --abbrev-ref HEAD`.quiet().nothrow();
+  const branch = result.stdout.trim();
+  if (result.exitCode !== 0 || !branch || branch === "HEAD") {
+    throw new Error(`Cannot determine current branch for ${repoRoot}`);
+  }
+  return branch;
+}
+
+async function fastForwardRepo(repoRoot: string): Promise<boolean> {
+  const branch = await getCurrentBranch(repoRoot);
+  const fetchResult =
+    await $`git -C ${repoRoot} fetch origin`.quiet().nothrow();
+  if (fetchResult.exitCode !== 0) {
+    return false;
+  }
+  const pullResult =
+    await $`git -C ${repoRoot} pull --ff-only origin ${branch}`.quiet().nothrow();
+  return pullResult.exitCode === 0;
+}
+
+async function commitAndPushTodoRepo(
+  repoRoot: string,
+  todoRelativePath: string,
+  message: string,
+): Promise<boolean> {
+  const branch = await getCurrentBranch(repoRoot);
+
+  const addResult =
+    await $`git -C ${repoRoot} add ${todoRelativePath}`.quiet().nothrow();
+  if (addResult.exitCode !== 0) {
+    return false;
+  }
+
+  const stagedResult =
+    await $`git -C ${repoRoot} diff --cached --quiet -- ${todoRelativePath}`
+      .quiet()
+      .nothrow();
+  if (stagedResult.exitCode === 0) {
+    return true;
+  }
+
+  const commitResult =
+    await $`git -C ${repoRoot} commit -m ${message}`.quiet().nothrow();
+  if (commitResult.exitCode !== 0) {
+    return false;
+  }
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const pushResult =
+      await $`git -C ${repoRoot} push origin HEAD:${branch}`.quiet().nothrow();
+    if (pushResult.exitCode === 0) {
+      return true;
+    }
+
+    const rebaseResult =
+      await $`git -C ${repoRoot} pull --rebase origin ${branch}`.quiet().nothrow();
+    if (rebaseResult.exitCode !== 0) {
+      return false;
+    }
+  }
+
+  return false;
+}
 
 async function main(): Promise<void> {
   const options = parseCliOptions(process.argv);
@@ -51,7 +164,6 @@ async function main(): Promise<void> {
   log.info("Fetched latest changes from origin.");
 
   // Create worktree directory
-  const { mkdirSync } = await import("fs");
   mkdirSync(path.join(repoRoot, options.worktreeDir), { recursive: true });
 
   const sessionTag = `${options.cli}-${new Date().toISOString().replace(/[T:]/g, "").replace(/\..+$/, "").replace(/-/g, "").slice(0, 15)}-${process.pid}`;
@@ -87,6 +199,8 @@ async function main(): Promise<void> {
 
   // Change cwd to worktree
   process.chdir(worktree.path);
+
+  const todoConfig = await resolveTodoPaths(repoRoot, worktree.path, config);
 
   // Setup signal handlers
   setupSignalHandlers(() =>
@@ -177,6 +291,22 @@ async function main(): Promise<void> {
   }
   console.log();
 
+  if (!(await fastForwardRepo(todoConfig.sharedTodoRepoRoot))) {
+    log.error("Failed to sync shared TODO repo.");
+    await cleanup(repoRoot, options, worktree, worktreeLockDir, stopRuntime);
+    process.exit(1);
+  }
+
+  try {
+    syncTodoToLocal(todoConfig.sharedTodoPath, todoConfig.localTodoPath);
+  } catch (err) {
+    log.error(
+      `Failed to sync local TODO copy: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    await cleanup(repoRoot, options, worktree, worktreeLockDir, stopRuntime);
+    process.exit(1);
+  }
+
   // Setup-only mode
   if (options.setupOnly) {
     log.success("Setup complete. Exiting (--setup-only).");
@@ -224,9 +354,21 @@ async function main(): Promise<void> {
       break;
     }
 
-    const worktreeTodoFile = path.join(worktree.path, "TODO.md");
+    if (!(await fastForwardRepo(todoConfig.sharedTodoRepoRoot))) {
+      log.error("Failed to sync shared TODO repo. Stopping.");
+      break;
+    }
 
-    if (!hasTodos(worktreeTodoFile)) {
+    try {
+      syncTodoToLocal(todoConfig.sharedTodoPath, todoConfig.localTodoPath);
+    } catch (err) {
+      log.error(
+        `Failed to sync local TODO copy: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      break;
+    }
+
+    if (!hasTodos(todoConfig.sharedTodoPath)) {
       log.info("No claimable TODOs. Polling for new TODOs...");
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
       continue;
@@ -237,8 +379,45 @@ async function main(): Promise<void> {
     let claimResult: ReturnType<typeof claimFromTodoText> | null = null;
 
     for (let attempt = 1; attempt <= MAX_CLAIM_ATTEMPTS; attempt++) {
-      const content = readFileSync(worktreeTodoFile, "utf8");
-      claimResult = claimFromTodoText(content, { agent: options.cli });
+      try {
+        claimResult = await withTodoLock(todoConfig.sharedTodoPath, async () => {
+          const content = readFileSync(todoConfig.sharedTodoPath, "utf8");
+          const nextClaimResult = claimFromTodoText(content, { agent: options.cli });
+          const nextContent =
+            nextClaimResult.status === "claimed"
+              ? nextClaimResult.updatedContent
+              : content;
+
+          mkdirSync(path.dirname(todoConfig.localTodoPath), { recursive: true });
+          writeFileSync(todoConfig.localTodoPath, nextContent, "utf8");
+
+          if (nextClaimResult.status !== "claimed") {
+            return nextClaimResult;
+          }
+
+          writeFileSync(todoConfig.sharedTodoPath, nextClaimResult.updatedContent, "utf8");
+
+          const claimSummary = nextClaimResult.item
+            .split("\n")[0]
+            .replace(/^- /, "");
+          const pushed = await commitAndPushTodoRepo(
+            todoConfig.sharedTodoRepoRoot,
+            todoConfig.sharedTodoRelativePath,
+            `chore(todo): claim TODO — ${claimSummary}`,
+          );
+          if (!pushed) {
+            throw new Error("Failed to commit/push claimed TODO in shared TODO repo.");
+          }
+
+          return nextClaimResult;
+        });
+      } catch (err) {
+        log.error(
+          err instanceof Error ? err.message : String(err),
+        );
+        claimResult = null;
+        break;
+      }
 
       if (claimResult.status !== "claimed") {
         break;
@@ -250,55 +429,8 @@ async function main(): Promise<void> {
         log.heading("=== Starting next TODO ===");
       }
       log.info(`Claiming TODO: ${claimResult.item.split("\n")[0]}`);
-
-      writeFileSync(worktreeTodoFile, claimResult.updatedContent, "utf8");
-      const rootTodoFile = path.join(repoRoot, "TODO.md");
-      if (rootTodoFile !== worktreeTodoFile) {
-        writeFileSync(rootTodoFile, claimResult.updatedContent, "utf8");
-      }
-
-      const claimSummary = claimResult.item.split("\n")[0].replace(/^- /, "");
-      const commitResult =
-        await $`git -C ${worktree.path} add TODO.md && git -C ${worktree.path} commit -m ${"chore(todo): claim TODO — " + claimSummary}`
-          .quiet()
-          .nothrow();
-
-      if (commitResult.exitCode !== 0) {
-        log.error("Failed to commit TODO claim.");
-        await $`git -C ${worktree.path} checkout -- TODO.md`.quiet().nothrow();
-        claimResult = null;
-        break;
-      }
-
-      const pushResult =
-        await $`git -C ${worktree.path} push origin HEAD:main`
-          .quiet()
-          .nothrow();
-      if (pushResult.exitCode === 0) {
-        log.info("Claimed and pushed TODO.");
-        break;
-      }
-
-      log.info(
-        `Claim push attempt ${attempt}/${MAX_CLAIM_ATTEMPTS} failed. Fetching latest TODO.md and retrying...`,
-      );
-      await $`git -C ${worktree.path} reset --soft HEAD~1`.quiet().nothrow();
-      await $`git -C ${worktree.path} checkout -- TODO.md`.quiet().nothrow();
-      await $`git -C ${repoRoot} fetch origin`.quiet().nothrow();
-      const ffResult =
-        await $`git -C ${worktree.path} pull --ff-only origin main`
-          .quiet()
-          .nothrow();
-      if (ffResult.exitCode !== 0) {
-        await $`git -C ${worktree.path} reset --hard origin/main`
-          .quiet()
-          .nothrow();
-      }
-
-      if (attempt === MAX_CLAIM_ATTEMPTS) {
-        log.error("Failed to push TODO claim after all retries.");
-        claimResult = null;
-      }
+      log.info("Claimed and pushed TODO in shared TODO repo.");
+      break;
     }
 
     if (!claimResult || claimResult.status !== "claimed") {
@@ -334,6 +466,47 @@ async function main(): Promise<void> {
     if (!pushed) {
       log.info("Agent did not push to origin/main. Pushing from work.ts...");
       await pushWorktreeToMain(repoRoot, worktree.path, config);
+    }
+
+    const claimedSummary = claimResult.item.split("\n")[0].replace(/^- /, "");
+    try {
+      const localTodoContent = readFileSync(todoConfig.localTodoPath, "utf8");
+      if (!todoContainsSummary(localTodoContent, claimedSummary)) {
+        const syncedCompletion = await withTodoLock(
+          todoConfig.sharedTodoPath,
+          async () => {
+            const sharedContent = readFileSync(todoConfig.sharedTodoPath, "utf8");
+            const removal = removeInProgressItemBySummary(sharedContent, claimedSummary);
+            if (removal.status !== "removed") {
+              return true;
+            }
+
+            writeFileSync(todoConfig.sharedTodoPath, removal.updatedContent, "utf8");
+            return commitAndPushTodoRepo(
+              todoConfig.sharedTodoRepoRoot,
+              todoConfig.sharedTodoRelativePath,
+              `chore(todo): complete TODO — ${claimedSummary}`,
+            );
+          },
+        );
+
+        if (!syncedCompletion) {
+          log.error("Failed to commit/push completed TODO in shared TODO repo.");
+          break;
+        }
+
+        syncTodoToLocal(todoConfig.sharedTodoPath, todoConfig.localTodoPath);
+        log.info("Synced TODO completion to shared TODO repo.");
+      } else {
+        log.info(
+          "Claimed TODO is still present in the local TODO copy; skipping shared TODO completion sync.",
+        );
+      }
+    } catch (err) {
+      log.error(
+        `Failed to sync TODO completion: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      break;
     }
 
     if (agentResult.exitCode !== 0) {
