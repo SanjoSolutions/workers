@@ -71,3 +71,10 @@ Workers orchestrates isolated development work for AI coding agents across multi
 
 - TypeScript changes must typecheck with `npx tsc --noEmit`.
 - Repo-facing shell wrappers must pass `bash -n`.
+
+## 10. License Compliance
+
+- When repository guidance or documentation copies or adapts substantive text from another project,
+  workers must retain clear provenance in the edited file or adjacent docs.
+- Workers must include the applicable third-party notice and required license text in the repo when
+  that copied text remains.
