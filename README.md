@@ -2,7 +2,7 @@
 
 Workers orchestrates isolated AI-agent work across multiple project repositories while using one shared TODO repository as the source of truth.
 
-For the direct user-facing Codex session, use the shared coordinator skill at [`.agents/skills/coordinator/SKILL.md`](/home/jonas/workers/.agents/skills/coordinator/SKILL.md). It decides whether a request should be handled immediately or queued into the shared TODO repo.
+For the direct user-facing Codex session, use the shared coordinator skill at [`.agents/skills/coordinator/SKILL.md`](/home/jonas/workers/.agents/skills/coordinator/SKILL.md). It decides whether a request should be handled immediately or queued into the shared TODO repo. After a larger task is queued, [`.agents/skills/clarification/SKILL.md`](/home/jonas/workers/.agents/skills/clarification/SKILL.md) is the next step for turning it into an autonomous worker-ready item.
 
 ## Shared TODO Repo
 
