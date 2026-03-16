@@ -2,6 +2,8 @@
 
 Workers orchestrates isolated AI-agent work across multiple project repositories while using one shared TODO repository as the source of truth.
 
+For the direct user-facing Codex session, use the shared coordinator skill at [`.agents/skills/coordinator/SKILL.md`](/home/jonas/workers/.agents/skills/coordinator/SKILL.md). It decides whether a request should be handled immediately or queued into the shared TODO repo.
+
 ## Shared TODO Repo
 
 Workers expects the authoritative `TODO.md` to live in a separate git repository.
@@ -53,6 +55,32 @@ Then reload your shell config:
 ```bash
 source ~/.bashrc
 ```
+
+## Add a TODO
+
+To append a new task to `## Planned` in the shared TODO repo, run either command:
+
+```bash
+./add-todo.sh "Investigate flaky worker runtime cleanup"
+```
+
+or:
+
+```bash
+pnpm add-todo "Investigate flaky worker runtime cleanup"
+```
+
+You can also pipe multiline markdown into it:
+
+```bash
+cat <<'EOF' | ./add-todo.sh
+- Investigate flaky worker runtime cleanup
+  - Context: Happens after long-running sessions
+  - Acceptance: Reused worktrees no longer leave stale runtime state behind
+EOF
+```
+
+The command writes to `## Planned` in the shared TODO repo configured by `WORKERS_TODO_REPO`.
 
 ## Run Workers
 

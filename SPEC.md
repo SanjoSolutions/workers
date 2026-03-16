@@ -34,6 +34,13 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - The init command should create an initial commit when it creates the first `TODO.md`.
 - The init command must update `WORKERS_TODO_REPO` in `~/.bashrc` automatically.
 
+## 4.1 TODO Intake
+
+- Workers must provide a command to append new queued work to `## Planned` in the shared TODO repo.
+- This intake command is intended for a direct user-facing Codex session that captures bigger tasks instead of attempting them immediately.
+- The intake command must use the shared TODO repo configured via environment variable.
+- Workers must also provide a shared intake skill for the direct user-facing Codex session so this behavior can be applied by default.
+
 ## 5. TODO Template
 
 - `TODO.template.md` is committed in the workers repo and defines the default section layout for new shared TODO repos.
