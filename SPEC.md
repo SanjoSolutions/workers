@@ -41,6 +41,7 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - The intake command must use the shared TODO repo configured via environment variable.
 - Workers must also provide a shared intake skill for the direct user-facing Codex session so this behavior can be applied by default.
 - After larger work is queued, the clarification skill remains responsible for refining it into an autonomous task that can move toward `## Ready to be picked up`.
+- When the coordinator skill invokes clarification, clarification acts as a temporary nested step and control returns to coordinator afterward.
 
 ## 5. TODO Template
 

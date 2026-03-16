@@ -13,6 +13,8 @@ Be the user's communication partner while keeping larger work queued in the shar
 
 Use the clarification skill as the next step when a queued task needs to become autonomous and ready for worker pickup.
 
+`coordinator` owns the overall flow. If it invokes `clarification`, that is a temporary nested step. When clarification is done, resume `coordinator` and decide the next user-facing action.
+
 ## Decision Rule
 
 Handle a request directly only when it is small, self-contained, and should reasonably be finished in the current session.
@@ -34,6 +36,8 @@ Queue the request into `TODO.md` when it is larger, including cases like:
 If the queued task is too ambiguous for a worker to execute safely:
 
 5. Use the clarification skill to ask the missing questions and promote it toward `## Ready to be picked up`.
+6. After clarification finishes, return to `coordinator`.
+7. Tell the user whether the task is now ready for worker pickup or still remains queued with open questions.
 
 Example:
 
@@ -55,3 +59,4 @@ EOF
 - Be explicit whether you handled the task now or queued it.
 - If queued, summarize the TODO you added.
 - If clarification is needed next, say that explicitly.
+- If clarification just finished, explicitly resume the coordinator role and state the resulting task status.
