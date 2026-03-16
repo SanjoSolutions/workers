@@ -80,7 +80,15 @@ cat <<'EOF' | ./add-todo.sh
 EOF
 ```
 
-The command writes to `## Planned` in the shared TODO repo configured by `WORKERS_TODO_REPO`.
+By default, the command writes to `## Planned` in the shared TODO repo configured by
+`WORKERS_TODO_REPO`.
+
+If the task is already worker-ready, use `--ready` to place it directly in
+`## Ready to be picked up`:
+
+```bash
+./add-todo.sh --ready "Fix flaky worker runtime cleanup"
+```
 
 ## Run Workers
 
@@ -99,11 +107,12 @@ pnpm work codex
 Workers will:
 
 - create or reuse a project worktree
-- sync the shared TODO repo
+- store worktrees under `~/.worktrees/<project>-<hash>/` by default so different repos do not collide
 - mirror the authoritative `TODO.md` into the local worktree
 - claim TODOs by updating, committing, and pushing the shared TODO repo
 - let the agent work in the project repo
 - sync TODO completion back to the shared TODO repo
+- leave the worker branch/worktree in place by default so the coordinator can review and land it later
 
 ## Files in This Repo
 

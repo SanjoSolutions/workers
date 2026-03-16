@@ -17,6 +17,22 @@ function defaultPrompt(
   todoType: string,
   useSharedTodoRepo: boolean,
 ): string {
+  const todoSyncInstruction = useSharedTodoRepo
+    ? `2. Remove the completed TODO from TODO.md — delete the entire item (the "- " line and ALL
+   indented sub-items) from "## In progress". Do NOT leave it or mark it as done — DELETE it.
+3. Commit your implementation changes on the worker branch for this repo. If this TODO bootstraps
+   a new project, create the project folder, initialize git there, and make the initial commit in
+   that new repo as well.
+4. Do NOT merge back to the tracked branch or push directly to main. The coordinator lands finished
+   worker branches later.
+5. Do NOT add TODO.md to the code-repo commit when it is untracked or ignored here.
+   The workers runtime will sync TODO.md back to the shared TODO repo after your work is done.`
+    : `2. Remove the completed TODO from TODO.md — delete the entire item (the "- " line and ALL
+   indented sub-items) from "## In progress". Do NOT leave it or mark it as done — DELETE it.
+3. Commit your implementation changes in the relevant repo. If this TODO bootstraps a new project,
+   create the project folder, initialize git there, and make the initial commit in that new repo.
+4. Do NOT merge or push to main automatically. The coordinator handles landing completed work.`;
+
   if (useSharedTodoRepo) {
     return `A TODO has been pre-claimed for you. It is already in the "## In progress" section of the local TODO.md copy.
 Do NOT claim another TODO — work on this one.
@@ -28,11 +44,7 @@ TODO type: ${todoType}
 
 Instructions:
 1. Implement the required changes for this TODO
-2. Remove the completed TODO from TODO.md — delete the entire item (the "- " line and ALL
-   indented sub-items) from "## In progress". Do NOT leave it or mark it as done — DELETE it.
-3. Commit and push the code changes in this repo.
-4. Do NOT add TODO.md to the code-repo commit when it is untracked or ignored here.
-   The workers runtime will sync TODO.md back to the shared TODO repo after your code push.`;
+${todoSyncInstruction}`;
   }
 
   return `A TODO has been pre-claimed for you. It is already in the "## In progress" section of TODO.md.
@@ -45,12 +57,7 @@ TODO type: ${todoType}
 
 Instructions:
 1. Implement the required changes for this TODO
-2. Remove the completed TODO from TODO.md — delete the entire item (the "- " line and ALL
-   indented sub-items) from "## In progress". Do NOT leave it or mark it as done — DELETE it.
-3. Commit your changes (include the updated TODO.md in the commit)
-4. Push immediately: git push origin HEAD:main
-   If push fails due to divergence: git pull --rebase origin main && git push origin HEAD:main
-   NEVER use "git push origin HEAD" without ":main". NEVER skip the push.`;
+${todoSyncInstruction}`;
 }
 
 function usesSharedTodoRepo(): boolean {

@@ -11,13 +11,13 @@ export function parseCliOptions(argv: string[]): CliOptions {
     .description("Orchestrate isolated dev environments for AI coding agents")
     .argument("[cli]", "CLI to use (claude, codex, or gemini)")
     .option("--cli <name>", "CLI to use")
-    .option("--worktree-dir <dir>", "Worktree directory", ".worktrees")
+    .option("--worktree-dir <dir>", "Worktree root directory", "~/.worktrees")
     .option("--reuse-worktree", "Reuse latest worktree (default)")
     .option("--fresh-worktree", "Force new worktree")
-    .option("--cleanup", "Remove worktree on exit (default)")
-    .option("--no-cleanup", "Keep worktree on exit")
-    .option("--cleanup-stale", "Remove stale worktrees before starting (default)")
-    .option("--no-cleanup-stale", "Skip stale worktree cleanup")
+    .option("--cleanup", "Remove worktree on exit")
+    .option("--no-cleanup", "Keep worktree on exit (default)")
+    .option("--cleanup-stale", "Remove stale worktrees before starting")
+    .option("--no-cleanup-stale", "Skip stale worktree cleanup (default)")
     .option("--interactive", "Interactive agent mode")
     .option("--fully-automated", "Non-interactive agent mode (default)")
     .option("--no-isolated-runtime", "Skip isolated runtime setup")
@@ -45,10 +45,10 @@ export function parseCliOptions(argv: string[]): CliOptions {
 
   return {
     cli,
-    worktreeDir: opts.worktreeDir ?? ".worktrees",
+    worktreeDir: opts.worktreeDir ?? "~/.worktrees",
     reuseWorktree,
-    cleanup: opts.cleanup ?? true,
-    cleanupStale: opts.cleanupStale ?? true,
+    cleanup: opts.cleanup ?? false,
+    cleanupStale: opts.cleanupStale ?? false,
     interactive,
     isolatedRuntime: opts.isolatedRuntime ?? true,
     setupOnly: opts.setupOnly ?? false,

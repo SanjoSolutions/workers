@@ -2,6 +2,11 @@ import { readFileSync } from "fs";
 import { $ } from "zx";
 import type { WorkConfig } from "./types.js";
 import * as log from "./log.js";
+import {
+  fetchBranchTarget,
+  targetRef,
+  type GitBranchTarget,
+} from "./git-target.js";
 
 export function hasTodos(todoFilePath: string): boolean {
   let content: string;
@@ -33,25 +38,28 @@ export function hasTodos(todoFilePath: string): boolean {
 export async function rebaseWorktreeOntoRoot(
   repoRoot: string,
   worktreePath: string,
+  branchTarget: GitBranchTarget,
 ): Promise<boolean> {
-  await $`git -C ${repoRoot} fetch origin`.quiet().nothrow();
+  await fetchBranchTarget(repoRoot, branchTarget);
 
-  const originMainResult =
-    await $`git -C ${repoRoot} rev-parse origin/main`.quiet().nothrow();
+  const branchTargetResult =
+    await $`git -C ${repoRoot} rev-parse ${targetRef(branchTarget)}`
+      .quiet()
+      .nothrow();
   const currentHeadResult =
     await $`git -C ${worktreePath} rev-parse HEAD`.quiet().nothrow();
 
-  const originMain = originMainResult.stdout.trim();
+  const branchTargetHead = branchTargetResult.stdout.trim();
   const currentHead = currentHeadResult.stdout.trim();
 
-  if (!originMain || !currentHead) {
+  if (!branchTargetHead || !currentHead) {
     log.error(
-      "Failed to resolve origin/main or worktree HEAD during rebase sync.",
+      `Failed to resolve ${branchTarget.displayName} or worktree HEAD during rebase sync.`,
     );
     return false;
   }
 
-  if (originMain === currentHead) {
+  if (branchTargetHead === currentHead) {
     return true;
   }
 
@@ -62,14 +70,14 @@ export async function rebaseWorktreeOntoRoot(
 
   if (diffResult.exitCode !== 0 || diffCachedResult.exitCode !== 0) {
     log.error(
-      "Worktree has local uncommitted changes; cannot auto-sync with latest origin/main.",
+      `Worktree has local uncommitted changes; cannot auto-sync with latest ${branchTarget.displayName}.`,
     );
     return false;
   }
 
-  log.info(`Rebasing worktree onto origin/main (${originMain}).`);
+  log.info(`Rebasing worktree onto ${branchTarget.displayName} (${branchTargetHead}).`);
   const rebaseResult =
-    await $`git -C ${worktreePath} rebase ${originMain}`.quiet().nothrow();
+    await $`git -C ${worktreePath} rebase ${branchTargetHead}`.quiet().nothrow();
   if (rebaseResult.exitCode !== 0) {
     log.error("Worktree rebase failed. Aborting rebase.");
     await $`git -C ${worktreePath} rebase --abort`.quiet().nothrow();
@@ -83,19 +91,20 @@ export async function repairReusedWorktreeAfterRebaseFailure(
   repoRoot: string,
   worktreePath: string,
   branchName: string,
+  branchTarget: GitBranchTarget,
 ): Promise<boolean> {
   if (!branchName) {
     const worktreeBasename = worktreePath.split("/").pop() ?? "repaired";
     const newBranch = `work/${worktreeBasename}`;
     log.info(
-      `Worktree is detached; creating branch ${newBranch} at origin/main.`,
+      `Worktree is detached; creating branch ${newBranch} at ${branchTarget.displayName}.`,
     );
     const createResult =
-      await $`git -C ${repoRoot} branch ${newBranch} origin/main`
+      await $`git -C ${repoRoot} branch ${newBranch} ${targetRef(branchTarget)}`
         .quiet()
         .nothrow();
     if (createResult.exitCode !== 0) {
-      await $`git -C ${repoRoot} branch -f ${newBranch} origin/main`
+      await $`git -C ${repoRoot} branch -f ${newBranch} ${targetRef(branchTarget)}`
         .quiet()
         .nothrow();
     }
@@ -154,12 +163,12 @@ export async function repairReusedWorktreeAfterRebaseFailure(
   }
 
   const resetResult =
-    await $`git -C ${repoRoot} branch -f ${branchName} origin/main`
+    await $`git -C ${repoRoot} branch -f ${branchName} ${targetRef(branchTarget)}`
       .quiet()
       .nothrow();
   if (resetResult.exitCode !== 0) {
     log.error(
-      `Cannot repair reused worktree: failed to reset ${branchName} to origin/main.`,
+      `Cannot repair reused worktree: failed to reset ${branchName} to ${branchTarget.displayName}.`,
     );
     return false;
   }
@@ -176,7 +185,7 @@ export async function repairReusedWorktreeAfterRebaseFailure(
   }
 
   log.info(
-    `Repaired reused worktree branch ${branchName} by aligning it to origin/main.`,
+    `Repaired reused worktree branch ${branchName} by aligning it to ${branchTarget.displayName}.`,
   );
   log.info(`Backup branch retained: ${backupBranch} (${currentHead}).`);
   return true;
@@ -186,6 +195,7 @@ export async function verifyAgentPushed(
   repoRoot: string,
   worktreePath: string,
   beforeHead: string,
+  branchTarget: GitBranchTarget,
 ): Promise<boolean> {
   const afterHeadResult =
     await $`git -C ${worktreePath} rev-parse HEAD`.quiet().nothrow();
@@ -198,19 +208,21 @@ export async function verifyAgentPushed(
     return false;
   }
 
-  await $`git -C ${repoRoot} fetch origin`.quiet().nothrow();
+  await fetchBranchTarget(repoRoot, branchTarget);
 
-  const originMainResult =
-    await $`git -C ${repoRoot} rev-parse origin/main`.quiet().nothrow();
-  const originMain = originMainResult.stdout.trim();
+  const branchTargetResult =
+    await $`git -C ${repoRoot} rev-parse ${targetRef(branchTarget)}`
+      .quiet()
+      .nothrow();
+  const branchTargetHead = branchTargetResult.stdout.trim();
 
-  if (!originMain) {
-    log.error("Failed to resolve origin/main for push verification.");
+  if (!branchTargetHead) {
+    log.error(`Failed to resolve ${branchTarget.displayName} for push verification.`);
     return false;
   }
 
   const isAncestorResult =
-    await $`git -C ${repoRoot} merge-base --is-ancestor ${afterHead} ${originMain}`
+    await $`git -C ${repoRoot} merge-base --is-ancestor ${afterHead} ${branchTargetHead}`
       .quiet()
       .nothrow();
 
@@ -219,19 +231,19 @@ export async function verifyAgentPushed(
   }
 
   const originAdvancedResult =
-    await $`git -C ${repoRoot} merge-base --is-ancestor ${beforeHead} ${originMain}`
+    await $`git -C ${repoRoot} merge-base --is-ancestor ${beforeHead} ${branchTargetHead}`
       .quiet()
       .nothrow();
 
-  if (originAdvancedResult.exitCode === 0 && originMain !== beforeHead) {
+  if (originAdvancedResult.exitCode === 0 && branchTargetHead !== beforeHead) {
     log.info(
-      "Agent commits reached origin/main (rebased to different SHAs).",
+      `Agent commits reached ${branchTarget.displayName} (rebased to different SHAs).`,
     );
     return true;
   }
 
   log.error(
-    `Agent commits were NOT pushed to origin/main. Worktree HEAD: ${afterHead}, origin/main: ${originMain}.`,
+    `Agent commits were NOT pushed to ${branchTarget.displayName}. Worktree HEAD: ${afterHead}, ${branchTarget.displayName}: ${branchTargetHead}.`,
   );
   return false;
 }
@@ -246,6 +258,7 @@ export async function verifyAgentPushed(
 export async function pushWorktreeToMain(
   repoRoot: string,
   worktreePath: string,
+  branchTarget: GitBranchTarget,
   config?: WorkConfig,
 ): Promise<boolean> {
   const MAX_ATTEMPTS = 5;
@@ -253,22 +266,22 @@ export async function pushWorktreeToMain(
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const pushResult =
-      await $`git -C ${worktreePath} push origin HEAD:main`
+      await $`git -C ${worktreePath} push ${branchTarget.remoteName!} HEAD:${branchTarget.remoteBranch!}`
         .quiet()
         .nothrow();
     if (pushResult.exitCode === 0) {
-      log.info("Pushed commits to origin/main.");
+      log.info(`Pushed commits to ${branchTarget.displayName}.`);
       return true;
     }
 
     log.info(
-      `Push attempt ${attempt}/${MAX_ATTEMPTS} failed. Rebasing onto origin/main...`,
+      `Push attempt ${attempt}/${MAX_ATTEMPTS} failed. Rebasing onto ${branchTarget.displayName}...`,
     );
 
-    await $`git -C ${repoRoot} fetch origin`.quiet().nothrow();
+    await fetchBranchTarget(repoRoot, branchTarget);
 
     const rebaseResult =
-      await $`git -C ${worktreePath} rebase origin/main`
+      await $`git -C ${worktreePath} rebase ${targetRef(branchTarget)}`
         .quiet()
         .nothrow();
 
@@ -335,6 +348,6 @@ export async function pushWorktreeToMain(
     }
   }
 
-  log.error("Failed to push to origin/main after all attempts.");
+  log.error(`Failed to push to ${branchTarget.displayName} after all attempts.`);
   return false;
 }

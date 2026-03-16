@@ -57,6 +57,9 @@ function ensureInProgressSection(lines: string[]): string[] {
 }
 
 function detectTodoType(item: string): string {
+  if (/\n\s+- Type:\s*New project\s*$/im.test(item) || /^\s*-\s*Type:\s*New project\s*$/im.test(item)) {
+    return "new-project";
+  }
   if (/\n\s+- Type:\s*Bug fix\s*$/im.test(item) || /^\s*-\s*Type:\s*Bug fix\s*$/im.test(item)) {
     return "bug-fix";
   }

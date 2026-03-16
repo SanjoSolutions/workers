@@ -1,7 +1,10 @@
+import path from "path";
 import { $ } from "zx";
 import type { CliOptions, WorkConfig, WorktreeInfo } from "./types.js";
 import { tryAcquireWorktreeLock } from "./locking.js";
 import * as log from "./log.js";
+import type { GitBranchTarget } from "./git-target.js";
+import { targetRef } from "./git-target.js";
 
 interface WorktreeEntry {
   path: string;
@@ -10,10 +13,10 @@ interface WorktreeEntry {
 
 export async function listCliWorktrees(
   repoRoot: string,
-  worktreeDir: string,
+  projectWorktreeDir: string,
   cli: string,
 ): Promise<WorktreeEntry[]> {
-  const prefix = `${repoRoot}/${worktreeDir}/${cli}-`;
+  const prefix = `${path.resolve(projectWorktreeDir)}${path.sep}${cli}-`;
 
   const result =
     await $`git -C ${repoRoot} worktree list --porcelain`.quiet().nothrow();
@@ -53,13 +56,15 @@ export async function selectWorktree(
   sessionTag: string,
   worktreeLockRoot: string,
   config: WorkConfig,
+  branchTarget: GitBranchTarget,
+  projectWorktreeDir: string,
 ): Promise<{ worktree: WorktreeInfo; lockDir: string }> {
   await $`git -C ${repoRoot} worktree prune`.quiet().nothrow();
 
   if (options.reuseWorktree) {
     const entries = await listCliWorktrees(
       repoRoot,
-      options.worktreeDir,
+      projectWorktreeDir,
       options.cli,
     );
     const sorted = [...entries].sort((a, b) => b.path.localeCompare(a.path));
@@ -89,11 +94,11 @@ export async function selectWorktree(
   }
 
   // Create new worktree
-  const worktreePath = `${repoRoot}/${options.worktreeDir}/${sessionTag}`;
+  const worktreePath = path.join(projectWorktreeDir, sessionTag);
   const branchName = `work/${sessionTag}`;
 
   const addResult =
-    await $`git -C ${repoRoot} worktree add -b ${branchName} ${worktreePath} origin/main`
+    await $`git -C ${repoRoot} worktree add -b ${branchName} ${worktreePath} ${targetRef(branchTarget)}`
       .quiet()
       .nothrow();
   if (addResult.exitCode !== 0) {
