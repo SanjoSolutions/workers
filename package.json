@@ -4,8 +4,6 @@
   "type": "module",
   "bin": {
     "worker": "./build/bin/worker.js",
-    "add-todo": "./build/bin/add-todo.js",
-    "init-todo-repo": "./build/bin/init-todo-repo.js",
     "assistant": "./build/bin/assistant.js"
   },
   "scripts": {

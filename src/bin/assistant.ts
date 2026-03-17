@@ -1,13 +1,34 @@
 #!/usr/bin/env node
 
+import { Command } from "commander";
 import { ensureAssistantCli, loadSettings, workersRepoRoot } from "../settings.js";
 import { getAgentStrategy } from "../agent-strategies/index.js";
-import type { CliOptions } from "../types.js";
+import type { CliName, CliOptions } from "../types.js";
+
+const VALID_CLIS = new Set<CliName>(["claude", "codex", "gemini"]);
 
 async function main(): Promise<void> {
+  const program = new Command();
+  program
+    .name("assistant")
+    .description("Launch an interactive assistant agent session")
+    .option("--cli <name>", "CLI to use (claude, codex, or gemini)");
+
+  program.parse(process.argv);
+  const opts = program.opts();
+
   const repoRoot = workersRepoRoot();
   const settings = await loadSettings(repoRoot);
-  const cli = await ensureAssistantCli(settings);
+
+  let cli: CliName;
+  if (opts.cli) {
+    if (!VALID_CLIS.has(opts.cli as CliName)) {
+      throw new Error(`Unsupported CLI: ${opts.cli} (expected: claude, codex, gemini)`);
+    }
+    cli = opts.cli as CliName;
+  } else {
+    cli = await ensureAssistantCli(settings);
+  }
 
   const options: CliOptions = {
     cli,
