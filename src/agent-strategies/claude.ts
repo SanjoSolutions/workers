@@ -1,4 +1,5 @@
 import { extractTodoField } from "../agent-prompt.js";
+import { evaluateClaudeModel } from "../model-selection.js";
 import type { AgentStrategy } from "./types.js";
 import { spawnAgentProcess } from "./process.js";
 
@@ -25,7 +26,7 @@ export class ClaudeAgentStrategy implements AgentStrategy {
       extractTodoField(context.claimedTodoItem, "Model") ||
       context.options.model ||
       context.config?.agent?.claudeDefaultModel ||
-      "opus";
+      await evaluateClaudeModel(context.claimedTodoItem);
 
     let args: string[];
     let captureOutput: boolean;

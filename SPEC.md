@@ -95,6 +95,9 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - Shared skills can live under `.agents/skills`.
 - `.claude/skills` may point to the shared skills location.
 - Agent instructions must make clear when TODO synchronization is handled by the workers runtime rather than by the project repo commit.
+- When no explicit model is specified (via TODO metadata, CLI flag, or project config), the Claude
+  strategy must auto-evaluate the best model by calling `claude --model opus` to classify the task
+  as haiku, sonnet, or opus. The evaluation must fall back to sonnet on failure.
 
 ## 8. Runtime Hooks
 
