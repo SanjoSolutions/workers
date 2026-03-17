@@ -3,7 +3,8 @@
 import { readFileSync, writeFileSync } from "fs";
 import path from "path";
 import readline from "readline/promises";
-import { $ } from "zx";
+import { loadSettings } from "./settings.js";
+import { resolveTaskTrackerForTodoText } from "./task-tracker-settings.js";
 
 const SECTION_HEADERS = {
   planned: "## Planned",
@@ -11,31 +12,6 @@ const SECTION_HEADERS = {
 } as const;
 
 type TodoSection = keyof typeof SECTION_HEADERS;
-
-function readEnv(name: string): string | undefined {
-  const value = process.env[name]?.trim();
-  return value ? value : undefined;
-}
-
-async function resolveGitRepoRoot(startPath: string): Promise<string> {
-  const result =
-    await $`git -C ${startPath} rev-parse --show-toplevel`.quiet().nothrow();
-  if (result.exitCode !== 0) {
-    throw new Error(`Cannot find git repository for ${startPath}`);
-  }
-  return result.stdout.trim();
-}
-
-async function resolveSharedTodoPath(): Promise<string> {
-  const todoRepoPath = readEnv("WORKERS_TODO_REPO");
-  if (!todoRepoPath) {
-    throw new Error("WORKERS_TODO_REPO is required.");
-  }
-
-  const todoFilePath = readEnv("WORKERS_TODO_FILE") ?? "TODO.md";
-  const repoRoot = await resolveGitRepoRoot(path.resolve(process.cwd(), todoRepoPath));
-  return path.resolve(repoRoot, todoFilePath);
-}
 
 function parseArgs(argv: string[]): { section: TodoSection; text: string } {
   let section: TodoSection = "planned";
@@ -165,7 +141,9 @@ export function insertIntoSection(
 async function main(): Promise<void> {
   const args = parseArgs(process.argv);
   const todoText = await readTodoText(args.text);
-  const todoPath = await resolveSharedTodoPath();
+  const settings = await loadSettings();
+  const tracker = resolveTaskTrackerForTodoText(todoText, settings);
+  const todoPath = path.resolve(tracker.repo, tracker.file);
   const original = readFileSync(todoPath, "utf8");
   const nextContent = insertIntoSection(
     original,
@@ -173,7 +151,9 @@ async function main(): Promise<void> {
     args.section,
   );
   writeFileSync(todoPath, nextContent, "utf8");
-  console.log(`Added TODO to ${args.section} in ${todoPath}`);
+  console.log(
+    `Added TODO to ${args.section} in ${todoPath} (task tracker: ${tracker.name})`,
+  );
 }
 
 main().catch((error) => {

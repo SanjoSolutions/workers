@@ -11,6 +11,18 @@ const VALID_CLI_SET = new Set<CliName>(VALID_CLIS);
 export interface WorkersSettings {
   defaultCli: CliName;
   codexModel: string;
+  defaultTaskTracker: string | undefined;
+  taskTrackers: Record<string, GitTodoTaskTrackerSettings>;
+  projects: Record<string, ProjectTaskTrackerSettings>;
+}
+
+export interface GitTodoTaskTrackerSettings {
+  repo: string;
+  file?: string;
+}
+
+export interface ProjectTaskTrackerSettings {
+  taskTracker?: string;
 }
 
 interface SettingsLoadOptions {
@@ -162,5 +174,17 @@ export async function loadSettings(
       typeof parsed.codexModel === "string" && parsed.codexModel.trim()
         ? parsed.codexModel.trim()
         : "gpt-5.4",
+    defaultTaskTracker:
+      typeof parsed.defaultTaskTracker === "string" && parsed.defaultTaskTracker.trim()
+        ? parsed.defaultTaskTracker.trim()
+        : undefined,
+    taskTrackers:
+      parsed.taskTrackers && typeof parsed.taskTrackers === "object" && !Array.isArray(parsed.taskTrackers)
+        ? (parsed.taskTrackers as Record<string, GitTodoTaskTrackerSettings>)
+        : {},
+    projects:
+      parsed.projects && typeof parsed.projects === "object" && !Array.isArray(parsed.projects)
+        ? (parsed.projects as Record<string, ProjectTaskTrackerSettings>)
+        : {},
   };
 }
