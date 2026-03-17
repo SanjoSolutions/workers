@@ -11,7 +11,6 @@
  */
 
 import {
-  chmodSync,
   copyFileSync,
   existsSync,
   mkdirSync,
@@ -71,12 +70,11 @@ async function setupProject(root: string, name: string): Promise<string> {
   // TODO.md from template
   writeFileSync(path.join(projectPath, "TODO.md"), TODO_TEMPLATE);
 
-  // Provide add-todo.sh — a Node.js script (with sh shebang) that appends
-  // stdin to the Planned section of TODO.md so the coordinator can queue tasks.
+  // Provide add-todo.js — a minimal script that appends stdin to the
+  // Planned section of TODO.md so the coordinator can queue tasks.
   writeFileSync(
-    path.join(projectPath, "add-todo.sh"),
+    path.join(projectPath, "add-todo.js"),
     [
-      "#!/usr/bin/env node",
       'const { readFileSync, writeFileSync } = require("fs");',
       'const path = require("path");',
       "",
@@ -97,7 +95,6 @@ async function setupProject(root: string, name: string): Promise<string> {
       "",
     ].join("\n"),
   );
-  chmodSync(path.join(projectPath, "add-todo.sh"), 0o755);
 
   // Initial commit
   await $`git -C ${projectPath} add -A`.quiet();
