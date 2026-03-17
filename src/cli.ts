@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import type { CliName, CliOptions } from "./types.js";
-import { loadSettings } from "./settings.js";
+import { ensureWorkerCli, loadSettings } from "./settings.js";
 
 const VALID_CLIS = new Set<CliName>(["claude", "codex", "gemini"]);
 
@@ -33,13 +33,18 @@ export async function parseCliOptions(argv: string[]): Promise<CliOptions> {
 
   const opts = program.opts();
   const positionalCli = program.args[0] as CliName | undefined;
+  const explicitCli = (opts.cli ?? positionalCli) as CliName | undefined;
 
-  const cli = (opts.cli ?? positionalCli ?? settings.defaults.cli) as CliName;
-
-  if (!VALID_CLIS.has(cli)) {
-    throw new Error(
-      `Unsupported CLI: ${cli} (expected: claude, codex, gemini)`,
-    );
+  let cli: CliName;
+  if (explicitCli) {
+    if (!VALID_CLIS.has(explicitCli)) {
+      throw new Error(
+        `Unsupported CLI: ${explicitCli} (expected: claude, codex, gemini)`,
+      );
+    }
+    cli = explicitCli;
+  } else {
+    cli = await ensureWorkerCli(settings);
   }
 
   const reuseWorktree = opts.freshWorktree ? false : true;

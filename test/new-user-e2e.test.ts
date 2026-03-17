@@ -3,7 +3,7 @@ import { tmpdir } from "os";
 import path from "path";
 import { $ } from "zx";
 import { describe, expect, test } from "vitest";
-import { loadSettings } from "../src/settings.js";
+import { ensureWorkerCli, loadSettings } from "../src/settings.js";
 import { insertIntoSection } from "../src/add-todo.js";
 import { claimFromTodoText } from "../src/claim-todo.js";
 import { resolveClaimedTaskTarget, ensureTaskRepo } from "../src/task-target.js";
@@ -50,15 +50,19 @@ describe("new user E2E", () => {
     );
     await createFakeCli(binDir, "claude");
 
-    // --- Step 2: Bootstrap settings (first-time loadSettings) ---
+    // --- Step 2: Bootstrap settings (first-time loadSettings + ensureWorkerCli) ---
     const settings = await loadSettings(undefined, {
-      env: { ...process.env, PATH: binDir },
       configDir: workersRepoRoot,
     });
 
-    expect(settings.defaults.cli).toBe("claude");
+    expect(settings.defaults.cli).toBeUndefined();
     expect(settings.defaults.model).toBe("gpt-5.4");
     expect(existsSync(path.join(workersRepoRoot, "settings.json"))).toBe(true);
+
+    await ensureWorkerCli(settings, workersRepoRoot, {
+      env: { ...process.env, PATH: binDir },
+    });
+    expect(settings.defaults.cli).toBe("claude");
 
     // --- Step 3: Init shared TODO repo ---
     await initGitRepo(todoRepoPath);
