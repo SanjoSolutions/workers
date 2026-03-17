@@ -4,6 +4,10 @@ This document captures the high-level requirements for the workers tool. Update 
 
 ---
 
+## Principles
+
+- Only ask the user what is required.
+
 ## 1. Core Purpose
 
 Workers orchestrates isolated development work for AI coding agents across multiple project repositories.
