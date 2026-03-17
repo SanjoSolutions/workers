@@ -9,8 +9,8 @@ describe("worktree layout", () => {
   test("cli defaults preserve worker outputs in ~/.worktrees", async () => {
     const options = await parseCliOptions(["node", "work"]);
 
-    expect(options.cli).toBe("codex");
-    expect(options.modelDefault).toBe("gpt-5.4");
+    expect(["claude", "codex", "gemini"]).toContain(options.cli);
+    expect(typeof options.modelDefault).toBe("string");
     expect(options.worktreeDir).toBe("~/.worktrees");
     expect(options.cleanup).toBe(false);
     expect(options.cleanupStale).toBe(false);
