@@ -1,7 +1,8 @@
 import { accessSync, constants, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import os from "os";
 import path from "path";
-import readline from "readline/promises";
+import select from "@inquirer/select";
+import input from "@inquirer/input";
 import { fileURLToPath } from "url";
 import type { CliName } from "./types.js";
 
@@ -233,34 +234,10 @@ async function promptForCli(
     );
   }
 
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
+  return select<CliName>({
+    message: `Choose the default ${label} CLI:`,
+    choices: choices.map((cli) => ({ name: cli, value: cli })),
   });
-
-  try {
-    process.stdout.write(`Choose the default ${label} CLI:\n`);
-    choices.forEach((choice, index) => {
-      process.stdout.write(`${index + 1}. ${choice}\n`);
-    });
-
-    while (true) {
-      const answer = (await rl.question("Selection: ")).trim();
-      const numeric = Number.parseInt(answer, 10);
-      if (Number.isFinite(numeric) && numeric >= 1 && numeric <= choices.length) {
-        return choices[numeric - 1];
-      }
-
-      const normalized = answer.toLowerCase();
-      if (VALID_CLI_SET.has(normalized as CliName) && choices.includes(normalized as CliName)) {
-        return normalized as CliName;
-      }
-
-      process.stdout.write(`Enter 1-${choices.length} or one of: ${choices.join(", ")}\n`);
-    }
-  } finally {
-    rl.close();
-  }
 }
 
 function initializeSettingsFile(
@@ -495,63 +472,48 @@ export async function ensureDefaultTaskTracker(
     return;
   }
 
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
+  const trackerType = await select({
+    message: "No default task tracker configured. Choose a type:",
+    choices: [
+      { name: "git-todo — shared TODO.md in a git repo", value: "git-todo" as const },
+      { name: "github-issues — GitHub Issues on a repository", value: "github-issues" as const },
+      { name: "Skip (configure later)", value: "skip" as const },
+    ],
   });
 
-  try {
-    process.stdout.write("No default task tracker is configured.\n");
-    process.stdout.write("Choose a task tracker type:\n");
-    process.stdout.write("1. git-todo (shared TODO.md in a git repo)\n");
-    process.stdout.write("2. github-issues (GitHub Issues on a repository)\n");
-    process.stdout.write("3. skip (configure later)\n");
+  if (trackerType === "skip") {
+    return;
+  }
 
-    let trackerType: string | undefined;
-    while (!trackerType) {
-      const answer = (await rl.question("Selection: ")).trim();
-      if (answer === "3" || answer === "skip") return;
-      if (answer === "1" || answer === "git-todo") {
-        trackerType = "git-todo";
-      } else if (answer === "2" || answer === "github-issues") {
-        trackerType = "github-issues";
-      } else {
-        process.stdout.write("Enter 1-3, or: git-todo, github-issues, skip\n");
-      }
-    }
+  const filePath = settingsPath(cfgDir);
+  if (!existsSync(filePath)) return;
+  const parsed = parseSettingsFile(filePath);
 
-    const filePath = settingsPath(cfgDir);
-    if (!existsSync(filePath)) return;
-    const parsed = parseSettingsFile(filePath);
+  if (trackerType === "git-todo") {
+    const repo = await input({ message: "Path to shared TODO repo:" });
+    if (!repo.trim()) return;
+    const resolvedRepo = path.resolve(repo.trim());
 
-    if (trackerType === "git-todo") {
-      const repo = (await rl.question("Path to shared TODO repo: ")).trim();
-      if (!repo) return;
-      const resolvedRepo = path.resolve(repo);
+    const trackers = (parsed.taskTrackers ?? {}) as Record<string, unknown>;
+    trackers.default = { repo: resolvedRepo };
+    parsed.taskTrackers = trackers;
+    parsed.defaultTaskTracker = "default";
+    writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+    settings.defaultTaskTracker = "default";
+    settings.taskTrackers.default = { repo: resolvedRepo };
+    process.stdout.write(`Configured git-todo task tracker at ${resolvedRepo}.\n`);
+  } else if (trackerType === "github-issues") {
+    const repository = await input({ message: "GitHub repository (owner/repo):" });
+    if (!repository.trim()) return;
 
-      const trackers = (parsed.taskTrackers ?? {}) as Record<string, unknown>;
-      trackers.default = { repo: resolvedRepo };
-      parsed.taskTrackers = trackers;
-      parsed.defaultTaskTracker = "default";
-      writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
-      settings.defaultTaskTracker = "default";
-      settings.taskTrackers.default = { repo: resolvedRepo };
-      process.stdout.write(`Configured git-todo task tracker at ${resolvedRepo}.\n`);
-    } else if (trackerType === "github-issues") {
-      const repository = (await rl.question("GitHub repository (owner/repo): ")).trim();
-      if (!repository) return;
-
-      const trackers = (parsed.taskTrackers ?? {}) as Record<string, unknown>;
-      trackers.default = { type: "github-issues", repository };
-      parsed.taskTrackers = trackers;
-      parsed.defaultTaskTracker = "default";
-      writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
-      settings.defaultTaskTracker = "default";
-      settings.taskTrackers.default = { type: "github-issues", repository };
-      process.stdout.write(`Configured GitHub Issues task tracker for ${repository}.\n`);
-    }
-  } finally {
-    rl.close();
+    const trackers = (parsed.taskTrackers ?? {}) as Record<string, unknown>;
+    trackers.default = { type: "github-issues", repository: repository.trim() };
+    parsed.taskTrackers = trackers;
+    parsed.defaultTaskTracker = "default";
+    writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+    settings.defaultTaskTracker = "default";
+    settings.taskTrackers.default = { type: "github-issues", repository: repository.trim() };
+    process.stdout.write(`Configured GitHub Issues task tracker for ${repository.trim()}.\n`);
   }
 }
 
@@ -584,44 +546,34 @@ export async function ensureProjectSpecInitialized(
     return;
   }
 
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
+  const accepted = await select({
+    message: "This project has no SPEC.md. Initialize SPEC.md and AGENTS.md?",
+    choices: [
+      { name: "Yes", value: true },
+      { name: "No", value: false },
+    ],
   });
 
-  try {
-    const answer = (
-      await rl.question(
-        `This project has no SPEC.md. Initialize SPEC.md and AGENTS.md? [y/n] `,
-      )
-    )
-      .trim()
-      .toLowerCase();
-    const accepted = answer === "y" || answer === "yes";
+  if (existing) {
+    existing.specInitialized = accepted;
+  } else {
+    projects.push({ repo: repoRoot, specInitialized: accepted });
+  }
+  parsed.projects = projects;
+  writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
 
-    if (existing) {
-      existing.specInitialized = accepted;
-    } else {
-      projects.push({ repo: repoRoot, specInitialized: accepted });
+  if (accepted) {
+    const templateRoot = determinePackageRoot();
+    const specTemplate = path.join(templateRoot, "SPEC.template.md");
+    const agentsTemplate = path.join(templateRoot, "AGENTS.template.md");
+
+    if (existsSync(specTemplate)) {
+      copyFileSync(specTemplate, path.join(repoRoot, "SPEC.md"));
+      process.stdout.write("Created SPEC.md.\n");
     }
-    parsed.projects = projects;
-    writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
-
-    if (accepted) {
-      const templateRoot = determinePackageRoot();
-      const specTemplate = path.join(templateRoot, "SPEC.template.md");
-      const agentsTemplate = path.join(templateRoot, "AGENTS.template.md");
-
-      if (existsSync(specTemplate)) {
-        copyFileSync(specTemplate, path.join(repoRoot, "SPEC.md"));
-        process.stdout.write("Created SPEC.md.\n");
-      }
-      if (existsSync(agentsTemplate)) {
-        copyFileSync(agentsTemplate, path.join(repoRoot, "AGENTS.md"));
-        process.stdout.write("Created AGENTS.md.\n");
-      }
+    if (existsSync(agentsTemplate)) {
+      copyFileSync(agentsTemplate, path.join(repoRoot, "AGENTS.md"));
+      process.stdout.write("Created AGENTS.md.\n");
     }
-  } finally {
-    rl.close();
   }
 }
