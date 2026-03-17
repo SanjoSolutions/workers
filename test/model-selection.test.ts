@@ -21,8 +21,8 @@ function mockSpawn(stdout: string, exitCode = 0) {
   return proc;
 }
 
-function jsonResponse(model: string, reason?: string) {
-  return JSON.stringify({ model, ...(reason ? { reason } : {}) });
+function jsonResponse(model: string) {
+  return JSON.stringify({ model });
 }
 
 const { evaluateClaudeModel } = await import("../src/model-selection.js");
@@ -33,7 +33,7 @@ describe("evaluateClaudeModel", () => {
   });
 
   test("returns model from structured JSON response", async () => {
-    mockSpawn(jsonResponse("opus", "complex architecture task"));
+    mockSpawn(jsonResponse("opus"));
     const model = await evaluateClaudeModel("- Redesign the API architecture");
     expect(model).toBe("opus");
   });

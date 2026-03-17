@@ -24,10 +24,6 @@ const MODEL_SCHEMA = JSON.stringify({
       enum: ["haiku", "sonnet", "opus"],
       description: "The Claude model best suited for this task",
     },
-    reason: {
-      type: "string",
-      description: "Brief rationale for the model choice",
-    },
   },
   required: ["model"],
   additionalProperties: false,
@@ -35,7 +31,6 @@ const MODEL_SCHEMA = JSON.stringify({
 
 interface EvaluationResult {
   model?: string;
-  reason?: string;
 }
 
 /**
@@ -66,7 +61,7 @@ export async function evaluateClaudeModel(todoItem: string): Promise<string> {
     const model = parsed.model?.trim().toLowerCase();
 
     if (model && VALID_CLAUDE_MODELS.has(model)) {
-      log.info(`Model evaluation selected: ${model}${parsed.reason ? ` (${parsed.reason})` : ""}`);
+      log.info(`Model evaluation selected: ${model}`);
       return model;
     }
 
