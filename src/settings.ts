@@ -396,7 +396,15 @@ async function ensureCli(
   const installed = detectInstalledClis(options?.env ?? process.env);
   if (installed.length === 0) {
     throw new Error(
-      `No supported CLI is installed. Install codex, claude, or gemini, or set ${settingsKey} manually in settings.json.`,
+      [
+        "No supported agent CLI is installed. Install one of the following:",
+        "",
+        "  Codex CLI    https://github.com/openai/codex",
+        "  Claude Code  https://docs.anthropic.com/en/docs/claude-code/getting-started",
+        "  Gemini CLI   https://github.com/google-gemini/gemini-cli",
+        "",
+        `Or set ${settingsKey} manually in settings.json.`,
+      ].join("\n"),
     );
   }
 
