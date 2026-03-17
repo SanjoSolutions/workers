@@ -9,7 +9,7 @@ const VALID_CLI_SET = new Set<CliName>(VALID_CLIS);
 
 export interface WorkersSettings {
   defaultCli: CliName;
-  codexModel: string;
+  model: string;
   defaultTaskTracker: string | undefined;
   taskTrackers: Record<string, TaskTrackerSettings>;
   projects: ProjectTaskTrackerSettings[];
@@ -274,6 +274,11 @@ async function initializeSettingsFile(
 
   parsed.defaultCli = chosen;
   writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+  if (installed.length === 1) {
+    process.stdout.write(
+      `Auto-selected default worker CLI: ${chosen} (the only supported CLI installed).\n`,
+    );
+  }
   return filePath;
 }
 
@@ -293,9 +298,9 @@ export async function loadSettings(
 
   return {
     defaultCli: defaultCli as CliName,
-    codexModel:
-      typeof parsed.codexModel === "string" && parsed.codexModel.trim()
-        ? parsed.codexModel.trim()
+    model:
+      typeof parsed.model === "string" && parsed.model.trim()
+        ? parsed.model.trim()
         : "gpt-5.4",
     defaultTaskTracker:
       typeof parsed.defaultTaskTracker === "string" && parsed.defaultTaskTracker.trim()

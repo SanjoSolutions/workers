@@ -10,7 +10,7 @@ describe("worktree layout", () => {
     const options = await parseCliOptions(["node", "work"]);
 
     expect(options.cli).toBe("codex");
-    expect(options.codexModelDefault).toBe("gpt-5.4");
+    expect(options.modelDefault).toBe("gpt-5.4");
     expect(options.worktreeDir).toBe("~/.worktrees");
     expect(options.cleanup).toBe(false);
     expect(options.cleanupStale).toBe(false);

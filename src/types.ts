@@ -12,7 +12,7 @@ export interface CliOptions {
   noTodo: boolean;
   model?: string;
   reasoningEffort?: string;
-  codexModelDefault?: string;
+  modelDefault?: string;
 }
 
 export interface WorktreeInfo {
@@ -49,7 +49,7 @@ export interface WorkConfig {
     /** Default claude model (default: "opus"). */
     claudeDefaultModel?: string;
     /** Codex model (default: "gpt-5.4"). */
-    codexModel?: string;
+    model?: string;
     /** Default codex reasoning effort (default: "high"). */
     codexDefaultReasoning?: string;
     /** Codex --add-dir paths. */
