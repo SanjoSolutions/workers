@@ -21,6 +21,10 @@ function mockSpawn(stdout: string, exitCode = 0) {
   return proc;
 }
 
+function jsonResponse(model: string, reason?: string) {
+  return JSON.stringify({ model, ...(reason ? { reason } : {}) });
+}
+
 const { evaluateClaudeModel } = await import("../src/model-selection.js");
 
 describe("evaluateClaudeModel", () => {
@@ -28,31 +32,46 @@ describe("evaluateClaudeModel", () => {
     vi.clearAllMocks();
   });
 
-  test("returns model from CLI evaluation", async () => {
-    mockSpawn("opus\n");
+  test("returns model from structured JSON response", async () => {
+    mockSpawn(jsonResponse("opus", "complex architecture task"));
     const model = await evaluateClaudeModel("- Redesign the API architecture");
     expect(model).toBe("opus");
   });
 
-  test("passes task to claude with opus model", async () => {
-    mockSpawn("sonnet\n");
+  test("passes correct flags to claude CLI", async () => {
+    mockSpawn(jsonResponse("sonnet"));
     await evaluateClaudeModel("- Add user auth");
 
     expect(child_process.spawn).toHaveBeenCalledWith(
       "claude",
-      expect.arrayContaining(["--model", "opus", "--effort", "high", "-p"]),
+      expect.arrayContaining([
+        "--model", "opus",
+        "--effort", "high",
+        "--output-format", "json",
+        "--json-schema",
+        "-p",
+      ]),
       expect.any(Object),
     );
   });
 
-  test("trims and lowercases the response", async () => {
-    mockSpawn("  Haiku  \n");
-    const model = await evaluateClaudeModel("- Fix typo in readme");
-    expect(model).toBe("haiku");
+  test("handles all valid model values", async () => {
+    for (const model of ["haiku", "sonnet", "opus"]) {
+      vi.clearAllMocks();
+      mockSpawn(jsonResponse(model));
+      const result = await evaluateClaudeModel("- Some task");
+      expect(result).toBe(model);
+    }
   });
 
-  test("falls back to sonnet on invalid model response", async () => {
-    mockSpawn("gpt-4\n");
+  test("falls back to sonnet on invalid model in JSON", async () => {
+    mockSpawn(JSON.stringify({ model: "gpt-4" }));
+    const model = await evaluateClaudeModel("- Do something");
+    expect(model).toBe("sonnet");
+  });
+
+  test("falls back to sonnet on malformed JSON", async () => {
+    mockSpawn("not json at all");
     const model = await evaluateClaudeModel("- Do something");
     expect(model).toBe("sonnet");
   });
