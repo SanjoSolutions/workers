@@ -9,7 +9,7 @@
     "worker": "build/bin/worker.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && chmod +x build/bin/assistant.js build/bin/worker.js",
     "prepare": "npm run build",
     "prepack": "npm run build",
     "test": "vitest run --exclude 'src/tests/e2e/**'",
