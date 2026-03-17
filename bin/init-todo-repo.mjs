@@ -5,7 +5,7 @@ import path from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 
 const scriptPath = fileURLToPath(import.meta.url);
-const repoRoot = path.dirname(scriptPath);
+const repoRoot = path.resolve(path.dirname(scriptPath), "..");
 const targetPath = path.join(repoRoot, "build", "init-todo-repo.js");
 
 if (!existsSync(targetPath)) {
