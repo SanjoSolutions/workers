@@ -24,6 +24,6 @@ docker run --rm -it \
   workers-smoke sh -c '
     mkdir -p /tmp/home/.claude &&
     cp /tmp/claude-config/.credentials.json /tmp/home/.claude/.credentials.json &&
-    cp /tmp/claude-config/settings.json /tmp/home/.claude/settings.json &&
+    cp /tmp/claude-config/.config.json /tmp/home/.claude/.config.json &&
     exec npx tsx src/tests/smoke/coordinator.ts
   '
