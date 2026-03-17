@@ -12,8 +12,13 @@ export interface WorkerDefaults {
   model: string;
 }
 
+export interface AssistantDefaults {
+  cli: CliName;
+}
+
 export interface WorkersSettings {
   defaults: WorkerDefaults;
+  assistant: { defaults: AssistantDefaults };
   defaultTaskTracker: string | undefined;
   taskTrackers: Record<string, TaskTrackerSettings>;
   projects: ProjectTaskTrackerSettings[];
@@ -51,7 +56,7 @@ interface SettingsLoadOptions {
   promptForCli?: (choices: CliName[]) => Promise<CliName>;
 }
 
-function workersRepoRoot(): string {
+export function workersRepoRoot(): string {
   const currentFile = fileURLToPath(import.meta.url);
   return path.resolve(path.dirname(currentFile), "..");
 }
@@ -306,6 +311,13 @@ export async function loadSettings(
     );
   }
 
+  const assistant = (parsed.assistant ?? {}) as Record<string, unknown>;
+  const assistantDefaults = (assistant.defaults ?? {}) as Record<string, unknown>;
+  const assistantCli =
+    typeof assistantDefaults.cli === "string" && VALID_CLI_SET.has(assistantDefaults.cli as CliName)
+      ? (assistantDefaults.cli as CliName)
+      : (cli as CliName);
+
   return {
     defaults: {
       cli: cli as CliName,
@@ -313,6 +325,11 @@ export async function loadSettings(
         typeof defaults.model === "string" && (defaults.model as string).trim()
           ? (defaults.model as string).trim()
           : "gpt-5.4",
+    },
+    assistant: {
+      defaults: {
+        cli: assistantCli,
+      },
     },
     defaultTaskTracker:
       typeof parsed.defaultTaskTracker === "string" && parsed.defaultTaskTracker.trim()
