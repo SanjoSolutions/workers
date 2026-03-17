@@ -70,17 +70,19 @@ async function setupProject(root: string, name: string): Promise<string> {
   // TODO.md from template
   writeFileSync(path.join(projectPath, "TODO.md"), TODO_TEMPLATE);
 
-  // Provide add-todo.js — a minimal script that appends stdin to the
-  // Planned section of TODO.md so the coordinator can queue tasks.
+  // Provide add-todo.js at build/scripts/add-todo.js — matching the path
+  // referenced in the coordinator skill — so Claude can queue tasks.
+  const addTodoDir = path.join(projectPath, "build", "scripts");
+  mkdirSync(addTodoDir, { recursive: true });
   writeFileSync(
-    path.join(projectPath, "add-todo.js"),
+    path.join(addTodoDir, "add-todo.js"),
     [
       'const { readFileSync, writeFileSync } = require("fs");',
       'const path = require("path");',
       "",
       "const args = process.argv.slice(2);",
       'const section = args.includes("--ready") ? "## Ready to be picked up" : "## Planned";',
-      'const todoFile = path.join(__dirname, "TODO.md");',
+      'const todoFile = path.join(__dirname, "..", "..", "TODO.md");',
       "",
       "const chunks = [];",
       'process.stdin.on("data", (chunk) => chunks.push(chunk));',
