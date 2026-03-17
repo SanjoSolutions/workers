@@ -1,4 +1,4 @@
-# workers
+# Workers
 
 A human-first process that supports spontaneity.
 
