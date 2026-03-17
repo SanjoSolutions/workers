@@ -13,14 +13,18 @@ A human-first process that supports spontaneity.
 
 ## How to
 
-Just start your agent CLI (claude or codex) in this folder and start telling it what you'd like to be built.
-
-In different terminals, start workers (`~/workers/work.sh`). They will pick up tasks, as they become available.
-
-## Prerequisites
+__Prerequisites:__
 
 * Node.js
-* Bash
+
+```bash
+npm install -g @sanjo/workers
+```
+
+Just run `assistant` and start telling it what you'd like to be built.
+
+In different terminals, start workers (with `worker`). They will pick up tasks, as they become available. You can also specify the agent CLI. I.e. `worker --cli claude` (or codex or gemini).
+
 
 
 ## Shared TODO Repo
@@ -114,13 +118,13 @@ If the task is already worker-ready, use `--ready` to place it directly in
 From the workers repo or from any project repo:
 
 ```bash
-/path/to/workers/work.sh codex
+worker codex
 ```
 
 or:
 
 ```bash
-pnpm work codex
+worker codex
 ```
 
 Workers will:

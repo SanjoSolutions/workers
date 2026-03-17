@@ -9,7 +9,7 @@ export async function parseCliOptions(argv: string[]): Promise<CliOptions> {
   const program = new Command();
 
   program
-    .name("work")
+    .name("worker")
     .description("Orchestrate isolated dev environments for AI coding agents")
     .argument("[cli]", "CLI to use (claude, codex, or gemini)")
     .option("--cli <name>", "CLI to use")

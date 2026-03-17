@@ -28,7 +28,7 @@ describe("worktree layout", () => {
   });
 
   test("cli defaults preserve worker outputs in ~/.worktrees", async () => {
-    const options = await parseCliOptions(["node", "work"]);
+    const options = await parseCliOptions(["node", "worker"]);
 
     expect(["claude", "codex", "gemini"]).toContain(options.cli);
     expect(typeof options.modelDefault).toBe("string");
