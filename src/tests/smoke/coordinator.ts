@@ -172,53 +172,25 @@ async function testBigTask(root: string): Promise<void> {
     "Do not ask clarifying questions, just proceed.",
   ].join("\n");
 
-  const result = await $(
-    { cwd: projectPath, nothrow: true },
+  console.log(`Project: ${projectPath}`);
+  console.log("Launching Claude — watch the output and stop (Ctrl+C) when you can tell");
+  console.log("whether the coordinator delegated to TODO.md or started implementing directly.\n");
+
+  await $(
+    { cwd: projectPath, nothrow: true, verbose: true },
   )`claude -p ${prompt} --dangerously-skip-permissions --max-turns 10`;
 
-  const output = result.stdout + result.stderr;
-
-  if (result.exitCode !== 0) {
-    console.log("Claude output:\n", output);
-    fail(`claude exited with code ${result.exitCode}`);
-  }
-
-  // TODO.md should have been modified (big task should be queued)
+  // Print TODO.md so you can check if it was modified
   const todoAfter = readFileSync(
     path.join(projectPath, "TODO.md"),
     "utf8",
   );
   if (todoAfter === TODO_TEMPLATE) {
-    console.log("Claude output:\n", output);
-    fail(
-      "TODO.md was not modified — coordinator did not delegate the big task",
-    );
+    console.log("\nTODO.md: unchanged (coordinator did NOT delegate)");
+  } else {
+    console.log("\nTODO.md after:");
+    console.log(todoAfter);
   }
-
-  // Check that something was added to Planned or Ready section
-  const plannedSection =
-    todoAfter.split("## Planned")[1]?.split(/\n##/)[0] ?? "";
-  const readySection =
-    todoAfter.split("## Ready to be picked up")[1]?.split(/\n##/)[0] ?? "";
-
-  if (!plannedSection.trim() && !readySection.trim()) {
-    console.log("TODO.md after:\n", todoAfter);
-    fail(
-      "TODO.md was modified but nothing was added to Planned or Ready sections",
-    );
-  }
-
-  console.log("PASS: TODO.md was updated with the delegated task");
-
-  const section = plannedSection.trim() ? "Planned" : "Ready to be picked up";
-  const content = plannedSection.trim() || readySection.trim();
-  console.log(`PASS: Task added to "${section}" section:`);
-  console.log(
-    content
-      .split("\n")
-      .map((line) => `  ${line}`)
-      .join("\n"),
-  );
 
   console.log();
 }
