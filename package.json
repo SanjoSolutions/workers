@@ -3,6 +3,32 @@
   "version": "0.1.1",
   "description": "A human-first process that supports spontaneity.",
   "license": "MIT",
+  "type": "module",
+  "bin": {
+    "assistant": "build/bin/assistant.js",
+    "worker": "build/bin/worker.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepare": "npm run build",
+    "prepack": "npm run build",
+    "test": "vitest run",
+    "test:e2e": "docker build -t workers-e2e . && docker run --rm -v \"$(pwd):/app\" -v /app/node_modules workers-e2e"
+  },
+  "files": [
+    "build/",
+    "src/scripts/"
+  ],
+  "dependencies": {
+    "commander": "^14.0.3",
+    "zx": "^8.8.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "tsx": "^4.21.0",
+    "typescript": "^5",
+    "vitest": "^4.0.18"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/SanjoSolutions/workers.git"
@@ -18,30 +44,5 @@
   ],
   "engines": {
     "node": ">=20"
-  },
-  "type": "module",
-  "files": [
-    "build/"
-  ],
-  "bin": {
-    "assistant": "build/bin/assistant.js",
-    "worker": "build/bin/worker.js"
-  },
-  "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "prepare": "npm run build",
-    "prepack": "npm run build",
-    "test": "vitest run",
-    "test:e2e": "docker build -t workers-e2e . && docker run --rm -v \"$(pwd):/app\" -v /app/node_modules workers-e2e"
-  },
-  "dependencies": {
-    "commander": "^14.0.3",
-    "zx": "^8.8.5"
-  },
-  "devDependencies": {
-    "@types/node": "^20",
-    "tsx": "^4.21.0",
-    "typescript": "^5",
-    "vitest": "^4.0.18"
   }
 }

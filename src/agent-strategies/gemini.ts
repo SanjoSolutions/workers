@@ -91,7 +91,7 @@ export function setupManagedInteractiveGeminiSession(
       ? { ...parsed.hooks }
       : {};
   const afterAgentGroups = Array.isArray(hooks.AfterAgent) ? [...hooks.AfterAgent] : [];
-  const hookScript = path.join(workersRepoRoot(), "scripts", "gemini-after-agent-hook.mjs");
+  const hookScript = path.join(workersRepoRoot(), "src", "scripts", "gemini-after-agent-hook.mjs");
 
   afterAgentGroups.push({
     hooks: [

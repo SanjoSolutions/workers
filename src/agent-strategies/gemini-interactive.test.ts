@@ -70,7 +70,7 @@ describe("gemini interactive workers hook", () => {
     const worktreePath = mkdtempSync(path.join(tmpdir(), "workers-gemini-stop-"));
     const statusFile = path.join(worktreePath, "status.json");
     const todoPath = path.join(worktreePath, "TODO.md");
-    const hookScript = path.resolve("scripts/gemini-after-agent-hook.mjs");
+    const hookScript = path.resolve("src/scripts/gemini-after-agent-hook.mjs");
 
     writeFileSync(todoPath, "## In progress\n\n- Build feature\n", "utf8");
 
@@ -114,7 +114,7 @@ describe("gemini interactive workers hook", () => {
     const worktreePath = mkdtempSync(path.join(tmpdir(), "workers-gemini-todo-"));
     const statusFile = path.join(worktreePath, "status.json");
     const todoPath = path.join(worktreePath, "TODO.md");
-    const hookScript = path.resolve("scripts/gemini-after-agent-hook.mjs");
+    const hookScript = path.resolve("src/scripts/gemini-after-agent-hook.mjs");
 
     // TODO file no longer contains the claimed summary
     writeFileSync(todoPath, "## In progress\n\n", "utf8");

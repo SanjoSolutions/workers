@@ -69,7 +69,7 @@ describe("codex interactive workers hook", () => {
     const worktreePath = mkdtempSync(path.join(tmpdir(), "workers-codex-stop-"));
     const statusFile = path.join(worktreePath, "status.json");
     const todoPath = path.join(worktreePath, "TODO.md");
-    const hookScript = path.resolve("scripts/codex-stop-hook.mjs");
+    const hookScript = path.resolve("src/scripts/codex-stop-hook.mjs");
 
     writeFileSync(todoPath, "## In progress\n\n- Build feature\n", "utf8");
 

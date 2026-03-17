@@ -90,7 +90,7 @@ export function setupManagedInteractiveCodexSession(
       ? { ...parsed.hooks }
       : {};
   const stopGroups = Array.isArray(hooks.Stop) ? [...hooks.Stop] : [];
-  const hookScript = path.join(workersRepoRoot(), "scripts", "codex-stop-hook.mjs");
+  const hookScript = path.join(workersRepoRoot(), "src", "scripts", "codex-stop-hook.mjs");
 
   stopGroups.push({
     hooks: [
