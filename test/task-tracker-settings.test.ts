@@ -18,11 +18,12 @@ const BASE_SETTINGS: WorkersSettings = {
       file: "TODO.md",
     },
   },
-  projects: {
-    "/home/jonas/openclaw": {
+  projects: [
+    {
+      repo: "/home/jonas/openclaw",
       taskTracker: "openclaw",
     },
-  },
+  ],
 };
 
 describe("task tracker settings", () => {
@@ -34,6 +35,10 @@ describe("task tracker settings", () => {
     );
 
     expect(tracker.name).toBe("openclaw");
+    expect(tracker.kind).toBe("git-todo");
+    if (tracker.kind !== "git-todo") {
+      throw new Error("expected git-todo tracker");
+    }
     expect(tracker.repo).toBe("/home/jonas/openclaw-todos");
   });
 
@@ -45,6 +50,10 @@ describe("task tracker settings", () => {
     );
 
     expect(tracker.name).toBe("shared");
+    expect(tracker.kind).toBe("git-todo");
+    if (tracker.kind !== "git-todo") {
+      throw new Error("expected git-todo tracker");
+    }
     expect(tracker.repo).toBe("/home/jonas/todos");
   });
 
@@ -62,6 +71,10 @@ describe("task tracker settings", () => {
     );
 
     expect(defaultTrackerName).toBe("default");
-    expect(trackers.default?.repo).toBe("/home/jonas/todos");
+    expect(trackers.default?.kind).toBe("git-todo");
+    if (trackers.default?.kind !== "git-todo") {
+      throw new Error("expected git-todo tracker");
+    }
+    expect(trackers.default.repo).toBe("/home/jonas/todos");
   });
 });

@@ -1,20 +1,13 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 
 import { mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 import { $ } from "zx";
-import {
-  claimFromTodoText,
-  removeInProgressItemBySummary,
-  todoContainsSummary,
-  withTodoLock,
-} from "./claim-todo.js";
 import { parseCliOptions } from "./cli.js";
 import { loadConfig } from "./config.js";
 import { selectWorktree } from "./worktree.js";
 import { computeRuntimeInfo } from "./runtime.js";
 import {
-  hasTodos,
   rebaseWorktreeOntoRoot,
   repairReusedWorktreeAfterRebaseFailure,
 } from "./git-sync.js";
@@ -36,12 +29,16 @@ import {
   ensureTaskRepo,
   resolveClaimedTaskTarget,
 } from "./task-target.js";
-
-interface SharedTodoPaths {
-  sharedTodoPath: string;
-  sharedTodoRepoRoot: string;
-  sharedTodoRelativePath: string;
-}
+import { loadSettings, persistProjectSettings } from "./settings.js";
+import {
+  resolvePollingTaskTrackers,
+} from "./task-tracker-settings.js";
+import {
+  claimTaskFromTracker,
+  syncClaimedTaskToLocal,
+  syncCompletedTask,
+  type ClaimedTask,
+} from "./task-trackers.js";
 
 interface ActiveWorkspace {
   repoRoot: string;
@@ -82,105 +79,9 @@ async function findGitRepoRoot(startPath: string): Promise<string | undefined> {
   return repoRoot || undefined;
 }
 
-async function resolveSharedTodoPaths(basePath: string): Promise<SharedTodoPaths> {
-  const sharedRepoPath = readEnv("WORKERS_TODO_REPO");
-  if (!sharedRepoPath) {
-    throw new Error(
-      "WORKERS_TODO_REPO is required. Point it at the shared TODO git repo.",
-    );
-  }
-
-  const sharedFilePath = readEnv("WORKERS_TODO_FILE") ?? "TODO.md";
-  const sharedTodoRepoRoot =
-    await resolveGitRepoRoot(path.resolve(basePath, sharedRepoPath));
-  const sharedTodoPath = path.resolve(sharedTodoRepoRoot, sharedFilePath);
-  const sharedTodoRelativePath = path.relative(sharedTodoRepoRoot, sharedTodoPath);
-
-  return {
-    sharedTodoPath,
-    sharedTodoRepoRoot,
-    sharedTodoRelativePath,
-  };
-}
-
 function resolveLocalTodoPath(worktreePath: string): string {
   const localPath = readEnv("WORKERS_LOCAL_TODO_PATH") ?? "TODO.md";
   return path.resolve(worktreePath, localPath);
-}
-
-function syncTodoToLocal(sharedTodoPath: string, localTodoPath: string): void {
-  const content = readFileSync(sharedTodoPath, "utf8");
-  mkdirSync(path.dirname(localTodoPath), { recursive: true });
-  writeFileSync(localTodoPath, content, "utf8");
-}
-
-async function fastForwardRepo(repoRoot: string): Promise<boolean> {
-  const branchTarget = await resolveBranchTarget(repoRoot);
-  if (!branchTarget.hasRemote) {
-    return true;
-  }
-
-  const fetchResult = await fetchBranchTarget(repoRoot, branchTarget);
-  if (!fetchResult) {
-    return false;
-  }
-
-  const pullResult =
-    await $`git -C ${repoRoot} pull --ff-only ${branchTarget.remoteName!} ${branchTarget.remoteBranch!}`
-      .quiet()
-      .nothrow();
-  return pullResult.exitCode === 0;
-}
-
-async function commitAndPushTodoRepo(
-  repoRoot: string,
-  todoRelativePath: string,
-  message: string,
-): Promise<boolean> {
-  const branchTarget = await resolveBranchTarget(repoRoot);
-  const branch = branchTarget.branch;
-
-  const addResult =
-    await $`git -C ${repoRoot} add ${todoRelativePath}`.quiet().nothrow();
-  if (addResult.exitCode !== 0) {
-    return false;
-  }
-
-  const stagedResult =
-    await $`git -C ${repoRoot} diff --cached --quiet -- ${todoRelativePath}`
-      .quiet()
-      .nothrow();
-  if (stagedResult.exitCode === 0) {
-    return true;
-  }
-
-  const commitResult =
-    await $`git -C ${repoRoot} commit -m ${message}`.quiet().nothrow();
-  if (commitResult.exitCode !== 0) {
-    return false;
-  }
-
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    if (!branchTarget.hasRemote) {
-      return true;
-    }
-
-    const pushResult =
-      await $`git -C ${repoRoot} push ${branchTarget.remoteName!} HEAD:${branch}`.quiet().nothrow();
-    if (pushResult.exitCode === 0) {
-      return true;
-    }
-
-    const rebaseResult =
-      await $`git -C ${repoRoot} pull --rebase ${branchTarget.remoteName!} ${branch}`
-        .quiet()
-        .nothrow();
-    if (rebaseResult.exitCode !== 0) {
-      return false;
-    }
-  }
-
-  return false;
 }
 
 function buildSessionTag(cli: string, sequence: number): string {
@@ -347,72 +248,41 @@ async function finalizeWorkspace(
   );
 }
 
-async function claimTodo(
-  sharedTodo: SharedTodoPaths,
+async function claimNextTodo(
+  trackers: ReturnType<typeof resolvePollingTaskTrackers>,
   cli: string,
-): Promise<ReturnType<typeof claimFromTodoText>> {
-  return withTodoLock(sharedTodo.sharedTodoPath, async () => {
-    const content = readFileSync(sharedTodo.sharedTodoPath, "utf8");
-    const claimResult = claimFromTodoText(content, { agent: cli });
-    if (claimResult.status !== "claimed") {
-      return claimResult;
+  invocationPath: string,
+): Promise<{ claimedTask: ClaimedTask } | { reason: string }> {
+  let sawMatchingIssue = false;
+  let sawBlockedIssue = false;
+  let sawReadyEmpty = false;
+
+  for (const tracker of trackers) {
+    const claimResult = await claimTaskFromTracker(tracker, cli, invocationPath);
+    if (claimResult.status === "claimed" && claimResult.claimedTask) {
+      return {
+        claimedTask: claimResult.claimedTask,
+      };
     }
 
-    writeFileSync(sharedTodo.sharedTodoPath, claimResult.updatedContent, "utf8");
-
-    const claimSummary = claimResult.item
-      .split("\n")[0]
-      .replace(/^- /, "");
-    const pushed = await commitAndPushTodoRepo(
-      sharedTodo.sharedTodoRepoRoot,
-      sharedTodo.sharedTodoRelativePath,
-      `chore(todo): claim TODO — ${claimSummary}`,
-    );
-    if (!pushed) {
-      throw new Error("Failed to commit/push claimed TODO in shared TODO repo.");
+    if (claimResult.reason === "all-blocked-by-conflict") {
+      sawBlockedIssue = true;
+    } else if (claimResult.reason === "no-matching-agent") {
+      sawMatchingIssue = true;
+    } else if (claimResult.reason === "ready-empty") {
+      sawReadyEmpty = true;
     }
-
-    return claimResult;
-  });
-}
-
-async function syncCompletedTodo(
-  sharedTodo: SharedTodoPaths,
-  localTodoPath: string,
-  claimedSummary: string,
-): Promise<void> {
-  const localTodoContent = readFileSync(localTodoPath, "utf8");
-  if (todoContainsSummary(localTodoContent, claimedSummary)) {
-    log.info(
-      "Claimed TODO is still present in the local TODO copy; skipping shared TODO completion sync.",
-    );
-    return;
   }
 
-  const syncedCompletion = await withTodoLock(
-    sharedTodo.sharedTodoPath,
-    async () => {
-      const sharedContent = readFileSync(sharedTodo.sharedTodoPath, "utf8");
-      const removal = removeInProgressItemBySummary(sharedContent, claimedSummary);
-      if (removal.status !== "removed") {
-        return true;
-      }
-
-      writeFileSync(sharedTodo.sharedTodoPath, removal.updatedContent, "utf8");
-      return commitAndPushTodoRepo(
-        sharedTodo.sharedTodoRepoRoot,
-        sharedTodo.sharedTodoRelativePath,
-        `chore(todo): complete TODO — ${claimedSummary}`,
-      );
-    },
-  );
-
-  if (!syncedCompletion) {
-    throw new Error("Failed to commit/push completed TODO in shared TODO repo.");
-  }
-
-  syncTodoToLocal(sharedTodo.sharedTodoPath, localTodoPath);
-  log.info("Synced TODO completion to shared TODO repo.");
+  return {
+    reason: sawBlockedIssue
+      ? "all-blocked-by-conflict"
+      : sawMatchingIssue
+        ? "no-matching-agent"
+        : sawReadyEmpty
+          ? "ready-empty"
+          : "no-claimable-trackers",
+  };
 }
 
 async function runNoTodoMode(
@@ -477,7 +347,6 @@ async function main(): Promise<void> {
     return;
   }
 
-  const sharedTodo = await resolveSharedTodoPaths(invocationPath);
   let activeWorkspace: ActiveWorkspace | null = null;
 
   setupSignalHandlers(() =>
@@ -498,22 +367,30 @@ async function main(): Promise<void> {
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    if (!(await fastForwardRepo(sharedTodo.sharedTodoRepoRoot))) {
-      throw new Error("Failed to sync shared TODO repo.");
+    const settings = await loadSettings();
+    const pollableTrackers = resolvePollingTaskTrackers(settings);
+
+    if (pollableTrackers.length === 0) {
+      throw new Error(
+        "No task trackers are configured. Set a default task tracker in settings.json or WORKERS_TODO_REPO in the environment.",
+      );
     }
 
-    if (!hasTodos(sharedTodo.sharedTodoPath)) {
-      log.info("No claimable TODOs. Polling for new TODOs...");
+    const claimAttempt = await claimNextTodo(
+      pollableTrackers,
+      options.cli,
+      invocationPath,
+    );
+    if (!("claimedTask" in claimAttempt)) {
+      if (claimAttempt.reason === "no-matching-agent") {
+        log.info("No claimable TODOs (no-matching-agent). Polling...");
+      } else {
+        log.info("No claimable TODOs. Polling for new TODOs...");
+      }
       await sleep(pollIntervalMs);
       continue;
     }
-
-    const claimResult = await claimTodo(sharedTodo, options.cli);
-    if (claimResult.status !== "claimed") {
-      log.info(`No claimable TODOs (${claimResult.reason}). Polling...`);
-      await sleep(pollIntervalMs);
-      continue;
-    }
+    const { claimedTask } = claimAttempt;
 
     if (!firstTask) {
       console.log();
@@ -521,20 +398,25 @@ async function main(): Promise<void> {
     firstTask = false;
     taskSequence += 1;
     log.heading("=== Starting next TODO ===");
-    log.info(`Claiming TODO: ${claimResult.item.split("\n")[0]}`);
-    log.info("Claimed and pushed TODO in shared TODO repo.");
+    log.info(`Claiming TODO: ${claimedTask.item.split("\n")[0]}`);
+    log.info(`Claimed task in task tracker: ${claimedTask.trackerName}.`);
 
     try {
       const target = resolveClaimedTaskTarget(
-        claimResult.item,
-        claimResult.itemType,
-        sharedTodo.sharedTodoRepoRoot,
+        claimedTask.item,
+        claimedTask.itemType,
+        claimedTask.trackerBasePath,
       );
       const ensuredRepo = await ensureTaskRepo(target);
       if (target.source === "no-repo") {
         log.info(`Using no-repo scratch workspace: ${ensuredRepo.repoRoot}`);
       } else if (ensuredRepo.bootstrapped) {
         log.info(`Bootstrapped new repo at ${ensuredRepo.repoRoot}.`);
+        persistProjectSettings([
+          {
+            repo: ensuredRepo.repoRoot,
+          },
+        ]);
       } else {
         log.info(`Resolved target repo: ${ensuredRepo.repoRoot}`);
       }
@@ -546,7 +428,7 @@ async function main(): Promise<void> {
       );
       console.log();
 
-      syncTodoToLocal(sharedTodo.sharedTodoPath, activeWorkspace.localTodoPath);
+      syncClaimedTaskToLocal(claimedTask, activeWorkspace.localTodoPath);
 
       if (options.setupOnly) {
         log.success("Setup complete for claimed TODO. Exiting (--setup-only).");
@@ -556,17 +438,22 @@ async function main(): Promise<void> {
       const agentResult = await launchAgent(
         options,
         activeWorkspace.worktree.path,
-        claimResult.item,
-        claimResult.itemType,
+        claimedTask.item,
+        claimedTask.itemType,
         activeWorkspace.config,
       );
 
-      const claimedSummary = claimResult.item.split("\n")[0].replace(/^- /, "");
-      await syncCompletedTodo(
-        sharedTodo,
+      const completionSync = await syncCompletedTask(
+        claimedTask,
         activeWorkspace.localTodoPath,
-        claimedSummary,
       );
+      if (completionSync.status === "pending") {
+        log.info(
+          "Claimed TODO is still present in the local TODO copy; skipping task tracker completion sync.",
+        );
+      } else {
+        log.info("Synced TODO completion to task tracker.");
+      }
 
       if (agentResult.exitCode !== 0) {
         log.info(`${options.cli} exited with error (${agentResult.exitCode}).`);

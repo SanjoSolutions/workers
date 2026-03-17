@@ -57,6 +57,8 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - Workers must also provide a shared intake skill for the direct user-facing Codex session so this behavior can be applied by default.
 - After larger work is queued, the clarification skill remains responsible for refining it into an autonomous task that can move toward `## Ready to be picked up`.
 - When the coordinator skill invokes clarification, clarification acts as a temporary nested step and control returns to coordinator afterward.
+- The local repo entrypoints must be `./work`, `./add-todo`, and `./init-todo-repo`.
+- Package installation must also expose `work`, `add-todo`, and `init-todo-repo` as Node bin commands.
 - Ready-to-pick-up tasks must record their target repo in structured task metadata.
 - Tasks that are not for any repo must record that explicitly as `Repo: none`.
 - New-project tasks must record the target repo path in structured task metadata.
@@ -117,6 +119,9 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - The default Codex model must be configurable through this settings file.
 - The default task tracker must be configurable through this settings file.
 - Settings must support named task trackers and project-to-task-tracker assignments.
+- Project registrations in settings must be stored as an ordered array, and worker polling must
+  follow that order from first project to last.
+- Projects must be added to settings automatically when they are first mentioned or bootstrapped.
 - The coordinator intake flow must route queued work to the configured task tracker for the target
   project, falling back to the default task tracker when the project has no explicit assignment.
 - Workers must not persist a default Codex reasoning level in settings; TODO metadata may specify
@@ -127,13 +132,16 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - Workers must support more than one task tracker configuration at a time.
 - A project may optionally declare which task tracker owns its queued work.
 - Tasks with `Repo: none` or tasks for unmapped projects must use the default task tracker.
-- The current concrete backend remains the Git-backed `TODO.md` tracker, but tracker selection must
-  no longer be hard-coded to a single repository.
+- Workers must support both the Git-backed `TODO.md` tracker and GitHub Issues as concrete task
+  tracker backends.
+- Tracker selection and worker polling must no longer be hard-coded to a single repository.
 
 ## 9. Verification
 
 - TypeScript changes must typecheck with `npx tsc --noEmit`.
-- Repo-facing shell wrappers must pass `bash -n`.
+- Publishable/runtime entrypoints must be compiled JavaScript under `build/` rather than relying on
+  `tsx` at runtime.
+- Repo-facing POSIX shell compatibility wrappers must pass `sh -n`.
 
 ## 10. License Compliance
 

@@ -8,7 +8,7 @@ async function createFakeCli(binDir: string, name: string): Promise<void> {
   const { mkdir, writeFile, chmod } = await import("fs/promises");
   await mkdir(binDir, { recursive: true });
   const filePath = path.join(binDir, name);
-  await writeFile(filePath, "#!/usr/bin/env bash\nexit 0\n", "utf8");
+  await writeFile(filePath, "#!/bin/sh\nexit 0\n", "utf8");
   await chmod(filePath, 0o755);
 }
 
@@ -32,7 +32,7 @@ describe("settings bootstrap", () => {
     expect(settings.defaultCli).toBe("codex");
     expect(settings.codexModel).toBe("gpt-5.4");
     expect(settings.taskTrackers).toEqual({});
-    expect(settings.projects).toEqual({});
+    expect(settings.projects).toEqual([]);
     expect(existsSync(settingsPath)).toBe(true);
     expect(JSON.parse(readFileSync(settingsPath, "utf8"))).toMatchObject({
       defaultCli: "codex",
@@ -81,6 +81,6 @@ describe("settings bootstrap", () => {
     expect(settings.defaultCli).toBe("gemini");
     expect(settings.codexModel).toBe("gpt-5.3-codex");
     expect(settings.taskTrackers).toEqual({});
-    expect(settings.projects).toEqual({});
+    expect(settings.projects).toEqual([]);
   });
 });
