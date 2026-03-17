@@ -1,6 +1,24 @@
 {
   "name": "@sanjo/workers",
   "version": "0.1.0",
+  "description": "A human-first process that supports spontaneity.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SanjoSolutions/workers.git"
+  },
+  "homepage": "https://github.com/SanjoSolutions/workers",
+  "keywords": [
+    "ai",
+    "agents",
+    "coding",
+    "automation",
+    "workers",
+    "todo"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "type": "module",
   "files": [
     "build/"
