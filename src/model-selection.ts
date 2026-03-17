@@ -52,7 +52,7 @@ export async function evaluateClaudeModel(todoItem: string): Promise<string> {
       "json",
       "--json-schema",
       MODEL_SCHEMA,
-      "--dangerouslySkipPermissions",
+      "--dangerously-skip-permissions",
       "--allowedTools",
       "",
     ]);
