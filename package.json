@@ -31,7 +31,8 @@
     "build": "tsc -p tsconfig.build.json",
     "prepare": "npm run build",
     "prepack": "npm run build",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "docker build -t workers-e2e . && docker run --rm -v \"$(pwd):/app\" -v /app/node_modules workers-e2e"
   },
   "dependencies": {
     "commander": "^14.0.3",

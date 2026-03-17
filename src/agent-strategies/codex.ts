@@ -227,8 +227,7 @@ export class CodexAgentStrategy implements AgentStrategy {
       extractTodoField(context.claimedTodoItem, "Model") ||
       context.options.model ||
       context.config?.agent?.model ||
-      context.options.modelDefault ||
-      "gpt-5.4";
+      context.options.modelDefault;
     const reasoningEffort =
       extractTodoField(context.claimedTodoItem, "Reasoning") ||
       context.options.reasoningEffort ||
@@ -236,8 +235,7 @@ export class CodexAgentStrategy implements AgentStrategy {
       "high";
 
     const codexArgs = [
-      "--model",
-      codexModel,
+      ...(codexModel ? ["--model", codexModel] : []),
       "--config",
       `model_reasoning_effort=${reasoningEffort}`,
     ];
