@@ -3,42 +3,42 @@
 import { mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 import { $ } from "zx";
-import { parseCliOptions } from "./cli.js";
-import { loadConfig } from "./config.js";
-import { selectWorktree } from "./worktree.js";
-import { computeRuntimeInfo } from "./runtime.js";
+import { parseCliOptions } from "../cli.js";
+import { loadConfig } from "../config.js";
+import { selectWorktree } from "../worktree.js";
+import { computeRuntimeInfo } from "../runtime.js";
 import {
   rebaseWorktreeOntoRoot,
   repairReusedWorktreeAfterRebaseFailure,
-} from "./git-sync.js";
-import { launchAgent } from "./agent.js";
+} from "../git-sync.js";
+import { launchAgent } from "../agent.js";
 import {
   cleanup,
   cleanupStaleWorktrees,
   setupSignalHandlers,
-} from "./cleanup.js";
-import * as log from "./log.js";
-import type { CliOptions, RuntimeInfo, WorkConfig, WorktreeInfo } from "./types.js";
+} from "../cleanup.js";
+import * as log from "../log.js";
+import type { CliOptions, RuntimeInfo, WorkConfig, WorktreeInfo } from "../types.js";
 import {
   fetchBranchTarget,
   resolveBranchTarget,
   type GitBranchTarget,
-} from "./git-target.js";
-import { resolveProjectWorktreeDir } from "./worktree-paths.js";
+} from "../git-target.js";
+import { resolveProjectWorktreeDir } from "../worktree-paths.js";
 import {
   ensureTaskRepo,
   resolveClaimedTaskTarget,
-} from "./task-target.js";
-import { loadSettings, persistProjectSettings } from "./settings.js";
+} from "../task-target.js";
+import { loadSettings, persistProjectSettings } from "../settings.js";
 import {
   resolvePollingTaskTrackers,
-} from "./task-tracker-settings.js";
+} from "../task-tracker-settings.js";
 import {
   claimTaskFromTracker,
   syncClaimedTaskToLocal,
   syncCompletedTask,
   type ClaimedTask,
-} from "./task-trackers.js";
+} from "../task-trackers.js";
 
 interface ActiveWorkspace {
   repoRoot: string;
