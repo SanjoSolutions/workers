@@ -31,6 +31,8 @@ describe("settings bootstrap", () => {
 
     expect(settings.defaultCli).toBe("codex");
     expect(settings.codexModel).toBe("gpt-5.4");
+    expect(settings.taskTrackers).toEqual({});
+    expect(settings.projects).toEqual({});
     expect(existsSync(settingsPath)).toBe(true);
     expect(JSON.parse(readFileSync(settingsPath, "utf8"))).toMatchObject({
       defaultCli: "codex",
@@ -78,5 +80,7 @@ describe("settings bootstrap", () => {
 
     expect(settings.defaultCli).toBe("gemini");
     expect(settings.codexModel).toBe("gpt-5.3-codex");
+    expect(settings.taskTrackers).toEqual({});
+    expect(settings.projects).toEqual({});
   });
 });

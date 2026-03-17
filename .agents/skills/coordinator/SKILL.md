@@ -38,7 +38,8 @@ Queue the request into `TODO.md` when it is larger, including cases like:
 6. If it is a brand new project, include `- Type: New project` and `- Repo: /path/to/new/repo`.
 7. For Codex-targeted tasks, add `- Reasoning: low|medium|high|xhigh` only when the task needs a
    non-default reasoning level. Omit it otherwise; workers defaults Codex reasoning to `high`.
-8. Add it with `./add-todo.sh` so it lands in the shared TODO repo.
+8. Add it with `./add-todo.sh`. Workers will route it to the configured task tracker for the target
+   repo, or to the default task tracker when no project-specific tracker is configured.
 9. Tell the user that the task was queued instead of pretending it was started.
 
 If the queued task is too ambiguous for a worker to execute safely:

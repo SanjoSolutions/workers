@@ -1,80 +1,8 @@
-import { spawn } from "child_process";
 import type { CliOptions, WorkConfig } from "./types.js";
 import * as log from "./log.js";
-
-interface AgentResult {
-  exitCode: number;
-  output: string;
-}
-
-export function extractTodoField(item: string, field: string): string {
-  const match = item.match(new RegExp(`^\\s+- ${field}:\\s*(.+)$`, "im"));
-  return match ? match[1].trim() : "";
-}
-
-function defaultPrompt(
-  todo: string,
-  todoType: string,
-  useSharedTodoRepo: boolean,
-): string {
-  const todoSyncInstruction = useSharedTodoRepo
-    ? `2. Remove the completed TODO from TODO.md — delete the entire item (the "- " line and ALL
-   indented sub-items) from "## In progress". Do NOT leave it or mark it as done — DELETE it.
-3. Commit your implementation changes on the worker branch for this repo. If this TODO bootstraps
-   a new project, the workers runtime may already have created the target repo and worktree for you;
-   continue the implementation there unless the TODO explicitly says more bootstrap is needed.
-4. Do NOT merge back to the tracked branch or push directly to main. The coordinator lands finished
-   worker branches later.
-5. Do NOT add TODO.md to the code-repo commit when it is untracked or ignored here.
-   The workers runtime will sync TODO.md back to the shared TODO repo after your work is done.`
-    : `2. Remove the completed TODO from TODO.md — delete the entire item (the "- " line and ALL
-   indented sub-items) from "## In progress". Do NOT leave it or mark it as done — DELETE it.
-3. Commit your implementation changes in the relevant repo. If this TODO bootstraps a new project,
-   the runtime may already have created the target repo and worktree for you.
-4. Do NOT merge or push to main automatically. The coordinator handles landing completed work.`;
-
-  if (useSharedTodoRepo) {
-    return `A TODO has been pre-claimed for you. It is already in the "## In progress" section of the local TODO.md copy.
-Do NOT claim another TODO — work on this one.
-
-Claimed TODO:
-${todo}
-
-TODO type: ${todoType}
-
-Instructions:
-1. Implement the required changes for this TODO
-${todoSyncInstruction}`;
-  }
-
-  return `A TODO has been pre-claimed for you. It is already in the "## In progress" section of TODO.md.
-Do NOT claim another TODO — work on this one.
-
-Claimed TODO:
-${todo}
-
-TODO type: ${todoType}
-
-Instructions:
-1. Implement the required changes for this TODO
-${todoSyncInstruction}`;
-}
-
-function usesSharedTodoRepo(): boolean {
-  return Boolean(process.env.WORKERS_TODO_REPO?.trim());
-}
-
-const DEFAULT_CLAUDE_ALLOWED_TOOLS = [
-  "Edit",
-  "Bash",
-  "Read",
-  "Write",
-  "Glob",
-  "Grep",
-  "Skill",
-  "Task",
-  "ToolSearch",
-];
+import { buildAgentPrompt } from "./agent-prompt.js";
+import { getAgentStrategy } from "./agent-strategies/index.js";
+import type { AgentResult } from "./agent-strategies/types.js";
 
 export async function launchAgent(
   options: CliOptions,
@@ -88,13 +16,11 @@ export async function launchAgent(
 
   const nextPrompt = noTodo
     ? ""
-    : config?.agent?.buildPrompt
-      ? config.agent.buildPrompt(claimedTodoItem, claimedTodoItemType)
-      : defaultPrompt(
-          claimedTodoItem,
-          claimedTodoItemType,
-          usesSharedTodoRepo(),
-        );
+    : buildAgentPrompt(
+        claimedTodoItem,
+        claimedTodoItemType,
+        config,
+      );
 
   const env: NodeJS.ProcessEnv = {
     ...process.env,
@@ -113,155 +39,26 @@ export async function launchAgent(
     Object.assign(env, extraEnv);
   }
 
-  const claudeAllowedTools = (
-    config?.agent?.claudeAllowedTools ?? DEFAULT_CLAUDE_ALLOWED_TOOLS
-  ).join(",");
+  const strategy = getAgentStrategy(options.cli);
 
-  return new Promise<AgentResult>((resolve) => {
-    let args: string[];
-    let command: string;
-    let captureOutput: boolean;
-
-    switch (options.cli) {
-      case "claude": {
-        command = "claude";
-        const claudeModel =
-          extractTodoField(claimedTodoItem, "Model") ||
-          options.model ||
-          config?.agent?.claudeDefaultModel ||
-          "opus";
-        if (noTodo) {
-          args = [
-            "--model",
-            claudeModel,
-            "--allowedTools",
-            claudeAllowedTools,
-          ];
-          captureOutput = false;
-        } else if (options.interactive) {
-          args = [
-            "--model",
-            claudeModel,
-            "--allowedTools",
-            claudeAllowedTools,
-            "--",
-            nextPrompt,
-          ];
-          captureOutput = false;
-        } else {
-          args = [
-            "--model",
-            claudeModel,
-            "-p",
-            nextPrompt,
-            "--dangerouslySkipPermissions",
-            "--allowedTools",
-            claudeAllowedTools,
-          ];
-          captureOutput = true;
-        }
-        break;
-      }
-
-      case "codex": {
-        command = "codex";
-        const codexModel =
-          extractTodoField(claimedTodoItem, "Model") ||
-          options.model ||
-          config?.agent?.codexModel ||
-          options.codexModelDefault ||
-          "gpt-5.4";
-        const reasoningEffort =
-          extractTodoField(claimedTodoItem, "Reasoning") ||
-          options.reasoningEffort ||
-          config?.agent?.codexDefaultReasoning ||
-          "high";
-        const codexArgs = [
-          "--model",
-          codexModel,
-          "--config",
-          `model_reasoning_effort=${reasoningEffort}`,
-        ];
-        for (const dir of config?.agent?.codexWritableDirs ?? []) {
-          codexArgs.push("--add-dir", dir);
-        }
-        if (options.isolatedRuntime) {
-          codexArgs.push(
-            "--config",
-            "sandbox_workspace_write.network_access=true",
-          );
-        }
-        if (noTodo) {
-          args = [...codexArgs];
-          captureOutput = false;
-        } else if (options.interactive) {
-          args = [...codexArgs, nextPrompt];
-          captureOutput = false;
-        } else {
-          args = [
-            "exec",
-            "--full-auto",
-            "--config",
-            "approval_policy=never",
-            ...codexArgs,
-            nextPrompt,
-          ];
-          captureOutput = true;
-        }
-        break;
-      }
-
-      case "gemini":
-        command = "gemini";
-        if (noTodo) {
-          args = ["--approval-mode", "auto_edit"];
-        } else {
-          args = [
-            "--prompt",
-            nextPrompt,
-            "--approval-mode",
-            "auto_edit",
-          ];
-        }
-        captureOutput = !options.interactive;
-        break;
-    }
-
-    let output = "";
-
-    const child = spawn(command, args, {
-      cwd: worktreePath,
+  try {
+    return await strategy.launch({
+      options,
+      worktreePath,
+      claimedTodoItem,
+      claimedTodoItemType,
+      config,
+      nextPrompt,
+      workflowMode,
+      noTodo,
       env,
-      stdio: captureOutput
-        ? ["inherit", "pipe", "pipe"]
-        : ["inherit", "inherit", "inherit"],
     });
-
-    if (captureOutput) {
-      child.stdout?.on("data", (data: Buffer) => {
-        output += data.toString();
-      });
-      child.stderr?.on("data", (data: Buffer) => {
-        output += data.toString();
-      });
-    }
-
-    child.on("close", (code) => {
-      if (captureOutput && output) {
-        console.log(output);
-      }
-      resolve({
-        exitCode: code ?? 1,
-        output,
-      });
-    });
-
-    child.on("error", (err) => {
-      log.error(`Failed to launch ${command}: ${err.message}`);
-      resolve({
-        exitCode: 1,
-        output: err.message,
-      });
-    });
-  });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    log.error(`Failed to launch ${options.cli}: ${message}`);
+    return {
+      exitCode: 1,
+      output: message,
+    };
+  }
 }
