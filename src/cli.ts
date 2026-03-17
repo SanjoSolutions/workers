@@ -32,7 +32,7 @@ export function parseCliOptions(argv: string[]): CliOptions {
   const opts = program.opts();
   const positionalCli = program.args[0] as CliName | undefined;
 
-  const cli = (opts.cli ?? positionalCli ?? "claude") as CliName;
+  const cli = (opts.cli ?? positionalCli ?? "codex") as CliName;
 
   if (!VALID_CLIS.has(cli)) {
     throw new Error(
