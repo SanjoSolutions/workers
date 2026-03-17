@@ -11,6 +11,9 @@ cp "$HOME/.claude/.credentials.json" "$CLAUDE_TMP/.credentials.json"
 # Minimal settings to skip first-run setup
 echo '{}' > "$CLAUDE_TMP/settings.json"
 
+# Clean build files that may be owned by a different uid from previous Docker runs
+rm -rf build/
+
 docker build -f Dockerfile.smoke -t workers-smoke .
 docker run --rm -it \
   --user "$(id -u):$(id -g)" \
