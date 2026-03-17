@@ -397,13 +397,11 @@ async function ensureCli(
   if (installed.length === 0) {
     throw new Error(
       [
-        "No supported agent CLI is installed. Install one of the following:",
+        "No supported agent CLI is installed. Install one or multiple of the following:",
         "",
         "  Codex CLI    https://github.com/openai/codex",
         "  Claude Code  https://docs.anthropic.com/en/docs/claude-code/getting-started",
         "  Gemini CLI   https://github.com/google-gemini/gemini-cli",
-        "",
-        `Or set ${settingsKey} manually in settings.json.`,
       ].join("\n"),
     );
   }
