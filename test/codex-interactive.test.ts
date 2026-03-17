@@ -74,7 +74,7 @@ describe("codex interactive workers hook", () => {
     writeFileSync(todoPath, "## In progress\n\n- Build feature\n", "utf8");
 
     const needsUser = spawnSync(process.execPath, [hookScript], {
-      cwd: "/home/jonas/workers",
+      cwd: process.cwd(),
       env: {
         ...process.env,
         WORKERS_CODEX_STATUS_FILE: statusFile,
@@ -93,7 +93,7 @@ describe("codex interactive workers hook", () => {
 
     writeFileSync(todoPath, "## In progress\n\n", "utf8");
     const done = spawnSync(process.execPath, [hookScript], {
-      cwd: "/home/jonas/workers",
+      cwd: process.cwd(),
       env: {
         ...process.env,
         WORKERS_CODEX_STATUS_FILE: statusFile,
