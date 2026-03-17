@@ -6,7 +6,7 @@ import { describe, expect, test } from "vitest";
 import {
   ensureTaskRepo,
   resolveClaimedTaskTarget,
-} from "../src/task-target.js";
+} from "./task-target.js";
 
 function git(args: string[], cwd: string): string {
   return execFileSync("git", args, {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { claimFromTodoText } from "../src/claim-todo.js";
+import { claimFromTodoText } from "./claim-todo.js";
 
 describe("claim todo agent matching", () => {
   test("untagged ready items are claimable by claude", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { insertIntoSection } from "../src/add-todo.js";
+import { insertIntoSection } from "./add-todo.js";
 
 describe("add-todo section targeting", () => {
   const template = `# TODOs

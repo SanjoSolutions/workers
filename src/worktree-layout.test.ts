@@ -2,8 +2,8 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "fs";
 import os from "os";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { parseCliOptions } from "../src/cli.js";
-import { resolveProjectWorktreeDir } from "../src/worktree-paths.js";
+import { parseCliOptions } from "./cli.js";
+import { resolveProjectWorktreeDir } from "./worktree-paths.js";
 
 describe("worktree layout", () => {
   let originalConfigDir: string | undefined;

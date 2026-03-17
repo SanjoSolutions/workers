@@ -25,7 +25,7 @@ function jsonResponse(model: string) {
   return JSON.stringify({ model });
 }
 
-const { evaluateClaudeModel } = await import("../src/model-selection.js");
+const { evaluateClaudeModel } = await import("./model-selection.js");
 
 describe("evaluateClaudeModel", () => {
   beforeEach(() => {

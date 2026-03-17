@@ -1,9 +1,9 @@
 import { describe, expect, test } from "vitest";
-import type { WorkersSettings } from "../src/settings.js";
+import type { WorkersSettings } from "./settings.js";
 import {
   resolveTaskTrackerForTodoText,
   resolveTaskTrackers,
-} from "../src/task-tracker-settings.js";
+} from "./task-tracker-settings.js";
 
 const BASE_SETTINGS: WorkersSettings = {
   defaults: { cli: "codex", model: "gpt-5.4" },

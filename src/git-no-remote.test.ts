@@ -3,11 +3,11 @@ import { tmpdir } from "os";
 import path from "path";
 import { execFileSync } from "child_process";
 import { describe, expect, test } from "vitest";
-import { selectWorktree } from "../src/worktree.js";
-import { rebaseWorktreeOntoRoot } from "../src/git-sync.js";
-import { cleanup } from "../src/cleanup.js";
-import { resolveBranchTarget } from "../src/git-target.js";
-import type { CliOptions, WorkConfig } from "../src/types.js";
+import { selectWorktree } from "./worktree.js";
+import { rebaseWorktreeOntoRoot } from "./git-sync.js";
+import { cleanup } from "./cleanup.js";
+import { resolveBranchTarget } from "./git-target.js";
+import type { CliOptions, WorkConfig } from "./types.js";
 
 function git(args: string[], cwd: string): string {
   return execFileSync("git", args, {

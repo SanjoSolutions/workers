@@ -3,7 +3,7 @@ import { tmpdir } from "os";
 import path from "path";
 import { spawnSync } from "child_process";
 import { describe, expect, test } from "vitest";
-import { setupManagedInteractiveGeminiSession } from "../src/agent-strategies/gemini.js";
+import { setupManagedInteractiveGeminiSession } from "./gemini.js";
 
 describe("gemini interactive workers hook", () => {
   test("injects and restores worktree settings for managed interactive sessions", () => {

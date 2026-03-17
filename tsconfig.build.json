@@ -7,5 +7,5 @@
     "tsBuildInfoFile": "./build/.tsbuildinfo"
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["tests/**/*.ts", "build", "node_modules"]
+  "exclude": ["src/**/*.test.ts", "src/tests/**/*.ts", "build", "node_modules"]
 }

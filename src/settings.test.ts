@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
 import { describe, expect, test } from "vitest";
-import { ensureWorkerCli, loadSettings } from "../src/settings.js";
+import { ensureWorkerCli, loadSettings } from "./settings.js";
 
 async function createFakeCli(binDir: string, name: string): Promise<void> {
   const { mkdir, writeFile, chmod } = await import("fs/promises");

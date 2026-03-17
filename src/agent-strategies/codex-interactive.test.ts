@@ -3,7 +3,7 @@ import { tmpdir } from "os";
 import path from "path";
 import { spawnSync } from "child_process";
 import { describe, expect, test } from "vitest";
-import { setupManagedInteractiveCodexSession } from "../src/agent-strategies/codex.js";
+import { setupManagedInteractiveCodexSession } from "./codex.js";
 
 describe("codex interactive workers hook", () => {
   test("injects and restores worktree hooks for managed interactive sessions", () => {
