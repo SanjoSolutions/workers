@@ -25,7 +25,7 @@ import {
   setupSignalHandlers,
 } from "./cleanup.js";
 import * as log from "./log.js";
-import type { RuntimeInfo, WorkConfig, WorktreeInfo } from "./types.js";
+import type { CliOptions, RuntimeInfo, WorkConfig, WorktreeInfo } from "./types.js";
 import {
   fetchBranchTarget,
   resolveBranchTarget,
@@ -195,7 +195,7 @@ function buildSessionTag(cli: string, sequence: number): string {
 
 async function setupWorkspaceForRepo(
   repoRoot: string,
-  options: ReturnType<typeof parseCliOptions>,
+  options: CliOptions,
   sessionTag: string,
 ): Promise<ActiveWorkspace> {
   const config = await loadConfig(repoRoot);
@@ -327,7 +327,7 @@ async function setupWorkspaceForRepo(
 
 async function finalizeWorkspace(
   workspace: ActiveWorkspace,
-  options: ReturnType<typeof parseCliOptions>,
+  options: CliOptions,
 ): Promise<void> {
   if (!options.cleanup) {
     console.log();
@@ -416,7 +416,7 @@ async function syncCompletedTodo(
 }
 
 async function runNoTodoMode(
-  options: ReturnType<typeof parseCliOptions>,
+  options: CliOptions,
   invocationRepoRoot: string | undefined,
 ): Promise<void> {
   if (!invocationRepoRoot) {
@@ -468,7 +468,7 @@ async function runNoTodoMode(
 }
 
 async function main(): Promise<void> {
-  const options = parseCliOptions(process.argv);
+  const options = await parseCliOptions(process.argv);
   const invocationPath = process.cwd();
   const invocationRepoRoot = await findGitRepoRoot(invocationPath);
 

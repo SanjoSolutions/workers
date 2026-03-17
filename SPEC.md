@@ -107,6 +107,12 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - `settings.template.json` must be committed as the template for that file.
 - If `settings.json` does not exist, workers must create it by copying `settings.template.json`
   before loading settings.
+- Initial settings creation must choose `defaultCli` automatically when exactly one supported worker
+  CLI is installed.
+- Initial settings creation must prompt the user to choose `defaultCli` when multiple supported
+  worker CLIs are installed.
+- After `settings.json` exists, workers must read it as the source of truth instead of prompting
+  again.
 - Default CLI selection must be configurable through this settings file.
 
 ## 9. Verification
