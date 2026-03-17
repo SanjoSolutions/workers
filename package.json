@@ -5,7 +5,8 @@
   "bin": {
     "work": "./build/bin/work.js",
     "add-todo": "./build/bin/add-todo.js",
-    "init-todo-repo": "./build/bin/init-todo-repo.js"
+    "init-todo-repo": "./build/bin/init-todo-repo.js",
+    "assistant": "./build/bin/assistant.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

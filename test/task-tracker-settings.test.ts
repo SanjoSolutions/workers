@@ -7,6 +7,7 @@ import {
 
 const BASE_SETTINGS: WorkersSettings = {
   defaults: { cli: "codex", model: "gpt-5.4" },
+  assistant: { defaults: { cli: "codex" } },
   defaultTaskTracker: "shared",
   taskTrackers: {
     shared: {
