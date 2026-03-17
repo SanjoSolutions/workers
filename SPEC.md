@@ -114,6 +114,9 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - After `settings.json` exists, workers must read it as the source of truth instead of prompting
   again.
 - Default CLI selection must be configurable through this settings file.
+- The default Codex model must be configurable through this settings file.
+- Workers must not persist a default Codex reasoning level in settings; TODO metadata may specify
+  `Reasoning`, and the runtime fallback remains `high` when it is omitted.
 
 ## 9. Verification
 

@@ -10,6 +10,7 @@ const VALID_CLI_SET = new Set<CliName>(VALID_CLIS);
 
 export interface WorkersSettings {
   defaultCli: CliName;
+  codexModel: string;
 }
 
 interface SettingsLoadOptions {
@@ -157,5 +158,9 @@ export async function loadSettings(
 
   return {
     defaultCli: defaultCli as CliName,
+    codexModel:
+      typeof parsed.codexModel === "string" && parsed.codexModel.trim()
+        ? parsed.codexModel.trim()
+        : "gpt-5.4",
   };
 }

@@ -30,6 +30,7 @@ describe("settings bootstrap", () => {
     });
 
     expect(settings.defaultCli).toBe("codex");
+    expect(settings.codexModel).toBe("gpt-5.4");
     expect(existsSync(settingsPath)).toBe(true);
     expect(JSON.parse(readFileSync(settingsPath, "utf8"))).toMatchObject({
       defaultCli: "codex",
@@ -58,11 +59,16 @@ describe("settings bootstrap", () => {
     });
 
     expect(firstLoad.defaultCli).toBe("claude");
+    expect(firstLoad.codexModel).toBe("gpt-5.4");
     expect(JSON.parse(readFileSync(settingsPath, "utf8"))).toMatchObject({
       defaultCli: "claude",
     });
 
-    writeFileSync(settingsPath, JSON.stringify({ defaultCli: "gemini" }, null, 2), "utf8");
+    writeFileSync(
+      settingsPath,
+      JSON.stringify({ defaultCli: "gemini", codexModel: "gpt-5.3-codex" }, null, 2),
+      "utf8",
+    );
 
     const settings = await loadSettings(repoRoot, {
       promptForCli: async () => {
@@ -71,5 +77,6 @@ describe("settings bootstrap", () => {
     });
 
     expect(settings.defaultCli).toBe("gemini");
+    expect(settings.codexModel).toBe("gpt-5.3-codex");
   });
 });
