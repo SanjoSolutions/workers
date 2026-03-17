@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 
-import { loadSettings, workersRepoRoot } from "../settings.js";
+import { ensureAssistantCli, loadSettings, workersRepoRoot } from "../settings.js";
 import { getAgentStrategy } from "../agent-strategies/index.js";
 import type { CliOptions } from "../types.js";
 
 async function main(): Promise<void> {
   const repoRoot = workersRepoRoot();
   const settings = await loadSettings(repoRoot);
-  const cli = settings.assistant.defaults.cli;
+  const cli = await ensureAssistantCli(settings);
 
   const options: CliOptions = {
     cli,

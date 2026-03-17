@@ -14,7 +14,7 @@ export interface WorkerDefaults {
 }
 
 export interface AssistantDefaults {
-  cli: CliName;
+  cli: CliName | undefined;
 }
 
 export interface WorkersSettings {
@@ -219,10 +219,14 @@ function detectInstalledClis(env: NodeJS.ProcessEnv): CliName[] {
   });
 }
 
-async function promptForDefaultCli(choices: CliName[]): Promise<CliName> {
+async function promptForCli(
+  choices: CliName[],
+  label: string,
+  settingsKey: string,
+): Promise<CliName> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     throw new Error(
-      `Multiple worker CLIs are installed (${choices.join(", ")}). Set worker.defaults.cli in settings.json.`,
+      `Multiple CLIs are installed (${choices.join(", ")}). Set ${settingsKey} in settings.json.`,
     );
   }
 
@@ -232,7 +236,7 @@ async function promptForDefaultCli(choices: CliName[]): Promise<CliName> {
   });
 
   try {
-    process.stdout.write("Choose the default worker CLI:\n");
+    process.stdout.write(`Choose the default ${label} CLI:\n`);
     choices.forEach((choice, index) => {
       process.stdout.write(`${index + 1}. ${choice}\n`);
     });
@@ -298,20 +302,42 @@ async function initializeSettingsFile(
       );
     }
 
+    const promptFn = options.promptForCli ?? ((choices: CliName[]) => promptForCli(choices, "worker", "worker.defaults.cli"));
     const chosen =
       installed.length === 1
         ? installed[0]
-        : await (options.promptForCli ?? promptForDefaultCli)(installed);
+        : await promptFn(installed);
 
     defaults.cli = chosen;
     worker.defaults = defaults;
     parsed.worker = worker;
-    writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
     if (installed.length === 1) {
       process.stdout.write(
         `Auto-selected default worker CLI: ${chosen} (the only supported CLI installed).\n`,
       );
     }
+
+    // Also set assistant CLI
+    const assistant = (parsed.assistant ?? {}) as Record<string, unknown>;
+    const assistantDefaults = (assistant.defaults ?? {}) as Record<string, unknown>;
+    if (typeof assistantDefaults.cli !== "string") {
+      const assistantPromptFn = options.promptForCli ?? ((choices: CliName[]) => promptForCli(choices, "assistant", "assistant.defaults.cli"));
+      const assistantChosen =
+        installed.length === 1
+          ? installed[0]
+          : await assistantPromptFn(installed);
+
+      assistantDefaults.cli = assistantChosen;
+      assistant.defaults = assistantDefaults;
+      parsed.assistant = assistant;
+      if (installed.length === 1) {
+        process.stdout.write(
+          `Auto-selected default assistant CLI: ${assistantChosen} (the only supported CLI installed).\n`,
+        );
+      }
+    }
+
+    writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
     return filePath;
   } catch (error) {
     rmSync(filePath, { force: true });
@@ -342,7 +368,7 @@ export async function loadSettings(
   const assistantCli =
     typeof assistantDefaults.cli === "string" && VALID_CLI_SET.has(assistantDefaults.cli as CliName)
       ? (assistantDefaults.cli as CliName)
-      : (cli as CliName);
+      : undefined;
 
   return {
     defaults: {
@@ -416,4 +442,50 @@ export function persistProjectSettings(
   parsed.projects = projects;
   writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
   return true;
+}
+
+/**
+ * Ensure assistant.defaults.cli is set. If not, detect/prompt and persist.
+ * Returns the resolved CLI name.
+ */
+export async function ensureAssistantCli(
+  settings: WorkersSettings,
+  cfgDir = configDir(),
+): Promise<CliName> {
+  if (settings.assistant.defaults.cli) {
+    return settings.assistant.defaults.cli;
+  }
+
+  const installed = detectInstalledClis(process.env);
+  if (installed.length === 0) {
+    throw new Error(
+      "No supported CLI is installed. Install codex, claude, or gemini, or set assistant.defaults.cli manually in settings.json.",
+    );
+  }
+
+  const chosen =
+    installed.length === 1
+      ? installed[0]
+      : await promptForCli(installed, "assistant", "assistant.defaults.cli");
+
+  if (installed.length === 1) {
+    process.stdout.write(
+      `Auto-selected default assistant CLI: ${chosen} (the only supported CLI installed).\n`,
+    );
+  }
+
+  // Persist to settings
+  const filePath = settingsPath(cfgDir);
+  if (existsSync(filePath)) {
+    const parsed = parseSettingsFile(filePath);
+    const assistant = (parsed.assistant ?? {}) as Record<string, unknown>;
+    const assistantDefaults = (assistant.defaults ?? {}) as Record<string, unknown>;
+    assistantDefaults.cli = chosen;
+    assistant.defaults = assistantDefaults;
+    parsed.assistant = assistant;
+    writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+  }
+
+  settings.assistant.defaults.cli = chosen;
+  return chosen;
 }
