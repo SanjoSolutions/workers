@@ -50,7 +50,7 @@ export class ClaudeAgentStrategy implements AgentStrategy {
         claudeModel,
         "-p",
         context.nextPrompt,
-        "--dangerouslySkipPermissions",
+        "--dangerously-skip-permissions",
         "--allowedTools",
         claudeAllowedTools,
       ];
