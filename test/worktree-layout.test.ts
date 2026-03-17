@@ -9,6 +9,7 @@ describe("worktree layout", () => {
   test("cli defaults preserve worker outputs in ~/.worktrees", () => {
     const options = parseCliOptions(["node", "work"]);
 
+    expect(options.cli).toBe("codex");
     expect(options.worktreeDir).toBe("~/.worktrees");
     expect(options.cleanup).toBe(false);
     expect(options.cleanupStale).toBe(false);
