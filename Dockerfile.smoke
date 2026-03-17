@@ -1,0 +1,10 @@
+FROM node:lts
+RUN apt-get update && apt-get install -y git bash && rm -rf /var/lib/apt/lists/*
+RUN npm install -g pnpm @anthropic-ai/claude-code
+WORKDIR /app
+COPY pnpm-lock.yaml package.json ./
+RUN pnpm install --frozen-lockfile --ignore-scripts
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["npx", "tsx", "src/tests/smoke/coordinator.ts"]
