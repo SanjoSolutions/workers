@@ -30,7 +30,7 @@ describe("settings bootstrap", () => {
     });
 
     expect(settings.defaultCli).toBe("codex");
-    expect(settings.codexModel).toBe("gpt-5.4");
+    expect(settings.model).toBe("gpt-5.4");
     expect(settings.taskTrackers).toEqual({});
     expect(settings.projects).toEqual([]);
     expect(existsSync(settingsPath)).toBe(true);
@@ -61,14 +61,14 @@ describe("settings bootstrap", () => {
     });
 
     expect(firstLoad.defaultCli).toBe("claude");
-    expect(firstLoad.codexModel).toBe("gpt-5.4");
+    expect(firstLoad.model).toBe("gpt-5.4");
     expect(JSON.parse(readFileSync(settingsPath, "utf8"))).toMatchObject({
       defaultCli: "claude",
     });
 
     writeFileSync(
       settingsPath,
-      JSON.stringify({ defaultCli: "gemini", codexModel: "gpt-5.3-codex" }, null, 2),
+      JSON.stringify({ defaultCli: "gemini", model: "gpt-5.3-codex" }, null, 2),
       "utf8",
     );
 
@@ -79,7 +79,7 @@ describe("settings bootstrap", () => {
     });
 
     expect(settings.defaultCli).toBe("gemini");
-    expect(settings.codexModel).toBe("gpt-5.3-codex");
+    expect(settings.model).toBe("gpt-5.3-codex");
     expect(settings.taskTrackers).toEqual({});
     expect(settings.projects).toEqual([]);
   });

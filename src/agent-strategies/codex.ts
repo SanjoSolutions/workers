@@ -226,8 +226,8 @@ export class CodexAgentStrategy implements AgentStrategy {
     const codexModel =
       extractTodoField(context.claimedTodoItem, "Model") ||
       context.options.model ||
-      context.config?.agent?.codexModel ||
-      context.options.codexModelDefault ||
+      context.config?.agent?.model ||
+      context.options.modelDefault ||
       "gpt-5.4";
     const reasoningEffort =
       extractTodoField(context.claimedTodoItem, "Reasoning") ||

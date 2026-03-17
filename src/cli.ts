@@ -57,6 +57,6 @@ export async function parseCliOptions(argv: string[]): Promise<CliOptions> {
     noTodo: opts.todo === false,
     model: opts.model,
     reasoningEffort: opts.reasoningEffort,
-    codexModelDefault: settings.codexModel,
+    modelDefault: settings.model,
   };
 }
