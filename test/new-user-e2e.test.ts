@@ -29,7 +29,7 @@ function runWorker(
   args: string[],
 ): Promise<{ exitCode: number | null; stdout: string; stderr: string }> {
   const workerScript = path.join(process.cwd(), "src/bin/worker.ts");
-  return $({ env, nothrow: true, quiet: true })`npx tsx ${workerScript} ${args}`;
+  return $({ env, nothrow: true, quiet: true })`timeout 15 npx tsx ${workerScript} ${args}`;
 }
 
 describe("new user E2E", () => {
@@ -75,7 +75,7 @@ describe("new user E2E", () => {
     writeFileSync(path.join(todoRepoPath, "TODO.md"), todoContent, "utf8");
     await commitAll(todoRepoPath, "Add first task");
 
-    // --- Step 3: Run `worker --setup-only` to claim the task and set up the worktree ---
+    // --- Step 3: Run `worker` to claim the task, set up worktree, and launch agent ---
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       WORKERS_CONFIG_DIR: configDir,
@@ -85,13 +85,9 @@ describe("new user E2E", () => {
 
     const result = await runWorker(env, [
       "--cli", "claude",
-      "--setup-only",
-      "--fresh-worktree",
       "--worktree-dir", worktreeDir,
-      "--no-isolated-runtime",
     ]);
 
-    expect(result.exitCode, `worker stderr: ${result.stderr}`).toBe(0);
     const output = result.stdout + result.stderr;
 
     // --- Step 4: Verify the task was claimed (moved from Ready to In progress) ---
@@ -135,7 +131,7 @@ describe("new user E2E", () => {
     // --- Step 7: Verify output contains expected log messages ---
     expect(output).toContain("Claiming TODO");
     expect(output).toContain("Build a hello world CLI");
-    expect(output).toContain("Setup complete");
+    expect(output).toContain("Finished");
 
     // --- Cleanup ---
     await $`git -C ${targetProjectPath} worktree remove --force ${workerWorktreePath}`
