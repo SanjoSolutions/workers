@@ -58,20 +58,35 @@ describe("claimed task target resolution", () => {
     expect(target.source).toBe("summary-path");
   });
 
-  test("falls back to the invocation repo for repo-less tasks", () => {
+  test("throws when a non-new-project task omits repo metadata", () => {
     const sharedTodoRepoRoot = makeRepo("workers-invocation");
-    const invocationRepo = makeRepo("workers-runtime");
     const item = "- Update workers docs\n  - Type: Development task";
+
+    expect(() =>
+      resolveClaimedTaskTarget(
+        item,
+        "development-task",
+        sharedTodoRepoRoot,
+      ),
+    ).toThrow(/missing a target repo path/i);
+  });
+
+  test("supports explicit no-repo tasks via Repo: none", async () => {
+    const sharedTodoRepoRoot = makeRepo("workers-no-repo");
+    const item = `- Tidy task tracker metadata
+  - Type: Development task
+  - Repo: none`;
 
     const target = resolveClaimedTaskTarget(
       item,
       "development-task",
       sharedTodoRepoRoot,
-      invocationRepo,
     );
+    const ensured = await ensureTaskRepo(target);
 
-    expect(target.repoPath).toBe(invocationRepo);
-    expect(target.source).toBe("invocation-repo");
+    expect(target.source).toBe("no-repo");
+    expect(ensured.repoRoot).toContain(path.join(".workers", "no-repo"));
+    expect(existsSync(path.join(ensured.repoRoot, ".git"))).toBe(true);
   });
 
   test("bootstraps a new git repo for new-project tasks", async () => {

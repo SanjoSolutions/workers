@@ -128,15 +128,12 @@ function extractItemAgent(lines: string[], itemStart: number, itemEnd: number): 
   return "";
 }
 
-const AGENTS_THAT_REQUIRE_EXPLICIT_TAG = new Set(["claude"]);
-
 function isAgentMatch(itemAgent: string, filterAgent: string | undefined): boolean {
   if (!filterAgent) return true;
-  const normalizedFilter = filterAgent.toLowerCase();
   if (!itemAgent) {
-    return !AGENTS_THAT_REQUIRE_EXPLICIT_TAG.has(normalizedFilter);
+    return true;
   }
-  return itemAgent === normalizedFilter;
+  return itemAgent === filterAgent.toLowerCase();
 }
 
 export interface SelectResult {

@@ -33,7 +33,8 @@ Queue the request into `TODO.md` when it is larger, including cases like:
 3. If the task is already autonomous and safe for a worker to start immediately, add it straight to
    `## Ready to be picked up` with `./add-todo.sh --ready`.
 4. Include useful context or acceptance bullets when they are already clear.
-5. If the task targets another repo, include `- Repo: /path/to/repo`.
+5. Include `- Repo: /path/to/repo` for repo-targeted work, or `- Repo: none` for tasks that should
+   run outside any project repo.
 6. If it is a brand new project, include `- Type: New project` and `- Repo: /path/to/new/repo`.
 7. Add it with `./add-todo.sh` so it lands in the shared TODO repo.
 8. Tell the user that the task was queued instead of pretending it was started.

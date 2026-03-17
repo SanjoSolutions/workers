@@ -529,13 +529,12 @@ async function main(): Promise<void> {
         claimResult.item,
         claimResult.itemType,
         sharedTodo.sharedTodoRepoRoot,
-        invocationRepoRoot,
       );
       const ensuredRepo = await ensureTaskRepo(target);
-      if (ensuredRepo.bootstrapped) {
+      if (target.source === "no-repo") {
+        log.info(`Using no-repo scratch workspace: ${ensuredRepo.repoRoot}`);
+      } else if (ensuredRepo.bootstrapped) {
         log.info(`Bootstrapped new repo at ${ensuredRepo.repoRoot}.`);
-      } else if (target.source === "invocation-repo") {
-        log.info(`Using invocation repo for TODO: ${ensuredRepo.repoRoot}`);
       } else {
         log.info(`Resolved target repo: ${ensuredRepo.repoRoot}`);
       }

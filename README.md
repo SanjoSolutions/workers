@@ -107,8 +107,7 @@ pnpm work codex
 Workers will:
 
 - sync and claim from the shared TODO repo first
-- resolve the claimed task to either a target project repo, a new project repo to bootstrap, or the
-  invocation repo when the task is repo-less
+- resolve the claimed task to either a target project repo or a new project repo to bootstrap
 - create or reuse a worktree for that resolved repo
 - store worktrees under `~/.worktrees/<project>-<hash>/` by default so different repos do not collide
 - mirror the authoritative `TODO.md` into the local worktree
@@ -119,9 +118,9 @@ Workers will:
 
 Worker-ready task metadata:
 
-- Use `- Repo: /path/to/repo` when a task targets a different repo.
+- Use `- Repo: /path/to/repo` for normal repo-targeted tasks.
+- Use `- Repo: none` for tasks that should run in a scratch workspace instead of any project repo.
 - Use `- Type: New project` plus `- Repo: /path/to/new/repo` when workers should bootstrap a new repo first.
-- Omit `Repo` only for tasks that should run in the repo where `work.sh` was invoked.
 
 ## Files in This Repo
 
