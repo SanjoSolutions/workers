@@ -4,8 +4,8 @@ import { loadSettings } from "./settings.js";
 
 const VALID_CLIS = new Set<CliName>(["claude", "codex", "gemini"]);
 
-export function parseCliOptions(argv: string[]): CliOptions {
-  const settings = loadSettings();
+export async function parseCliOptions(argv: string[]): Promise<CliOptions> {
+  const settings = await loadSettings();
   const program = new Command();
 
   program

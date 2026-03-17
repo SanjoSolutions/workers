@@ -6,8 +6,8 @@ import { parseCliOptions } from "../src/cli.js";
 import { resolveProjectWorktreeDir } from "../src/worktree-paths.js";
 
 describe("worktree layout", () => {
-  test("cli defaults preserve worker outputs in ~/.worktrees", () => {
-    const options = parseCliOptions(["node", "work"]);
+  test("cli defaults preserve worker outputs in ~/.worktrees", async () => {
+    const options = await parseCliOptions(["node", "work"]);
 
     expect(options.cli).toBe("codex");
     expect(options.worktreeDir).toBe("~/.worktrees");

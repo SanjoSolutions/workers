@@ -1,17 +1,21 @@
-import { copyFileSync, existsSync, readFileSync } from "fs";
+import { copyFileSync, existsSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
+import readline from "readline/promises";
 import { fileURLToPath } from "url";
+import { spawnSync } from "child_process";
 import type { CliName } from "./types.js";
 
-const VALID_CLIS = new Set<CliName>(["claude", "codex", "gemini"]);
+const VALID_CLIS: CliName[] = ["claude", "codex", "gemini"];
+const VALID_CLI_SET = new Set<CliName>(VALID_CLIS);
 
 export interface WorkersSettings {
   defaultCli: CliName;
 }
 
-const DEFAULT_SETTINGS: WorkersSettings = {
-  defaultCli: "codex",
-};
+interface SettingsLoadOptions {
+  env?: NodeJS.ProcessEnv;
+  promptForCli?: (choices: CliName[]) => Promise<CliName>;
+}
 
 function workersRepoRoot(): string {
   const currentFile = fileURLToPath(import.meta.url);
@@ -26,26 +30,7 @@ function settingsTemplatePath(repoRoot = workersRepoRoot()): string {
   return path.join(repoRoot, "settings.template.json");
 }
 
-function ensureSettingsFile(repoRoot = workersRepoRoot()): string {
-  const filePath = settingsPath(repoRoot);
-  if (existsSync(filePath)) {
-    return filePath;
-  }
-
-  const templatePath = settingsTemplatePath(repoRoot);
-  if (!existsSync(templatePath)) {
-    throw new Error(
-      `Cannot initialize ${filePath}: missing template ${templatePath}.`,
-    );
-  }
-
-  copyFileSync(templatePath, filePath);
-  return filePath;
-}
-
-export function loadSettings(repoRoot = workersRepoRoot()): WorkersSettings {
-  const filePath = ensureSettingsFile(repoRoot);
-
+function parseSettingsFile(filePath: string): Record<string, unknown> {
   let parsed: unknown;
   try {
     parsed = JSON.parse(readFileSync(filePath, "utf8"));
@@ -59,11 +44,112 @@ export function loadSettings(repoRoot = workersRepoRoot()): WorkersSettings {
     throw new Error(`Invalid settings in ${filePath}: expected a JSON object.`);
   }
 
-  const defaultCli = (parsed as { defaultCli?: unknown }).defaultCli;
-  if (defaultCli === undefined) {
-    return DEFAULT_SETTINGS;
+  return parsed as Record<string, unknown>;
+}
+
+function detectInstalledClis(env: NodeJS.ProcessEnv): CliName[] {
+  return VALID_CLIS.filter((cli) => {
+    const result = spawnSync("/bin/bash", ["-c", `command -v ${cli} >/dev/null 2>&1`], {
+      env,
+      stdio: "ignore",
+    });
+    return result.status === 0;
+  });
+}
+
+async function promptForDefaultCli(choices: CliName[]): Promise<CliName> {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    throw new Error(
+      `Multiple worker CLIs are installed (${choices.join(", ")}). Set defaultCli in settings.json.`,
+    );
   }
-  if (typeof defaultCli !== "string" || !VALID_CLIS.has(defaultCli as CliName)) {
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  try {
+    process.stdout.write("Choose the default worker CLI:\n");
+    choices.forEach((choice, index) => {
+      process.stdout.write(`${index + 1}. ${choice}\n`);
+    });
+
+    while (true) {
+      const answer = (await rl.question("Selection: ")).trim();
+      const numeric = Number.parseInt(answer, 10);
+      if (Number.isFinite(numeric) && numeric >= 1 && numeric <= choices.length) {
+        return choices[numeric - 1];
+      }
+
+      const normalized = answer.toLowerCase();
+      if (VALID_CLI_SET.has(normalized as CliName) && choices.includes(normalized as CliName)) {
+        return normalized as CliName;
+      }
+
+      process.stdout.write(`Enter 1-${choices.length} or one of: ${choices.join(", ")}\n`);
+    }
+  } finally {
+    rl.close();
+  }
+}
+
+async function initializeSettingsFile(
+  repoRoot: string,
+  options: SettingsLoadOptions,
+): Promise<string> {
+  const filePath = settingsPath(repoRoot);
+  if (existsSync(filePath)) {
+    return filePath;
+  }
+
+  const templatePath = settingsTemplatePath(repoRoot);
+  if (!existsSync(templatePath)) {
+    throw new Error(
+      `Cannot initialize ${filePath}: missing template ${templatePath}.`,
+    );
+  }
+
+  copyFileSync(templatePath, filePath);
+
+  const parsed = parseSettingsFile(filePath);
+  const configuredDefault = parsed.defaultCli;
+
+  if (typeof configuredDefault === "string") {
+    if (!VALID_CLI_SET.has(configuredDefault as CliName)) {
+      throw new Error(
+        `Invalid settings in ${filePath}: defaultCli must be one of claude, codex, gemini.`,
+      );
+    }
+    return filePath;
+  }
+
+  const installed = detectInstalledClis(options.env ?? process.env);
+  if (installed.length === 0) {
+    throw new Error(
+      "No supported worker CLI is installed. Install codex, claude, or gemini, or set defaultCli manually in settings.json.",
+    );
+  }
+
+  const chosen =
+    installed.length === 1
+      ? installed[0]
+      : await (options.promptForCli ?? promptForDefaultCli)(installed);
+
+  parsed.defaultCli = chosen;
+  writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+  return filePath;
+}
+
+export async function loadSettings(
+  repoRoot = workersRepoRoot(),
+  options: SettingsLoadOptions = {},
+): Promise<WorkersSettings> {
+  const filePath = await initializeSettingsFile(repoRoot, options);
+  const parsed = parseSettingsFile(filePath);
+  const defaultCli = parsed.defaultCli;
+
+  if (typeof defaultCli !== "string" || !VALID_CLI_SET.has(defaultCli as CliName)) {
     throw new Error(
       `Invalid settings in ${filePath}: defaultCli must be one of claude, codex, gemini.`,
     );
