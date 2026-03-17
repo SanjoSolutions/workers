@@ -1,4 +1,4 @@
-import { accessSync, constants, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { accessSync, constants, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import os from "os";
 import path from "path";
 import readline from "readline/promises";
@@ -50,6 +50,7 @@ export type TaskTrackerSettings =
 export interface ProjectTaskTrackerSettings {
   repo: string;
   taskTracker?: string;
+  specInitialized?: boolean;
 }
 
 interface SettingsLoadOptions {
@@ -123,6 +124,10 @@ function normalizeProjectEntries(
       taskTracker:
         typeof entry.taskTracker === "string" && entry.taskTracker.trim()
           ? entry.taskTracker.trim()
+          : undefined,
+      specInitialized:
+        typeof (entry as { specInitialized?: unknown }).specInitialized === "boolean"
+          ? (entry as { specInitialized: boolean }).specInitialized
           : undefined,
     }));
 }
@@ -538,6 +543,77 @@ export async function ensureDefaultTaskTracker(
       settings.defaultTaskTracker = "default";
       settings.taskTrackers.default = { type: "github-issues", repository };
       process.stdout.write(`Configured GitHub Issues task tracker for ${repository}.\n`);
+    }
+  } finally {
+    rl.close();
+  }
+}
+
+/**
+ * When a project has no SPEC.md, prompt the user once to initialize it.
+ * The decision is persisted per project so the question is never asked again.
+ */
+export async function ensureProjectSpecInitialized(
+  repoRoot: string,
+  cfgDir = configDir(),
+): Promise<void> {
+  // Already initialized — nothing to do.
+  if (existsSync(path.join(repoRoot, "SPEC.md"))) {
+    return;
+  }
+
+  const filePath = settingsPath(cfgDir);
+  if (!existsSync(filePath)) return;
+
+  const parsed = parseSettingsFile(filePath);
+  const projects = normalizeProjectEntries(parsed);
+  const existing = projects.find((p) => p.repo === repoRoot);
+
+  // Already asked (regardless of answer) — respect the saved decision.
+  if (existing?.specInitialized !== undefined) {
+    return;
+  }
+
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    return;
+  }
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  try {
+    const answer = (
+      await rl.question(
+        `This project has no SPEC.md. Initialize SPEC.md and AGENTS.md? [y/n] `,
+      )
+    )
+      .trim()
+      .toLowerCase();
+    const accepted = answer === "y" || answer === "yes";
+
+    if (existing) {
+      existing.specInitialized = accepted;
+    } else {
+      projects.push({ repo: repoRoot, specInitialized: accepted });
+    }
+    parsed.projects = projects;
+    writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+
+    if (accepted) {
+      const templateRoot = workersRepoRoot();
+      const specTemplate = path.join(templateRoot, "SPEC.template.md");
+      const agentsTemplate = path.join(templateRoot, "AGENTS.template.md");
+
+      if (existsSync(specTemplate)) {
+        copyFileSync(specTemplate, path.join(repoRoot, "SPEC.md"));
+        process.stdout.write("Created SPEC.md.\n");
+      }
+      if (existsSync(agentsTemplate)) {
+        copyFileSync(agentsTemplate, path.join(repoRoot, "AGENTS.md"));
+        process.stdout.write("Created AGENTS.md.\n");
+      }
     }
   } finally {
     rl.close();
