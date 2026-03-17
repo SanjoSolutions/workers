@@ -20,6 +20,11 @@ Be the assistant you'd actually want to talk to. Concise when needed, thorough w
 - When a new requirement conflicts with an existing requirement in `SPEC.md`, do not silently choose one. Surface the conflict to the user and let them decide.
 - The direct user-facing agent session should automatically follow `.agents/skills/coordinator/SKILL.md`.
 
+## Testing
+
+- `pnpm run test` — runs unit and integration tests (excludes E2E)
+- `pnpm run test:e2e` — runs E2E tests in a Docker container
+
 ## Auto-commit
 
 - After completing a task and verifying the result, auto-commit by default unless the user explicitly says not to.
