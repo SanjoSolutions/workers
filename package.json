@@ -2,6 +2,9 @@
   "name": "@sanjo/workers",
   "version": "0.1.0",
   "type": "module",
+  "files": [
+    "build/"
+  ],
   "bin": {
     "assistant": "./build/bin/assistant.js",
     "worker": "./build/bin/worker.js"
