@@ -1,3 +1,4 @@
+import { spawn } from "child_process";
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
@@ -24,17 +25,73 @@ async function commitAll(repoPath: string, message: string): Promise<void> {
   await $`git -C ${repoPath} commit -m ${message} --allow-empty`.quiet().nothrow();
 }
 
-function runCommand(
+function stripAnsi(text: string): string {
+  return text.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "");
+}
+
+interface InteractiveStep {
+  waitFor: string;
+  send: string;
+}
+
+/**
+ * Run a command inside a PTY (via `unbuffer -p`) so @inquirer/select prompts
+ * see a real terminal. Steps are triggered when `waitFor` text appears in the
+ * output, sending `send` to stdin.
+ */
+function runInteractive(
   script: string,
   env: NodeJS.ProcessEnv,
   args: string[],
-): Promise<{ exitCode: number | null; stdout: string; stderr: string }> {
-  const scriptPath = path.join(process.cwd(), script);
-  return $({ env, nothrow: true, quiet: true })`timeout 15 npx tsx ${scriptPath} ${args}`;
+  steps: InteractiveStep[],
+  timeoutSeconds = 15,
+): Promise<{ exitCode: number; output: string }> {
+  return new Promise((resolve, reject) => {
+    const scriptPath = path.join(process.cwd(), script);
+    const child = spawn(
+      "unbuffer",
+      ["-p", "timeout", String(timeoutSeconds), "npx", "tsx", scriptPath, ...args],
+      { env: { ...env, NO_COLOR: "1", TERM: "dumb" } },
+    );
+
+    let output = "";
+    let stepIndex = 0;
+
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error(`Timed out after ${timeoutSeconds}s. Output:\n${stripAnsi(output)}`));
+    }, (timeoutSeconds + 5) * 1000);
+
+    const checkTriggers = () => {
+      const clean = stripAnsi(output);
+      while (stepIndex < steps.length) {
+        if (clean.includes(steps[stepIndex].waitFor)) {
+          child.stdin.write(steps[stepIndex].send);
+          stepIndex++;
+        } else {
+          break;
+        }
+      }
+    };
+
+    child.stdout.on("data", (data: Buffer) => {
+      output += data.toString();
+      checkTriggers();
+    });
+    child.stderr.on("data", (data: Buffer) => {
+      output += data.toString();
+      checkTriggers();
+    });
+
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      resolve({ exitCode: code ?? 1, output: stripAnsi(output) });
+    });
+  });
 }
 
 describe("new user E2E", () => {
-  test("full journey: assistant bootstraps → add task → worker claims and runs", { timeout: 30_000 }, async () => {
+  test("full journey: assistant bootstraps → add task → worker claims and runs", { timeout: 60_000 }, async () => {
     const root = mkdtempSync(path.join(tmpdir(), "workers-e2e-"));
     const configDir = path.join(root, "config");
     const todoRepoPath = path.join(root, "todo-repo");
@@ -43,31 +100,46 @@ describe("new user E2E", () => {
     const worktreeDir = path.join(root, "worktrees");
 
     await createFakeCli(binDir, "claude");
+    await createFakeCli(binDir, "codex");
 
-    const env: NodeJS.ProcessEnv = {
-      ...process.env,
-      WORKERS_CONFIG_DIR: configDir,
-      WORKERS_TODO_REPO: todoRepoPath,
-      PATH: `${binDir}:${process.env.PATH}`,
-    };
-
-    // --- Step 1: Run `assistant` to bootstrap settings and detect CLI ---
-    const assistantResult = await runCommand("src/bin/assistant.ts", env, [
-      "--cli", "claude",
-    ]);
-
-    // The mock agent exits immediately, so assistant exits with 0
-    expect(assistantResult.exitCode, `assistant stderr: ${assistantResult.stderr}`).toBe(0);
-
-    // Verify settings.json was bootstrapped
-    expect(existsSync(path.join(configDir, "settings.json"))).toBe(true);
-
-    // --- Step 2: Init shared TODO repo with a task in the ready section ---
+    // Init the shared TODO repo ahead of time (assistant just stores the path)
     await initGitRepo(todoRepoPath);
     const templateContent = readFileSync(
       path.join(process.cwd(), "TODO.template.md"),
       "utf8",
     );
+    writeFileSync(path.join(todoRepoPath, "TODO.md"), templateContent, "utf8");
+    await commitAll(todoRepoPath, "Initial TODO");
+
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      WORKERS_CONFIG_DIR: configDir,
+      WORKERS_TODO_REPO: "",
+      PATH: `${binDir}:${process.env.PATH}`,
+    };
+
+    // --- Step 1: Run `assistant` — prompts for CLI, task tracker type, and repo path ---
+    const assistantResult = await runInteractive(
+      "src/bin/assistant.ts",
+      env,
+      [],
+      [
+        { waitFor: "Choose the default assistant CLI", send: "\r" },       // Enter → select claude (first option)
+        { waitFor: "task tracker", send: "\r" },                           // Enter → select git-todo (first option)
+        { waitFor: "Path to shared TODO repo", send: `${todoRepoPath}\r` }, // Type path + Enter
+      ],
+    );
+
+    expect(assistantResult.exitCode, `assistant output: ${assistantResult.output}`).toBe(0);
+    expect(existsSync(path.join(configDir, "settings.json"))).toBe(true);
+
+    // Verify settings were persisted correctly
+    const settings = JSON.parse(readFileSync(path.join(configDir, "settings.json"), "utf8"));
+    expect(settings.assistant?.defaults?.cli).toBe("claude");
+    expect(settings.defaultTaskTracker).toBe("default");
+    expect(settings.taskTrackers?.default?.repo).toBe(todoRepoPath);
+
+    // --- Step 2: Add a task to the shared TODO repo ---
     const taskLines = [
       "- Build a hello world CLI",
       "  - Type: New project",
@@ -81,13 +153,20 @@ describe("new user E2E", () => {
     writeFileSync(path.join(todoRepoPath, "TODO.md"), todoContent, "utf8");
     await commitAll(todoRepoPath, "Add first task");
 
-    // --- Step 3: Run `worker` to claim the task, set up worktree, and launch agent ---
-    const workerResult = await runCommand("src/bin/worker.ts", env, [
-      "--cli", "claude",
-      "--worktree-dir", worktreeDir,
-    ]);
+    // --- Step 3: Run `worker` — prompts for CLI selection, then claims and runs ---
+    const DOWN = "\x1b[B";
+    const workerResult = await runInteractive(
+      "src/bin/worker.ts",
+      { ...env, WORKERS_TODO_REPO: "" },
+      ["--worktree-dir", worktreeDir],
+      [
+        { waitFor: "Choose the default worker CLI", send: "\r" },           // Enter → select claude (first option)
+        { waitFor: "Initialize SPEC.md", send: `${DOWN}\r` },              // Down + Enter → select No
+      ],
+      30,
+    );
 
-    const workerOutput = workerResult.stdout + workerResult.stderr;
+    const workerOutput = workerResult.output;
 
     // --- Step 4: Verify the task was claimed (moved from Ready to In progress) ---
     const todoAfterClaim = readFileSync(path.join(todoRepoPath, "TODO.md"), "utf8");
@@ -130,6 +209,10 @@ describe("new user E2E", () => {
     expect(workerOutput).toContain("Claiming TODO");
     expect(workerOutput).toContain("Build a hello world CLI");
     expect(workerOutput).toContain("Finished");
+
+    // Verify worker persisted its CLI choice
+    const updatedSettings = JSON.parse(readFileSync(path.join(configDir, "settings.json"), "utf8"));
+    expect(updatedSettings.worker?.defaults?.cli).toBe("claude");
 
     // --- Cleanup ---
     await $`git -C ${targetProjectPath} worktree remove --force ${workerWorktreePath}`
