@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "type": "module",
   "bin": {
-    "worker": "./build/bin/worker.js",
-    "assistant": "./build/bin/assistant.js"
+    "assistant": "./build/bin/assistant.js",
+    "worker": "./build/bin/worker.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

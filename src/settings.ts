@@ -461,3 +461,85 @@ export async function ensureAssistantCli(
     settings.assistant.defaults.cli = chosen;
   });
 }
+
+/**
+ * Ensure a default task tracker is configured. If not, prompt the user
+ * to set one up and persist it.
+ */
+export async function ensureDefaultTaskTracker(
+  settings: WorkersSettings,
+  cfgDir = configDir(),
+): Promise<void> {
+  if (settings.defaultTaskTracker) {
+    return;
+  }
+
+  // Check if WORKERS_TODO_REPO provides a fallback
+  const todoRepo = process.env.WORKERS_TODO_REPO?.trim();
+  if (todoRepo) {
+    return;
+  }
+
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    return;
+  }
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  try {
+    process.stdout.write("No default task tracker is configured.\n");
+    process.stdout.write("Choose a task tracker type:\n");
+    process.stdout.write("1. git-todo (shared TODO.md in a git repo)\n");
+    process.stdout.write("2. github-issues (GitHub Issues on a repository)\n");
+    process.stdout.write("3. skip (configure later)\n");
+
+    let trackerType: string | undefined;
+    while (!trackerType) {
+      const answer = (await rl.question("Selection: ")).trim();
+      if (answer === "3" || answer === "skip") return;
+      if (answer === "1" || answer === "git-todo") {
+        trackerType = "git-todo";
+      } else if (answer === "2" || answer === "github-issues") {
+        trackerType = "github-issues";
+      } else {
+        process.stdout.write("Enter 1-3, or: git-todo, github-issues, skip\n");
+      }
+    }
+
+    const filePath = settingsPath(cfgDir);
+    if (!existsSync(filePath)) return;
+    const parsed = parseSettingsFile(filePath);
+
+    if (trackerType === "git-todo") {
+      const repo = (await rl.question("Path to shared TODO repo: ")).trim();
+      if (!repo) return;
+      const resolvedRepo = path.resolve(repo);
+
+      const trackers = (parsed.taskTrackers ?? {}) as Record<string, unknown>;
+      trackers.default = { repo: resolvedRepo };
+      parsed.taskTrackers = trackers;
+      parsed.defaultTaskTracker = "default";
+      writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+      settings.defaultTaskTracker = "default";
+      settings.taskTrackers.default = { repo: resolvedRepo };
+      process.stdout.write(`Configured git-todo task tracker at ${resolvedRepo}.\n`);
+    } else if (trackerType === "github-issues") {
+      const repository = (await rl.question("GitHub repository (owner/repo): ")).trim();
+      if (!repository) return;
+
+      const trackers = (parsed.taskTrackers ?? {}) as Record<string, unknown>;
+      trackers.default = { type: "github-issues", repository };
+      parsed.taskTrackers = trackers;
+      parsed.defaultTaskTracker = "default";
+      writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+      settings.defaultTaskTracker = "default";
+      settings.taskTrackers.default = { type: "github-issues", repository };
+      process.stdout.write(`Configured GitHub Issues task tracker for ${repository}.\n`);
+    }
+  } finally {
+    rl.close();
+  }
+}

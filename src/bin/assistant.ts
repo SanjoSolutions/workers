@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
-import { ensureAssistantCli, loadSettings, workersRepoRoot } from "../settings.js";
+import { ensureAssistantCli, ensureDefaultTaskTracker, loadSettings, workersRepoRoot } from "../settings.js";
 import { getAgentStrategy } from "../agent-strategies/index.js";
 import type { CliName, CliOptions } from "../types.js";
 
@@ -29,6 +29,8 @@ async function main(): Promise<void> {
   } else {
     cli = await ensureAssistantCli(settings);
   }
+
+  await ensureDefaultTaskTracker(settings);
 
   const options: CliOptions = {
     cli,
