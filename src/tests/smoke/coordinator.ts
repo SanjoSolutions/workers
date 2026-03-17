@@ -3,11 +3,13 @@
  *
  * Requires a real `claude` binary authenticated via ~/.claude/.credentials.json.
  *
- * Sets up a project with the coordinator skill, gives Claude a large
- * multi-step request, and lets you observe whether it delegates to
- * TODO.md or starts implementing directly. Stop with Ctrl+C once clear.
+ * Sets up a project with the coordinator skill, launches Claude
+ * interactively, sends a large multi-step request, and lets you observe
+ * whether it delegates to TODO.md or starts implementing directly.
+ * Stop with Ctrl+C once it's clear whether it worked.
  */
 
+import { spawn } from "child_process";
 import {
   copyFileSync,
   mkdirSync,
@@ -97,30 +99,51 @@ async function setupProject(root: string, name: string): Promise<string> {
   return projectPath;
 }
 
-async function testBigTask(root: string): Promise<void> {
-  console.log("=== Smoke test: big task — should be delegated to TODO.md ===\n");
+const PROMPT = [
+  "Build a full REST API with the following:",
+  "- User authentication with OAuth2 and JWT tokens",
+  "- Role-based access control (admin, editor, viewer)",
+  "- CRUD endpoints for users, posts, and comments",
+  "- Rate limiting and request validation",
+  "- PostgreSQL database with migrations",
+  "- Comprehensive test suite with integration tests",
+  "- OpenAPI documentation",
+].join("\n");
 
+async function main(): Promise<void> {
+  const root = mkdtempSync(path.join(tmpdir(), "smoke-coordinator-"));
   const projectPath = await setupProject(root, "big-task");
 
-  const prompt = [
-    "Build a full REST API with the following:",
-    "- User authentication with OAuth2 and JWT tokens",
-    "- Role-based access control (admin, editor, viewer)",
-    "- CRUD endpoints for users, posts, and comments",
-    "- Rate limiting and request validation",
-    "- PostgreSQL database with migrations",
-    "- Comprehensive test suite with integration tests",
-    "- OpenAPI documentation",
-    "Do not ask clarifying questions, just proceed.",
-  ].join("\n");
+  console.log(`Project: ${projectPath}\n`);
+  console.log("Launching Claude interactively with a big task.");
+  console.log("Watch the output — stop with Ctrl+C once it's clear whether the");
+  console.log("coordinator delegated to TODO.md or started implementing directly.\n");
 
-  console.log(`Project: ${projectPath}`);
-  console.log("Launching Claude — watch the output and stop (Ctrl+C) when you can tell");
-  console.log("whether the coordinator delegated to TODO.md or started implementing directly.\n");
+  const child = spawn(
+    "claude",
+    ["--dangerously-skip-permissions"],
+    {
+      cwd: projectPath,
+      stdio: ["pipe", "inherit", "inherit"],
+      env: process.env,
+    },
+  );
 
-  await $(
-    { cwd: projectPath, nothrow: true, verbose: true },
-  )`claude -p ${prompt} --dangerously-skip-permissions --max-turns 10`;
+  // Wait a moment for Claude to start, then send the prompt
+  setTimeout(() => {
+    child.stdin.write(PROMPT + "\n");
+  }, 2000);
+
+  // Forward Ctrl+C to the child
+  process.on("SIGINT", () => {
+    child.kill("SIGINT");
+  });
+
+  await new Promise<void>((resolve) => {
+    child.on("close", () => {
+      resolve();
+    });
+  });
 
   // Print TODO.md so you can check if it was modified
   const todoAfter = readFileSync(
@@ -133,15 +156,6 @@ async function testBigTask(root: string): Promise<void> {
     console.log("\nTODO.md after:");
     console.log(todoAfter);
   }
-
-  console.log();
-}
-
-async function main(): Promise<void> {
-  const root = mkdtempSync(path.join(tmpdir(), "smoke-coordinator-"));
-  console.log(`Test root: ${root}\n`);
-
-  await testBigTask(root);
 }
 
 main().catch((error) => {
