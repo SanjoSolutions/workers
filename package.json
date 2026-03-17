@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "type": "module",
   "bin": {
-    "work": "./work",
-    "add-todo": "./add-todo",
-    "init-todo-repo": "./init-todo-repo"
+    "work": "./bin/work.mjs",
+    "add-todo": "./bin/add-todo.mjs",
+    "init-todo-repo": "./bin/init-todo-repo.mjs"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
