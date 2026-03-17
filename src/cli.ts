@@ -1,8 +1,6 @@
 import { Command } from "commander";
 import type { CliName, CliOptions } from "./types.js";
-import { ensureWorkerCli, loadSettings } from "./settings.js";
-
-const VALID_CLIS = new Set<CliName>(["claude", "codex", "gemini"]);
+import { VALID_CLI_SET, ensureWorkerCli, loadSettings } from "./settings.js";
 
 export async function parseCliOptions(argv: string[]): Promise<CliOptions> {
   const settings = await loadSettings();
@@ -34,7 +32,7 @@ export async function parseCliOptions(argv: string[]): Promise<CliOptions> {
 
   let cli: CliName;
   if (explicitCli) {
-    if (!VALID_CLIS.has(explicitCli)) {
+    if (!VALID_CLI_SET.has(explicitCli)) {
       throw new Error(
         `Unsupported CLI: ${explicitCli} (expected: claude, codex, gemini)`,
       );

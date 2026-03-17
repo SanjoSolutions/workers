@@ -1,11 +1,9 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
-import { ensureAssistantCli, ensureDefaultTaskTracker, loadSettings, determinePackageRoot } from "../settings.js";
+import { VALID_CLI_SET, ensureAssistantCli, ensureDefaultTaskTracker, loadSettings, determinePackageRoot } from "../settings.js";
 import { getAgentStrategy } from "../agent-strategies/index.js";
 import type { CliName, CliOptions } from "../types.js";
-
-const VALID_CLIS = new Set<CliName>(["claude", "codex", "gemini"]);
 
 async function main(): Promise<void> {
   const program = new Command();
@@ -22,7 +20,7 @@ async function main(): Promise<void> {
 
   let cli: CliName;
   if (opts.cli) {
-    if (!VALID_CLIS.has(opts.cli as CliName)) {
+    if (!VALID_CLI_SET.has(opts.cli as CliName)) {
       throw new Error(`Unsupported CLI: ${opts.cli} (expected: claude, codex, gemini)`);
     }
     cli = opts.cli as CliName;

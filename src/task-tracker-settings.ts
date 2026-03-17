@@ -1,5 +1,7 @@
 import path from "path";
 import { extractTodoField } from "./agent-prompt.js";
+import { expandHomePath } from "./path-utils.js";
+import { readEnv } from "./env-utils.js";
 import type {
   ProjectTaskTrackerSettings,
   GitTodoTaskTrackerSettings,
@@ -32,24 +34,6 @@ export type ResolvedTaskTracker =
 export interface PollableTaskTracker {
   tracker: ResolvedTaskTracker;
   source: "project" | "default";
-}
-
-function readEnv(name: string, env: NodeJS.ProcessEnv): string | undefined {
-  const value = env[name]?.trim();
-  return value ? value : undefined;
-}
-
-function expandHomePath(rawPath: string): string {
-  if (!rawPath.startsWith("~/")) {
-    return rawPath;
-  }
-
-  const homeDir = process.env.HOME;
-  if (!homeDir) {
-    return rawPath;
-  }
-
-  return path.join(homeDir, rawPath.slice(2));
 }
 
 function normalizeProjectKey(projectPath: string): string {

@@ -3,6 +3,9 @@ import { mkdirSync, readdirSync } from "fs";
 import os from "os";
 import path from "path";
 import { $ } from "zx";
+import { extractTodoField } from "./agent-prompt.js";
+import { findGitRepoRoot } from "./git-utils.js";
+import { expandHomePath, sanitizeSegment } from "./path-utils.js";
 
 export interface ClaimedTaskTarget {
   itemType: string;
@@ -13,33 +16,9 @@ export interface ClaimedTaskTarget {
   remoteName: string;
 }
 
-export function extractTodoField(item: string, field: string): string {
-  const match = item.match(new RegExp(`^\\s+- ${field}:\\s*(.+)$`, "im"));
-  return match ? match[1].trim() : "";
-}
-
-function expandHomePath(inputPath: string): string {
-  if (inputPath === "~") {
-    return os.homedir();
-  }
-  if (inputPath.startsWith("~/")) {
-    return path.join(os.homedir(), inputPath.slice(2));
-  }
-  return inputPath;
-}
-
-function sanitizeSegment(value: string): string {
-  const normalized = value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return normalized || "task";
-}
-
 function buildNoRepoWorkspacePath(item: string): string {
   const summary = item.split("\n")[0]?.replace(/^- /, "").trim() || "task";
-  const slug = sanitizeSegment(summary).slice(0, 48);
+  const slug = sanitizeSegment(summary, "task").slice(0, 48);
   const hash = createHash("sha1").update(item).digest("hex").slice(0, 8);
   return path.join(os.homedir(), ".workers", "no-repo", `${slug}-${hash}`);
 }
@@ -111,16 +90,6 @@ export function resolveClaimedTaskTarget(
     remoteUrl: extractTodoField(item, "Remote") || undefined,
     remoteName: extractTodoField(item, "Remote name") || "origin",
   };
-}
-
-async function findGitRepoRoot(startPath: string): Promise<string | null> {
-  const result =
-    await $`git -C ${startPath} rev-parse --show-toplevel`.quiet().nothrow();
-  if (result.exitCode !== 0) {
-    return null;
-  }
-  const repoRoot = result.stdout.trim();
-  return repoRoot || null;
 }
 
 async function ensureGitIdentity(repoRoot: string): Promise<void> {

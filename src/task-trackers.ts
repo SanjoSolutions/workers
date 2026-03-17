@@ -11,6 +11,7 @@ import {
   fetchBranchTarget,
   resolveBranchTarget,
 } from "./git-target.js";
+import { resolveGitRepoRoot } from "./git-utils.js";
 import type {
   PollableTaskTracker,
   ResolvedGitHubIssuesTaskTracker,
@@ -103,14 +104,6 @@ function renderTodoFromIssues(
   return `${sections.join("\n").trimEnd()}\n`;
 }
 
-async function resolveGitRepoRoot(startPath: string): Promise<string> {
-  const result =
-    await $`git -C ${startPath} rev-parse --show-toplevel`.quiet().nothrow();
-  if (result.exitCode !== 0) {
-    throw new Error(`Cannot find git repository for ${startPath}`);
-  }
-  return result.stdout.trim();
-}
 
 async function fastForwardRepo(repoRoot: string): Promise<boolean> {
   const branchTarget = await resolveBranchTarget(repoRoot);

@@ -2,7 +2,6 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
-import { $ } from "zx";
 import { parseCliOptions } from "../cli.js";
 import { loadConfig } from "../config.js";
 import { selectWorktree } from "../worktree.js";
@@ -39,6 +38,8 @@ import {
   syncCompletedTask,
   type ClaimedTask,
 } from "../task-trackers.js";
+import { readEnv } from "../env-utils.js";
+import { findGitRepoRoot } from "../git-utils.js";
 
 interface ActiveWorkspace {
   repoRoot: string;
@@ -51,32 +52,8 @@ interface ActiveWorkspace {
   localTodoPath: string;
 }
 
-function readEnv(name: string): string | undefined {
-  const value = process.env[name]?.trim();
-  return value ? value : undefined;
-}
-
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function resolveGitRepoRoot(startPath: string): Promise<string> {
-  const result =
-    await $`git -C ${startPath} rev-parse --show-toplevel`.quiet().nothrow();
-  if (result.exitCode !== 0) {
-    throw new Error(`Cannot find git repository for ${startPath}`);
-  }
-  return result.stdout.trim();
-}
-
-async function findGitRepoRoot(startPath: string): Promise<string | undefined> {
-  const result =
-    await $`git -C ${startPath} rev-parse --show-toplevel`.quiet().nothrow();
-  if (result.exitCode !== 0) {
-    return undefined;
-  }
-  const repoRoot = result.stdout.trim();
-  return repoRoot || undefined;
 }
 
 function resolveLocalTodoPath(worktreePath: string): string {
@@ -287,7 +264,7 @@ async function claimNextTodo(
 
 async function runNoTodoMode(
   options: CliOptions,
-  invocationRepoRoot: string | undefined,
+  invocationRepoRoot: string | null,
 ): Promise<void> {
   if (!invocationRepoRoot) {
     throw new Error("`--no-todo` requires running workers from a git repository.");

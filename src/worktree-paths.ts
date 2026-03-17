@@ -1,25 +1,6 @@
 import { createHash } from "crypto";
-import os from "os";
 import path from "path";
-
-function expandHomePath(inputPath: string): string {
-  if (inputPath === "~") {
-    return os.homedir();
-  }
-  if (inputPath.startsWith("~/")) {
-    return path.join(os.homedir(), inputPath.slice(2));
-  }
-  return inputPath;
-}
-
-function sanitizeSegment(value: string): string {
-  const normalized = value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return normalized || "repo";
-}
+import { expandHomePath, sanitizeSegment } from "./path-utils.js";
 
 export function resolveWorktreeRoot(
   repoRoot: string,

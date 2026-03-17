@@ -5,8 +5,8 @@ import readline from "readline/promises";
 import { fileURLToPath } from "url";
 import type { CliName } from "./types.js";
 
-const VALID_CLIS: CliName[] = ["claude", "codex", "gemini"];
-const VALID_CLI_SET = new Set<CliName>(VALID_CLIS);
+export const VALID_CLIS: CliName[] = ["claude", "codex", "gemini"];
+export const VALID_CLI_SET = new Set<CliName>(VALID_CLIS);
 
 export interface WorkerDefaults {
   cli: CliName | undefined;
