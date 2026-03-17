@@ -11,10 +11,32 @@ Available models (cheapest to most expensive):
 - sonnet: Standard implementation — features, bug fixes, test writing, refactoring
 - opus: Complex work — architecture, security reviews, subtle bugs, multi-file refactors, migrations, design decisions
 
-Given the task below, respond with exactly one word: haiku, sonnet, or opus.
+Select the most appropriate model for the task below.
 
 Task:
 `;
+
+const MODEL_SCHEMA = JSON.stringify({
+  type: "object",
+  properties: {
+    model: {
+      type: "string",
+      enum: ["haiku", "sonnet", "opus"],
+      description: "The Claude model best suited for this task",
+    },
+    reason: {
+      type: "string",
+      description: "Brief rationale for the model choice",
+    },
+  },
+  required: ["model"],
+  additionalProperties: false,
+});
+
+interface EvaluationResult {
+  model?: string;
+  reason?: string;
+}
 
 /**
  * Call the configured CLI to evaluate which model is best for a task.
@@ -31,18 +53,24 @@ export async function evaluateClaudeModel(todoItem: string): Promise<string> {
       "high",
       "-p",
       prompt,
+      "--output-format",
+      "json",
+      "--json-schema",
+      MODEL_SCHEMA,
       "--dangerouslySkipPermissions",
       "--allowedTools",
       "",
     ]);
 
-    const model = result.trim().toLowerCase();
-    if (VALID_CLAUDE_MODELS.has(model)) {
-      log.info(`Model evaluation selected: ${model}`);
+    const parsed: EvaluationResult = JSON.parse(result);
+    const model = parsed.model?.trim().toLowerCase();
+
+    if (model && VALID_CLAUDE_MODELS.has(model)) {
+      log.info(`Model evaluation selected: ${model}${parsed.reason ? ` (${parsed.reason})` : ""}`);
       return model;
     }
 
-    log.warn(`Model evaluation returned invalid model "${result.trim()}", using default`);
+    log.warn(`Model evaluation returned invalid model "${parsed.model ?? ""}", using default`);
     return DEFAULT_CLAUDE_MODEL;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
