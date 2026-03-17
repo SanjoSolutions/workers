@@ -14,42 +14,43 @@ async function createFakeCli(binDir: string, name: string): Promise<void> {
 
 describe("settings bootstrap", () => {
   test("creates settings.json from template and auto-selects the only installed cli", async () => {
-    const repoRoot = mkdtempSync(path.join(tmpdir(), "workers-settings-"));
-    const templatePath = path.join(repoRoot, "settings.template.json");
-    const settingsPath = path.join(repoRoot, "settings.json");
-    const binDir = path.join(repoRoot, "bin");
+    const cfgDir = mkdtempSync(path.join(tmpdir(), "workers-settings-"));
+    const templatePath = path.join(cfgDir, "settings.template.json");
+    const settingsFilePath = path.join(cfgDir, "settings.json");
+    const binDir = path.join(cfgDir, "bin");
 
     writeFileSync(templatePath, "{}\n", "utf8");
     await createFakeCli(binDir, "codex");
 
-    const settings = await loadSettings(repoRoot, {
+    const settings = await loadSettings(undefined, {
       env: {
         ...process.env,
         PATH: binDir,
       },
+      configDir: cfgDir,
     });
 
     expect(settings.defaults.cli).toBe("codex");
     expect(settings.defaults.model).toBe("gpt-5.4");
     expect(settings.taskTrackers).toEqual({});
     expect(settings.projects).toEqual([]);
-    expect(existsSync(settingsPath)).toBe(true);
-    expect(JSON.parse(readFileSync(settingsPath, "utf8"))).toMatchObject({
+    expect(existsSync(settingsFilePath)).toBe(true);
+    expect(JSON.parse(readFileSync(settingsFilePath, "utf8"))).toMatchObject({
       worker: { defaults: { cli: "codex" } },
     });
   });
 
   test("prompts only during initial creation when multiple clis are installed", async () => {
-    const repoRoot = mkdtempSync(path.join(tmpdir(), "workers-settings-prompt-"));
-    const templatePath = path.join(repoRoot, "settings.template.json");
-    const settingsPath = path.join(repoRoot, "settings.json");
-    const binDir = path.join(repoRoot, "bin");
+    const cfgDir = mkdtempSync(path.join(tmpdir(), "workers-settings-prompt-"));
+    const templatePath = path.join(cfgDir, "settings.template.json");
+    const settingsFilePath = path.join(cfgDir, "settings.json");
+    const binDir = path.join(cfgDir, "bin");
 
     writeFileSync(templatePath, "{}\n", "utf8");
     await createFakeCli(binDir, "claude");
     await createFakeCli(binDir, "codex");
 
-    const firstLoad = await loadSettings(repoRoot, {
+    const firstLoad = await loadSettings(undefined, {
       env: {
         ...process.env,
         PATH: binDir,
@@ -58,24 +59,26 @@ describe("settings bootstrap", () => {
         expect(choices).toEqual(["claude", "codex"]);
         return "claude";
       },
+      configDir: cfgDir,
     });
 
     expect(firstLoad.defaults.cli).toBe("claude");
     expect(firstLoad.defaults.model).toBe("gpt-5.4");
-    expect(JSON.parse(readFileSync(settingsPath, "utf8"))).toMatchObject({
+    expect(JSON.parse(readFileSync(settingsFilePath, "utf8"))).toMatchObject({
       worker: { defaults: { cli: "claude" } },
     });
 
     writeFileSync(
-      settingsPath,
+      settingsFilePath,
       JSON.stringify({ worker: { defaults: { cli: "gemini", model: "gpt-5.3-codex" } } }, null, 2),
       "utf8",
     );
 
-    const settings = await loadSettings(repoRoot, {
+    const settings = await loadSettings(undefined, {
       promptForCli: async () => {
         throw new Error("should not prompt");
       },
+      configDir: cfgDir,
     });
 
     expect(settings.defaults.cli).toBe("gemini");

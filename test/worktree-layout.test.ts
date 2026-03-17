@@ -1,11 +1,32 @@
-import { mkdtempSync, mkdirSync } from "fs";
+import { mkdtempSync, mkdirSync, writeFileSync } from "fs";
 import os from "os";
 import path from "path";
-import { describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { parseCliOptions } from "../src/cli.js";
 import { resolveProjectWorktreeDir } from "../src/worktree-paths.js";
 
 describe("worktree layout", () => {
+  let originalConfigDir: string | undefined;
+
+  beforeEach(() => {
+    originalConfigDir = process.env.WORKERS_CONFIG_DIR;
+    const cfgDir = mkdtempSync(path.join(os.tmpdir(), "workers-layout-cfg-"));
+    writeFileSync(
+      path.join(cfgDir, "settings.json"),
+      JSON.stringify({ worker: { defaults: { cli: "claude", model: "gpt-5.4" } } }, null, 2),
+      "utf8",
+    );
+    process.env.WORKERS_CONFIG_DIR = cfgDir;
+  });
+
+  afterEach(() => {
+    if (originalConfigDir === undefined) {
+      delete process.env.WORKERS_CONFIG_DIR;
+    } else {
+      process.env.WORKERS_CONFIG_DIR = originalConfigDir;
+    }
+  });
+
   test("cli defaults preserve worker outputs in ~/.worktrees", async () => {
     const options = await parseCliOptions(["node", "work"]);
 
