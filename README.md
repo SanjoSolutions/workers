@@ -1,8 +1,24 @@
 # workers
 
-Workers orchestrates isolated AI-agent work across multiple project repositories while using one shared TODO repository as the source of truth.
+A human-first process that supports spontaneity.
 
-For the direct user-facing Codex session, use the shared coordinator skill at [`.agents/skills/coordinator/SKILL.md`](/home/jonas/workers/.agents/skills/coordinator/SKILL.md). It decides whether a request should be handled immediately or queued into the shared TODO repo. After a larger task is queued, [`.agents/skills/clarification/SKILL.md`](/home/jonas/workers/.agents/skills/clarification/SKILL.md) is a temporary nested step for turning it into an autonomous worker-ready item, after which control returns to the coordinator flow.
+## Features
+
+* SPEC.md: A standard for a high-level project spec.
+* Coordinator - Workers architecture
+  * One coordinator agent prepares tasks for automated workers.
+  * Each worker works on one task at a time.
+* Multi-project support.
+* TODO.md: A lightweight task management system.
+
+## How to
+
+Just start your agent CLI (claude or codex) in this folder and start telling it what you'd like to be built.
+
+In different terminals, start workers (`~/workers/work.sh`). They will pick up tasks, as they become available.
+
+
+
 
 ## Shared TODO Repo
 
