@@ -1,10 +1,10 @@
-import { accessSync, constants, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
-import os from "os";
-import path from "path";
-import select from "@inquirer/select";
-import input from "@inquirer/input";
-import { fileURLToPath } from "url";
-import type { CliName } from "./types.js";
+import input from "@inquirer/input"
+import select from "@inquirer/select"
+import { accessSync, constants, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs"
+import os from "os"
+import path from "path"
+import { fileURLToPath } from "url"
+import type { CliName } from "./types.js"
 
 export const VALID_CLIS: CliName[] = ["claude", "codex", "gemini"];
 export const VALID_CLI_SET = new Set<CliName>(VALID_CLIS);
@@ -475,22 +475,17 @@ export async function ensureDefaultTaskTracker(
   const trackerType = await select({
     message: "No default task tracker configured. Choose a type:",
     choices: [
-      { name: "git-todo — shared TODO.md in a git repo", value: "git-todo" as const },
-      { name: "github-issues — GitHub Issues on a repository", value: "github-issues" as const },
-      { name: "Skip (configure later)", value: "skip" as const },
+      { name: "TODO.md in a Git repo", value: "git-todo" as const },
+      { name: "GitHub Issues", value: "github-issues" as const },
     ],
   });
-
-  if (trackerType === "skip") {
-    return;
-  }
 
   const filePath = settingsPath(cfgDir);
   if (!existsSync(filePath)) return;
   const parsed = parseSettingsFile(filePath);
 
   if (trackerType === "git-todo") {
-    const repo = await input({ message: "Path to shared TODO repo:" });
+    const repo = await input({ message: "Path to shared TODO repo:", default: cfgDir });
     if (!repo.trim()) return;
     const resolvedRepo = path.resolve(repo.trim());
 
@@ -501,7 +496,7 @@ export async function ensureDefaultTaskTracker(
     writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
     settings.defaultTaskTracker = "default";
     settings.taskTrackers.default = { repo: resolvedRepo };
-    process.stdout.write(`Configured git-todo task tracker at ${resolvedRepo}.\n`);
+    process.stdout.write(`Configured TODO repo to ${resolvedRepo}.\n`);
   } else if (trackerType === "github-issues") {
     const repository = await input({ message: "GitHub repository (owner/repo):" });
     if (!repository.trim()) return;
