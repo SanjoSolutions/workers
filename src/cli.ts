@@ -1,9 +1,11 @@
 import { Command } from "commander";
 import type { CliName, CliOptions } from "./types.js";
+import { loadSettings } from "./settings.js";
 
 const VALID_CLIS = new Set<CliName>(["claude", "codex", "gemini"]);
 
 export function parseCliOptions(argv: string[]): CliOptions {
+  const settings = loadSettings();
   const program = new Command();
 
   program
@@ -32,7 +34,7 @@ export function parseCliOptions(argv: string[]): CliOptions {
   const opts = program.opts();
   const positionalCli = program.args[0] as CliName | undefined;
 
-  const cli = (opts.cli ?? positionalCli ?? "codex") as CliName;
+  const cli = (opts.cli ?? positionalCli ?? settings.defaultCli) as CliName;
 
   if (!VALID_CLIS.has(cli)) {
     throw new Error(

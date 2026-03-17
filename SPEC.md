@@ -100,6 +100,15 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - Project-specific worktree hooks may still be configured per repo.
 - Shared TODO ownership must not depend on repo-local config files.
 
+## 8.1 Workers Settings
+
+- Workers must keep user-editable local defaults in `settings.json` at the root of the workers repo.
+- `settings.json` must be gitignored.
+- `settings.template.json` must be committed as the template for that file.
+- If `settings.json` does not exist, workers must create it by copying `settings.template.json`
+  before loading settings.
+- Default CLI selection must be configurable through this settings file.
+
 ## 9. Verification
 
 - TypeScript changes must typecheck with `npx tsc --noEmit`.
