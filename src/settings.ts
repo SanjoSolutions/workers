@@ -317,26 +317,6 @@ async function initializeSettingsFile(
       );
     }
 
-    // Also set assistant CLI
-    const assistant = (parsed.assistant ?? {}) as Record<string, unknown>;
-    const assistantDefaults = (assistant.defaults ?? {}) as Record<string, unknown>;
-    if (typeof assistantDefaults.cli !== "string") {
-      const assistantPromptFn = options.promptForCli ?? ((choices: CliName[]) => promptForCli(choices, "assistant", "assistant.defaults.cli"));
-      const assistantChosen =
-        installed.length === 1
-          ? installed[0]
-          : await assistantPromptFn(installed);
-
-      assistantDefaults.cli = assistantChosen;
-      assistant.defaults = assistantDefaults;
-      parsed.assistant = assistant;
-      if (installed.length === 1) {
-        process.stdout.write(
-          `Auto-selected default assistant CLI: ${assistantChosen} (the only supported CLI installed).\n`,
-        );
-      }
-    }
-
     writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
     return filePath;
   } catch (error) {
