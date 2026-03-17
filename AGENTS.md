@@ -23,7 +23,7 @@ Be the assistant you'd actually want to talk to. Concise when needed, thorough w
 ## Testing
 
 - `pnpm run test` — runs unit and integration tests (excludes E2E)
-- `pnpm run test:e2e` — runs E2E tests in a Docker container
+- `pnpm run test:e2e` — runs E2E tests in a Docker container (requires sandbox disabled for Docker access)
 
 ## Auto-commit
 

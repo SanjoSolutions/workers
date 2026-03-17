@@ -154,14 +154,13 @@ describe("new user E2E", () => {
     await commitAll(todoRepoPath, "Add first task");
 
     // --- Step 3: Run `worker` — prompts for CLI selection, then claims and runs ---
-    const DOWN = "\x1b[B";
     const workerResult = await runInteractive(
       "src/bin/worker.ts",
       { ...env, WORKERS_TODO_REPO: "" },
       ["--worktree-dir", worktreeDir],
       [
         { waitFor: "Choose the default worker CLI", send: "\r" },           // Enter → select claude (first option)
-        { waitFor: "Initialize SPEC.md", send: `${DOWN}\r` },              // Down + Enter → select No
+        { waitFor: "Initialize SPEC.md", send: "\r" },                      // Enter → select Yes (first option)
       ],
       30,
     );
@@ -184,6 +183,26 @@ describe("new user E2E", () => {
     expect(existsSync(path.join(targetProjectPath, ".git"))).toBe(true);
     const logResult = await $`git -C ${targetProjectPath} log --oneline`.quiet();
     expect(logResult.stdout.trim()).toContain("initialize repository");
+
+    // --- Step 5b: Verify SPEC.md and AGENTS.md were initialized ---
+    expect(existsSync(path.join(targetProjectPath, "SPEC.md"))).toBe(true);
+    expect(existsSync(path.join(targetProjectPath, "AGENTS.md"))).toBe(true);
+
+    // Verify they match the templates
+    const specContent = readFileSync(path.join(targetProjectPath, "SPEC.md"), "utf8");
+    const specTemplate = readFileSync(path.join(process.cwd(), "SPEC.template.md"), "utf8");
+    expect(specContent).toBe(specTemplate);
+
+    const agentsContent = readFileSync(path.join(targetProjectPath, "AGENTS.md"), "utf8");
+    const agentsTemplate = readFileSync(path.join(process.cwd(), "AGENTS.template.md"), "utf8");
+    expect(agentsContent).toBe(agentsTemplate);
+
+    // Verify the decision was persisted in settings
+    const settingsAfterSpec = JSON.parse(readFileSync(path.join(configDir, "settings.json"), "utf8"));
+    const projectEntry = settingsAfterSpec.projects?.find(
+      (p: { repo: string }) => p.repo === targetProjectPath,
+    );
+    expect(projectEntry?.specInitialized).toBe(true);
 
     // --- Step 6: Verify a worktree was created ---
     const worktreeListResult =
@@ -208,6 +227,8 @@ describe("new user E2E", () => {
     // --- Step 7: Verify output contains expected log messages ---
     expect(workerOutput).toContain("Claiming TODO");
     expect(workerOutput).toContain("Build a hello world CLI");
+    expect(workerOutput).toContain("Created SPEC.md");
+    expect(workerOutput).toContain("Created AGENTS.md");
     expect(workerOutput).toContain("Finished");
 
     // Verify worker persisted its CLI choice
