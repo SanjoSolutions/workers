@@ -24,16 +24,17 @@ async function commitAll(repoPath: string, message: string): Promise<void> {
   await $`git -C ${repoPath} commit -m ${message} --allow-empty`.quiet().nothrow();
 }
 
-function runWorker(
+function runCommand(
+  script: string,
   env: NodeJS.ProcessEnv,
   args: string[],
 ): Promise<{ exitCode: number | null; stdout: string; stderr: string }> {
-  const workerScript = path.join(process.cwd(), "src/bin/worker.ts");
-  return $({ env, nothrow: true, quiet: true })`timeout 15 npx tsx ${workerScript} ${args}`;
+  const scriptPath = path.join(process.cwd(), script);
+  return $({ env, nothrow: true, quiet: true })`timeout 15 npx tsx ${scriptPath} ${args}`;
 }
 
 describe("new user E2E", () => {
-  test("full journey: init todo repo → add task → worker claims and sets up worktree", { timeout: 30_000 }, async () => {
+  test("full journey: assistant bootstraps → add task → worker claims and runs", { timeout: 30_000 }, async () => {
     const root = mkdtempSync(path.join(tmpdir(), "workers-e2e-"));
     const configDir = path.join(root, "config");
     const todoRepoPath = path.join(root, "todo-repo");
@@ -41,20 +42,25 @@ describe("new user E2E", () => {
     const binDir = path.join(root, "bin");
     const worktreeDir = path.join(root, "worktrees");
 
-    // --- Step 1: Set up config dir with settings ---
-    mkdirSync(configDir, { recursive: true });
-    writeFileSync(
-      path.join(configDir, "settings.json"),
-      JSON.stringify({
-        worker: { defaults: { cli: "claude", model: "gpt-5.4" } },
-        taskTrackers: {
-          default: { repo: todoRepoPath },
-        },
-        defaultTaskTracker: "default",
-      }, null, 2) + "\n",
-      "utf8",
-    );
     await createFakeCli(binDir, "claude");
+
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      WORKERS_CONFIG_DIR: configDir,
+      WORKERS_TODO_REPO: todoRepoPath,
+      PATH: `${binDir}:${process.env.PATH}`,
+    };
+
+    // --- Step 1: Run `assistant` to bootstrap settings and detect CLI ---
+    const assistantResult = await runCommand("src/bin/assistant.ts", env, [
+      "--cli", "claude",
+    ]);
+
+    // The mock agent exits immediately, so assistant exits with 0
+    expect(assistantResult.exitCode, `assistant stderr: ${assistantResult.stderr}`).toBe(0);
+
+    // Verify settings.json was bootstrapped
+    expect(existsSync(path.join(configDir, "settings.json"))).toBe(true);
 
     // --- Step 2: Init shared TODO repo with a task in the ready section ---
     await initGitRepo(todoRepoPath);
@@ -76,19 +82,12 @@ describe("new user E2E", () => {
     await commitAll(todoRepoPath, "Add first task");
 
     // --- Step 3: Run `worker` to claim the task, set up worktree, and launch agent ---
-    const env: NodeJS.ProcessEnv = {
-      ...process.env,
-      WORKERS_CONFIG_DIR: configDir,
-      WORKERS_TODO_REPO: "",
-      PATH: `${binDir}:${process.env.PATH}`,
-    };
-
-    const result = await runWorker(env, [
+    const workerResult = await runCommand("src/bin/worker.ts", env, [
       "--cli", "claude",
       "--worktree-dir", worktreeDir,
     ]);
 
-    const output = result.stdout + result.stderr;
+    const workerOutput = workerResult.stdout + workerResult.stderr;
 
     // --- Step 4: Verify the task was claimed (moved from Ready to In progress) ---
     const todoAfterClaim = readFileSync(path.join(todoRepoPath, "TODO.md"), "utf8");
@@ -113,7 +112,6 @@ describe("new user E2E", () => {
     const worktreeLines = worktreeListResult.stdout
       .split("\n")
       .filter((line) => line.startsWith("worktree "));
-    // At least 2: the main repo + the worker worktree
     expect(worktreeLines.length).toBeGreaterThanOrEqual(2);
 
     const workerWorktreeLine = worktreeLines.find(
@@ -129,9 +127,9 @@ describe("new user E2E", () => {
     expect(branchResult.stdout.trim()).toMatch(/^work\//);
 
     // --- Step 7: Verify output contains expected log messages ---
-    expect(output).toContain("Claiming TODO");
-    expect(output).toContain("Build a hello world CLI");
-    expect(output).toContain("Finished");
+    expect(workerOutput).toContain("Claiming TODO");
+    expect(workerOutput).toContain("Build a hello world CLI");
+    expect(workerOutput).toContain("Finished");
 
     // --- Cleanup ---
     await $`git -C ${targetProjectPath} worktree remove --force ${workerWorktreePath}`
