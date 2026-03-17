@@ -6,8 +6,7 @@ import {
 } from "../src/task-tracker-settings.js";
 
 const BASE_SETTINGS: WorkersSettings = {
-  defaultCli: "codex",
-  model: "gpt-5.4",
+  defaults: { cli: "codex", model: "gpt-5.4" },
   defaultTaskTracker: "shared",
   taskTrackers: {
     shared: {

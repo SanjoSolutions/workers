@@ -45,7 +45,7 @@ describe("new user E2E", () => {
     mkdirSync(workersRepoRoot, { recursive: true });
     writeFileSync(
       path.join(workersRepoRoot, "settings.template.json"),
-      '{ "model": "gpt-5.4" }\n',
+      '{ "worker": { "defaults": { "model": "gpt-5.4" } } }\n',
       "utf8",
     );
     await createFakeCli(binDir, "claude");
@@ -55,8 +55,8 @@ describe("new user E2E", () => {
       env: { ...process.env, PATH: binDir },
     });
 
-    expect(settings.defaultCli).toBe("claude");
-    expect(settings.model).toBe("gpt-5.4");
+    expect(settings.defaults.cli).toBe("claude");
+    expect(settings.defaults.model).toBe("gpt-5.4");
     expect(existsSync(path.join(workersRepoRoot, "settings.json"))).toBe(true);
 
     // --- Step 3: Init shared TODO repo ---

@@ -1,3 +1,7 @@
 {
-  "model": "gpt-5.4"
+  "worker": {
+    "defaults": {
+      "model": "gpt-5.4"
+    }
+  }
 }

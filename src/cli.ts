@@ -34,7 +34,7 @@ export async function parseCliOptions(argv: string[]): Promise<CliOptions> {
   const opts = program.opts();
   const positionalCli = program.args[0] as CliName | undefined;
 
-  const cli = (opts.cli ?? positionalCli ?? settings.defaultCli) as CliName;
+  const cli = (opts.cli ?? positionalCli ?? settings.defaults.cli) as CliName;
 
   if (!VALID_CLIS.has(cli)) {
     throw new Error(
@@ -57,6 +57,6 @@ export async function parseCliOptions(argv: string[]): Promise<CliOptions> {
     noTodo: opts.todo === false,
     model: opts.model,
     reasoningEffort: opts.reasoningEffort,
-    modelDefault: settings.model,
+    modelDefault: settings.defaults.model,
   };
 }
