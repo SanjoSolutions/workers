@@ -7,9 +7,13 @@ import type { CliName } from "./types.js";
 const VALID_CLIS: CliName[] = ["claude", "codex", "gemini"];
 const VALID_CLI_SET = new Set<CliName>(VALID_CLIS);
 
-export interface WorkersSettings {
-  defaultCli: CliName;
+export interface WorkerDefaults {
+  cli: CliName;
   model: string;
+}
+
+export interface WorkersSettings {
+  defaults: WorkerDefaults;
   defaultTaskTracker: string | undefined;
   taskTrackers: Record<string, TaskTrackerSettings>;
   projects: ProjectTaskTrackerSettings[];
@@ -196,7 +200,7 @@ function detectInstalledClis(env: NodeJS.ProcessEnv): CliName[] {
 async function promptForDefaultCli(choices: CliName[]): Promise<CliName> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     throw new Error(
-      `Multiple worker CLIs are installed (${choices.join(", ")}). Set defaultCli in settings.json.`,
+      `Multiple worker CLIs are installed (${choices.join(", ")}). Set worker.defaults.cli in settings.json.`,
     );
   }
 
@@ -249,12 +253,14 @@ async function initializeSettingsFile(
   copyFileSync(templatePath, filePath);
 
   const parsed = parseSettingsFile(filePath);
-  const configuredDefault = parsed.defaultCli;
+  const worker = (parsed.worker ?? {}) as Record<string, unknown>;
+  const defaults = (worker.defaults ?? {}) as Record<string, unknown>;
+  const configuredCli = defaults.cli;
 
-  if (typeof configuredDefault === "string") {
-    if (!VALID_CLI_SET.has(configuredDefault as CliName)) {
+  if (typeof configuredCli === "string") {
+    if (!VALID_CLI_SET.has(configuredCli as CliName)) {
       throw new Error(
-        `Invalid settings in ${filePath}: defaultCli must be one of claude, codex, gemini.`,
+        `Invalid settings in ${filePath}: worker.defaults.cli must be one of claude, codex, gemini.`,
       );
     }
     return filePath;
@@ -263,7 +269,7 @@ async function initializeSettingsFile(
   const installed = detectInstalledClis(options.env ?? process.env);
   if (installed.length === 0) {
     throw new Error(
-      "No supported worker CLI is installed. Install codex, claude, or gemini, or set defaultCli manually in settings.json.",
+      "No supported worker CLI is installed. Install codex, claude, or gemini, or set worker.defaults.cli manually in settings.json.",
     );
   }
 
@@ -272,7 +278,9 @@ async function initializeSettingsFile(
       ? installed[0]
       : await (options.promptForCli ?? promptForDefaultCli)(installed);
 
-  parsed.defaultCli = chosen;
+  defaults.cli = chosen;
+  worker.defaults = defaults;
+  parsed.worker = worker;
   writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
   if (installed.length === 1) {
     process.stdout.write(
@@ -288,20 +296,24 @@ export async function loadSettings(
 ): Promise<WorkersSettings> {
   const filePath = await initializeSettingsFile(repoRoot, options);
   const parsed = parseSettingsFile(filePath);
-  const defaultCli = parsed.defaultCli;
+  const worker = (parsed.worker ?? {}) as Record<string, unknown>;
+  const defaults = (worker.defaults ?? {}) as Record<string, unknown>;
+  const cli = defaults.cli;
 
-  if (typeof defaultCli !== "string" || !VALID_CLI_SET.has(defaultCli as CliName)) {
+  if (typeof cli !== "string" || !VALID_CLI_SET.has(cli as CliName)) {
     throw new Error(
-      `Invalid settings in ${filePath}: defaultCli must be one of claude, codex, gemini.`,
+      `Invalid settings in ${filePath}: worker.defaults.cli must be one of claude, codex, gemini.`,
     );
   }
 
   return {
-    defaultCli: defaultCli as CliName,
-    model:
-      typeof parsed.model === "string" && parsed.model.trim()
-        ? parsed.model.trim()
-        : "gpt-5.4",
+    defaults: {
+      cli: cli as CliName,
+      model:
+        typeof defaults.model === "string" && (defaults.model as string).trim()
+          ? (defaults.model as string).trim()
+          : "gpt-5.4",
+    },
     defaultTaskTracker:
       typeof parsed.defaultTaskTracker === "string" && parsed.defaultTaskTracker.trim()
         ? parsed.defaultTaskTracker.trim()
