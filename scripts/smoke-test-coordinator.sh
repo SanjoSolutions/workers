@@ -9,6 +9,8 @@ CLAUDE_TMP="$(mktemp -d)"
 trap 'rm -rf "$CLAUDE_TMP"' EXIT
 cp "$HOME/.claude/.credentials.json" "$CLAUDE_TMP/.credentials.json"
 cp "$HOME/.claude/settings.json" "$CLAUDE_TMP/settings.json"
+# Mark onboarding as complete so Claude doesn't show first-run setup
+echo '{"hasCompletedOnboarding":true,"theme":"dark"}' > "$CLAUDE_TMP/.config.json"
 
 # Clean build files that may be owned by a different uid from previous Docker runs
 docker run --rm -v "$(pwd):/app" node:lts rm -rf /app/build
