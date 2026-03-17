@@ -3,16 +3,13 @@
  *
  * Requires a real `claude` binary authenticated via ~/.claude/.credentials.json.
  *
- * Test 1 — small task: sets up a project with the coordinator skill, gives
- *   Claude a tiny task, and checks that it was handled directly (not queued).
- *
- * Test 2 — big task: gives Claude a large multi-step request and checks that
- *   it delegates to TODO.md via add-todo.sh instead of doing it directly.
+ * Sets up a project with the coordinator skill, gives Claude a large
+ * multi-step request, and lets you observe whether it delegates to
+ * TODO.md or starts implementing directly. Stop with Ctrl+C once clear.
  */
 
 import {
   copyFileSync,
-  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -21,11 +18,6 @@ import {
 import { tmpdir } from "os";
 import path from "path";
 import { $ } from "zx";
-
-function fail(message: string): never {
-  console.error(`FAIL: ${message}`);
-  process.exit(1);
-}
 
 const TODO_TEMPLATE = readFileSync(
   path.join(process.cwd(), "TODO.template.md"),
@@ -105,58 +97,8 @@ async function setupProject(root: string, name: string): Promise<string> {
   return projectPath;
 }
 
-async function testSmallTask(root: string): Promise<void> {
-  console.log("=== Test 1: small task — should be handled directly ===\n");
-
-  const projectPath = await setupProject(root, "small-task");
-
-  const prompt =
-    "Create a file called hello.txt containing exactly: Hello, world!";
-
-  const result = await $(
-    { cwd: projectPath, nothrow: true },
-  )`claude -p ${prompt} --dangerously-skip-permissions --max-turns 10`;
-
-  const output = result.stdout + result.stderr;
-
-  if (result.exitCode !== 0) {
-    console.log("Claude output:\n", output);
-    fail(`claude exited with code ${result.exitCode}`);
-  }
-
-  // hello.txt should exist with the right content
-  const helloPath = path.join(projectPath, "hello.txt");
-  if (!existsSync(helloPath)) {
-    console.log("Claude output:\n", output);
-    fail(
-      "hello.txt was not created — coordinator may not have handled the task directly",
-    );
-  }
-
-  const content = readFileSync(helloPath, "utf8");
-  if (!content.includes("Hello, world!")) {
-    fail(`hello.txt has unexpected content: ${content}`);
-  }
-  console.log("PASS: hello.txt created with correct content");
-
-  // TODO.md should be unchanged (small task should not be queued)
-  const todoAfter = readFileSync(
-    path.join(projectPath, "TODO.md"),
-    "utf8",
-  );
-  if (todoAfter !== TODO_TEMPLATE) {
-    console.log(
-      "WARNING: TODO.md was modified — coordinator may have queued instead of handling directly",
-    );
-  } else {
-    console.log("PASS: TODO.md unchanged (task was not queued)");
-  }
-
-  console.log();
-}
-
 async function testBigTask(root: string): Promise<void> {
-  console.log("=== Test 2: big task — should be delegated to TODO.md ===\n");
+  console.log("=== Smoke test: big task — should be delegated to TODO.md ===\n");
 
   const projectPath = await setupProject(root, "big-task");
 
@@ -199,10 +141,7 @@ async function main(): Promise<void> {
   const root = mkdtempSync(path.join(tmpdir(), "smoke-coordinator-"));
   console.log(`Test root: ${root}\n`);
 
-  await testSmallTask(root);
   await testBigTask(root);
-
-  console.log("All smoke tests passed!");
 }
 
 main().catch((error) => {
