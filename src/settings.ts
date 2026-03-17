@@ -485,7 +485,7 @@ export async function ensureDefaultTaskTracker(
   const parsed = parseSettingsFile(filePath);
 
   if (trackerType === "git-todo") {
-    const repo = await input({ message: "Path to shared TODO repo:", default: cfgDir });
+    const repo = await input({ message: "Path to TODO repo:", default: cfgDir });
     if (!repo.trim()) return;
     const resolvedRepo = path.resolve(repo.trim());
 

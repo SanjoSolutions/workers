@@ -126,7 +126,7 @@ describe("new user E2E", () => {
       [
         { waitFor: "Choose the default assistant CLI", send: "\r" },       // Enter → select claude (first option)
         { waitFor: "task tracker", send: "\r" },                           // Enter → select git-todo (first option)
-        { waitFor: "Path to shared TODO repo", send: `${todoRepoPath}\r` }, // Type path + Enter
+        { waitFor: "Path to TODO repo", send: `${todoRepoPath}\r` }, // Type path + Enter
       ],
     );
 
