@@ -99,7 +99,7 @@ For each fully clarified item, use this structure:
 ```markdown
 - Clear, imperative summary of what to do
   - Type: Development task | Bug fix | New project
-  - Repo: <target repo path when the task targets another repo or bootstraps a new one>
+  - Repo: <target repo path>
   - Agent: Claude | Codex | Gemini
   - Decisions:
     - Q: <question>
@@ -115,8 +115,8 @@ For each fully clarified item, use this structure:
 Format rules:
 
 - `Type` is required and must be exactly `Development task`, `Bug fix`, or `New project`.
-- `Repo` is required for tasks that target another repo and for all `New project` tasks.
-- `Repo` may be omitted only for tasks meant to run in the repo where workers is invoked.
+- `Repo` is required for all worker-ready tasks.
+- Use `Repo: none` for tasks that should run outside any project repo.
 - `Agent` is optional and must be exactly `Claude`, `Codex`, or `Gemini` when present.
 - `Decisions` is optional and should use `Q:` / `A:` pairs.
 - `Context` is optional and should only include non-obvious repo facts.
