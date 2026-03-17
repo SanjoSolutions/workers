@@ -10,6 +10,7 @@ import { spawn } from "child_process";
 import { fileURLToPath } from "url";
 import type { AgentStrategy, AgentResult } from "./types.js";
 import { spawnAgentProcess } from "./process.js";
+import { extractTodoField } from "../agent-prompt.js";
 
 interface ManagedInteractiveGeminiSession {
   env: NodeJS.ProcessEnv;
@@ -224,7 +225,17 @@ export class GeminiAgentStrategy implements AgentStrategy {
   readonly cli = "gemini" as const;
 
   async launch(context: Parameters<AgentStrategy["launch"]>[0]) {
-    const args = ["--approval-mode", "auto_edit"];
+    const geminiModel =
+      extractTodoField(context.claimedTodoItem, "Model") ||
+      context.options.model ||
+      context.config?.agent?.model ||
+      context.options.modelDefault;
+
+    const args = [
+      ...(geminiModel ? ["--model", geminiModel] : []),
+      "--approval-mode",
+      "auto_edit",
+    ];
 
     if (context.noTodo) {
       return spawnAgentProcess({
