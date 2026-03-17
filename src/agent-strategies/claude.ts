@@ -26,18 +26,19 @@ export class ClaudeAgentStrategy implements AgentStrategy {
       extractTodoField(context.claimedTodoItem, "Model") ||
       context.options.model ||
       context.config?.agent?.claudeDefaultModel ||
-      await evaluateClaudeModel(context.claimedTodoItem);
+      (context.claimedTodoItem ? await evaluateClaudeModel(context.claimedTodoItem) : undefined);
+
+    const modelArgs = claudeModel ? ["--model", claudeModel] : [];
 
     let args: string[];
     let captureOutput: boolean;
 
     if (context.noTodo) {
-      args = ["--model", claudeModel, "--allowedTools", claudeAllowedTools];
+      args = [...modelArgs, "--allowedTools", claudeAllowedTools];
       captureOutput = false;
     } else if (context.options.interactive) {
       args = [
-        "--model",
-        claudeModel,
+        ...modelArgs,
         "--allowedTools",
         claudeAllowedTools,
         "--",
@@ -46,8 +47,7 @@ export class ClaudeAgentStrategy implements AgentStrategy {
       captureOutput = false;
     } else {
       args = [
-        "--model",
-        claudeModel,
+        ...modelArgs,
         "-p",
         context.nextPrompt,
         "--dangerously-skip-permissions",
