@@ -101,6 +101,7 @@ For each fully clarified item, use this structure:
   - Type: Development task | Bug fix | New project
   - Repo: <target repo path>
   - Agent: Claude | Codex | Gemini
+  - Reasoning: low | medium | high | xhigh
   - Decisions:
     - Q: <question>
     - A: <answer>
@@ -118,6 +119,8 @@ Format rules:
 - `Repo` is required for all worker-ready tasks.
 - Use `Repo: none` for tasks that should run outside any project repo.
 - `Agent` is optional and must be exactly `Claude`, `Codex`, or `Gemini` when present.
+- `Reasoning` is optional. Use it only when a Codex task needs a non-default reasoning level; omit
+  it otherwise because workers defaults Codex reasoning to `high`.
 - `Decisions` is optional and should use `Q:` / `A:` pairs.
 - `Context` is optional and should only include non-obvious repo facts.
 - `Scope` and `Out of scope` are optional.

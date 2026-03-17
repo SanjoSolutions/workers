@@ -36,14 +36,16 @@ Queue the request into `TODO.md` when it is larger, including cases like:
 5. Include `- Repo: /path/to/repo` for repo-targeted work, or `- Repo: none` for tasks that should
    run outside any project repo.
 6. If it is a brand new project, include `- Type: New project` and `- Repo: /path/to/new/repo`.
-7. Add it with `./add-todo.sh` so it lands in the shared TODO repo.
-8. Tell the user that the task was queued instead of pretending it was started.
+7. For Codex-targeted tasks, add `- Reasoning: low|medium|high|xhigh` only when the task needs a
+   non-default reasoning level. Omit it otherwise; workers defaults Codex reasoning to `high`.
+8. Add it with `./add-todo.sh` so it lands in the shared TODO repo.
+9. Tell the user that the task was queued instead of pretending it was started.
 
 If the queued task is too ambiguous for a worker to execute safely:
 
-9. Use the clarification skill to ask the missing questions and promote it toward `## Ready to be picked up`.
-10. After clarification finishes, return to `coordinator`.
-11. Tell the user whether the task is now ready for worker pickup or still remains queued with open questions.
+10. Use the clarification skill to ask the missing questions and promote it toward `## Ready to be picked up`.
+11. After clarification finishes, return to `coordinator`.
+12. Tell the user whether the task is now ready for worker pickup or still remains queued with open questions.
 
 Example:
 

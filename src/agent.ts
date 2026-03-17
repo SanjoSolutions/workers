@@ -166,7 +166,11 @@ export async function launchAgent(
       case "codex": {
         command = "codex";
         const codexModel =
-          config?.agent?.codexModel || "o3";
+          extractTodoField(claimedTodoItem, "Model") ||
+          options.model ||
+          config?.agent?.codexModel ||
+          options.codexModelDefault ||
+          "gpt-5.4";
         const reasoningEffort =
           extractTodoField(claimedTodoItem, "Reasoning") ||
           options.reasoningEffort ||
