@@ -4,6 +4,7 @@ import { accessSync, constants, copyFileSync, existsSync, mkdirSync, readFileSyn
 import os from "os"
 import path from "path"
 import { fileURLToPath } from "url"
+import { expandHomePath } from "./path-utils.js"
 import type { CliName } from "./types.js"
 
 export const VALID_CLIS: CliName[] = ["claude", "codex", "gemini"];
@@ -487,7 +488,7 @@ export async function ensureDefaultTaskTracker(
   if (trackerType === "git-todo") {
     const repo = await input({ message: "Path to TODO repo:", default: cfgDir });
     if (!repo.trim()) return;
-    const resolvedRepo = path.resolve(repo.trim());
+    const resolvedRepo = path.resolve(expandHomePath(repo.trim()));
 
     const trackers = (parsed.taskTrackers ?? {}) as Record<string, unknown>;
     trackers.default = { repo: resolvedRepo };
