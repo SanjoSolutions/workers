@@ -121,20 +121,14 @@ async function main(): Promise<void> {
 
   const child = spawn(
     "claude",
-    ["--dangerously-skip-permissions"],
+    ["--dangerously-skip-permissions", "--", PROMPT],
     {
       cwd: projectPath,
-      stdio: ["pipe", "inherit", "inherit"],
+      stdio: "inherit",
       env: process.env,
     },
   );
 
-  // Wait a moment for Claude to start, then send the prompt
-  setTimeout(() => {
-    child.stdin.write(PROMPT + "\n");
-  }, 2000);
-
-  // Forward Ctrl+C to the child
   process.on("SIGINT", () => {
     child.kill("SIGINT");
   });
