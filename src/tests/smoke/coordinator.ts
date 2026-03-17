@@ -48,17 +48,10 @@ async function setupProject(root: string, name: string): Promise<string> {
     path.join(skillDir, "SKILL.md"),
   );
 
-  // AGENTS.md referencing the coordinator skill
-  writeFileSync(
+  // Copy AGENTS.md from the workers repo
+  copyFileSync(
+    path.join(cwd, "AGENTS.md"),
     path.join(projectPath, "AGENTS.md"),
-    [
-      "# AGENTS.md",
-      "",
-      "## Workflow",
-      "",
-      "- The direct user-facing agent session should automatically follow `.agents/skills/coordinator/SKILL.md`.",
-      "",
-    ].join("\n"),
   );
 
   // TODO.md from template
