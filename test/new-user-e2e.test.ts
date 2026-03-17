@@ -41,7 +41,7 @@ describe("new user E2E", () => {
     const binDir = path.join(root, "bin");
     const worktreeDir = path.join(root, "worktrees");
 
-    // --- Step 1: Simulate workers repo with settings template ---
+    // --- Step 1: Simulate config dir with settings template ---
     mkdirSync(workersRepoRoot, { recursive: true });
     writeFileSync(
       path.join(workersRepoRoot, "settings.template.json"),
@@ -51,8 +51,9 @@ describe("new user E2E", () => {
     await createFakeCli(binDir, "claude");
 
     // --- Step 2: Bootstrap settings (first-time loadSettings) ---
-    const settings = await loadSettings(workersRepoRoot, {
+    const settings = await loadSettings(undefined, {
       env: { ...process.env, PATH: binDir },
+      configDir: workersRepoRoot,
     });
 
     expect(settings.defaults.cli).toBe("claude");

@@ -57,8 +57,7 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - Workers must also provide a shared intake skill for the direct user-facing Codex session so this behavior can be applied by default.
 - After larger work is queued, the clarification skill remains responsible for refining it into an autonomous task that can move toward `## Ready to be picked up`.
 - When the coordinator skill invokes clarification, clarification acts as a temporary nested step and control returns to coordinator afterward.
-- The local repo entrypoints must be `./work`, `./add-todo`, and `./init-todo-repo`.
-- Package installation must also expose `work`, `add-todo`, and `init-todo-repo` as Node bin commands.
+- Package installation must expose `work`, `add-todo`, `init-todo-repo`, and `assistant` as Node bin commands.
 - Ready-to-pick-up tasks must record their target repo in structured task metadata.
 - Tasks that are not for any repo must record that explicitly as `Repo: none`.
 - New-project tasks must record the target repo path in structured task metadata.
@@ -107,19 +106,24 @@ Workers orchestrates isolated development work for AI coding agents across multi
 
 ## 8.1 Workers Settings
 
-- Workers must keep user-editable local defaults in `settings.json` at the root of the workers repo.
-- `settings.json` must be gitignored.
-- `settings.template.json` must be committed as the template for that file.
-- If `settings.json` does not exist, workers must create it by copying `settings.template.json`
-  before loading settings.
-- Initial settings creation must choose `defaultCli` automatically when exactly one supported worker
-  CLI is installed.
-- Initial settings creation must prompt the user to choose `defaultCli` when multiple supported
-  worker CLIs are installed.
+- Workers must store user-editable settings in a platform-appropriate config directory:
+  - Linux: `$XDG_CONFIG_HOME/workers/` (default `~/.config/workers/`)
+  - macOS: `~/Library/Application Support/workers/`
+  - Windows: `%APPDATA%\workers\`
+  - Override: `WORKERS_CONFIG_DIR` environment variable
+- `settings.template.json` must be committed in the package as the template for new settings files.
+- If `settings.json` does not exist in the config directory, workers must create it by copying
+  `settings.template.json` before loading settings.
+- If settings initialization fails (e.g. CLI auto-detection cannot prompt), the partially created
+  settings file must be removed to avoid leaving broken state.
+- Initial settings creation must choose `worker.defaults.cli` automatically when exactly one
+  supported worker CLI is installed.
+- Initial settings creation must prompt the user to choose `worker.defaults.cli` when multiple
+  supported worker CLIs are installed.
 - After `settings.json` exists, workers must read it as the source of truth instead of prompting
   again.
 - Default CLI selection must be configurable through this settings file.
-- The default Codex model must be configurable through this settings file.
+- The default agent model must be configurable through this settings file.
 - The default task tracker must be configurable through this settings file.
 - Settings must support named task trackers and project-to-task-tracker assignments.
 - Project registrations in settings must be stored as an ordered array, and worker polling must
@@ -139,14 +143,26 @@ Workers orchestrates isolated development work for AI coding agents across multi
   tracker backends.
 - Tracker selection and worker polling must no longer be hard-coded to a single repository.
 
-## 9. Verification
+## 8.3 Assistant Command
+
+- Workers must provide an `assistant` command that launches an interactive agent session in the
+  workers repo directory.
+- The assistant command must use the workers repo's `AGENTS.md` and related configuration.
+- The assistant CLI is configurable via `assistant.defaults.cli` in settings, falling back to
+  `worker.defaults.cli`.
+
+## 9. Platform Support
+
+- Workers must support Linux, Windows, and macOS.
+
+## 10. Verification
 
 - TypeScript changes must typecheck with `npx tsc --noEmit`.
 - Publishable/runtime entrypoints must be compiled JavaScript under `build/` rather than relying on
   `tsx` at runtime.
 - Repo-facing POSIX shell compatibility wrappers must pass `sh -n`.
 
-## 10. License Compliance
+## 11. License Compliance
 
 - When repository guidance or documentation copies or adapts substantive text from another project,
   workers must retain clear provenance in the edited file or adjacent docs.
