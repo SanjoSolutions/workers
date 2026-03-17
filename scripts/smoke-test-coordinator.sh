@@ -8,8 +8,7 @@ cd "$(dirname "$0")/.."
 CLAUDE_TMP="$(mktemp -d)"
 trap 'rm -rf "$CLAUDE_TMP"' EXIT
 cp "$HOME/.claude/.credentials.json" "$CLAUDE_TMP/.credentials.json"
-# Minimal settings to skip first-run setup
-echo '{}' > "$CLAUDE_TMP/settings.json"
+cp "$HOME/.claude/settings.json" "$CLAUDE_TMP/settings.json"
 
 # Clean build files that may be owned by a different uid from previous Docker runs
 docker run --rm -v "$(pwd):/app" node:lts rm -rf /app/build
