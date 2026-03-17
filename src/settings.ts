@@ -9,7 +9,7 @@ const VALID_CLIS: CliName[] = ["claude", "codex", "gemini"];
 const VALID_CLI_SET = new Set<CliName>(VALID_CLIS);
 
 export interface WorkerDefaults {
-  cli: CliName;
+  cli: CliName | undefined;
   model: string;
 }
 
@@ -53,8 +53,6 @@ export interface ProjectTaskTrackerSettings {
 }
 
 interface SettingsLoadOptions {
-  env?: NodeJS.ProcessEnv;
-  promptForCli?: (choices: CliName[]) => Promise<CliName>;
   /** Override the config directory (for testing). When set, the template is also loaded from this directory. */
   configDir?: string;
 }
@@ -260,11 +258,10 @@ async function promptForCli(
   }
 }
 
-async function initializeSettingsFile(
+function initializeSettingsFile(
   cfgDir: string,
   templateRepoRoot: string,
-  options: SettingsLoadOptions,
-): Promise<string> {
+): string {
   const filePath = settingsPath(cfgDir);
   if (existsSync(filePath)) {
     return filePath;
@@ -279,50 +276,7 @@ async function initializeSettingsFile(
 
   mkdirSync(cfgDir, { recursive: true });
   copyFileSync(templatePath, filePath);
-
-  try {
-    const parsed = parseSettingsFile(filePath);
-    const worker = (parsed.worker ?? {}) as Record<string, unknown>;
-    const defaults = (worker.defaults ?? {}) as Record<string, unknown>;
-    const configuredCli = defaults.cli;
-
-    if (typeof configuredCli === "string") {
-      if (!VALID_CLI_SET.has(configuredCli as CliName)) {
-        throw new Error(
-          `Invalid settings in ${filePath}: worker.defaults.cli must be one of claude, codex, gemini.`,
-        );
-      }
-      return filePath;
-    }
-
-    const installed = detectInstalledClis(options.env ?? process.env);
-    if (installed.length === 0) {
-      throw new Error(
-        "No supported worker CLI is installed. Install codex, claude, or gemini, or set worker.defaults.cli manually in settings.json.",
-      );
-    }
-
-    const promptFn = options.promptForCli ?? ((choices: CliName[]) => promptForCli(choices, "worker", "worker.defaults.cli"));
-    const chosen =
-      installed.length === 1
-        ? installed[0]
-        : await promptFn(installed);
-
-    defaults.cli = chosen;
-    worker.defaults = defaults;
-    parsed.worker = worker;
-    if (installed.length === 1) {
-      process.stdout.write(
-        `Auto-selected default worker CLI: ${chosen} (the only supported CLI installed).\n`,
-      );
-    }
-
-    writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
-    return filePath;
-  } catch (error) {
-    rmSync(filePath, { force: true });
-    throw error;
-  }
+  return filePath;
 }
 
 export async function loadSettings(
@@ -331,17 +285,16 @@ export async function loadSettings(
 ): Promise<WorkersSettings> {
   const cfgDir = options.configDir ?? configDir();
   const templateRoot = options.configDir ?? repoRoot;
-  const filePath = await initializeSettingsFile(cfgDir, templateRoot, options);
+  const filePath = initializeSettingsFile(cfgDir, templateRoot);
   const parsed = parseSettingsFile(filePath);
   const worker = (parsed.worker ?? {}) as Record<string, unknown>;
   const defaults = (worker.defaults ?? {}) as Record<string, unknown>;
   const cli = defaults.cli;
 
-  if (typeof cli !== "string" || !VALID_CLI_SET.has(cli as CliName)) {
-    throw new Error(
-      `Invalid settings in ${filePath}: worker.defaults.cli must be one of claude, codex, gemini.`,
-    );
-  }
+  const workerCli =
+    typeof cli === "string" && VALID_CLI_SET.has(cli as CliName)
+      ? (cli as CliName)
+      : undefined;
 
   const assistant = (parsed.assistant ?? {}) as Record<string, unknown>;
   const assistantDefaults = (assistant.defaults ?? {}) as Record<string, unknown>;
@@ -352,7 +305,7 @@ export async function loadSettings(
 
   return {
     defaults: {
-      cli: cli as CliName,
+      cli: workerCli,
       model:
         typeof defaults.model === "string" && (defaults.model as string).trim()
           ? (defaults.model as string).trim()
@@ -424,48 +377,87 @@ export function persistProjectSettings(
   return true;
 }
 
+async function ensureCli(
+  label: string,
+  settingsKey: string,
+  current: CliName | undefined,
+  persist: (chosen: CliName) => void,
+  options?: { env?: NodeJS.ProcessEnv; promptForCli?: (choices: CliName[]) => Promise<CliName> },
+): Promise<CliName> {
+  if (current) {
+    return current;
+  }
+
+  const installed = detectInstalledClis(options?.env ?? process.env);
+  if (installed.length === 0) {
+    throw new Error(
+      `No supported CLI is installed. Install codex, claude, or gemini, or set ${settingsKey} manually in settings.json.`,
+    );
+  }
+
+  const promptFn = options?.promptForCli ?? ((choices: CliName[]) => promptForCli(choices, label, settingsKey));
+  const chosen =
+    installed.length === 1
+      ? installed[0]
+      : await promptFn(installed);
+
+  if (installed.length === 1) {
+    process.stdout.write(
+      `Auto-selected default ${label} CLI: ${chosen} (the only supported CLI installed).\n`,
+    );
+  }
+
+  persist(chosen);
+  return chosen;
+}
+
+function persistCliSetting(
+  cfgDir: string,
+  setPath: (parsed: Record<string, unknown>, chosen: CliName) => void,
+  chosen: CliName,
+): void {
+  const filePath = settingsPath(cfgDir);
+  if (!existsSync(filePath)) return;
+  const parsed = parseSettingsFile(filePath);
+  setPath(parsed, chosen);
+  writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+}
+
+/**
+ * Ensure worker.defaults.cli is set. If not, detect/prompt and persist.
+ */
+export async function ensureWorkerCli(
+  settings: WorkersSettings,
+  cfgDir = configDir(),
+  options?: { env?: NodeJS.ProcessEnv; promptForCli?: (choices: CliName[]) => Promise<CliName> },
+): Promise<CliName> {
+  return ensureCli("worker", "worker.defaults.cli", settings.defaults.cli, (chosen) => {
+    persistCliSetting(cfgDir, (parsed, cli) => {
+      const worker = (parsed.worker ?? {}) as Record<string, unknown>;
+      const defaults = (worker.defaults ?? {}) as Record<string, unknown>;
+      defaults.cli = cli;
+      worker.defaults = defaults;
+      parsed.worker = worker;
+    }, chosen);
+    settings.defaults.cli = chosen;
+  }, options);
+}
+
 /**
  * Ensure assistant.defaults.cli is set. If not, detect/prompt and persist.
- * Returns the resolved CLI name.
  */
 export async function ensureAssistantCli(
   settings: WorkersSettings,
   cfgDir = configDir(),
 ): Promise<CliName> {
-  if (settings.assistant.defaults.cli) {
-    return settings.assistant.defaults.cli;
-  }
-
-  const installed = detectInstalledClis(process.env);
-  if (installed.length === 0) {
-    throw new Error(
-      "No supported CLI is installed. Install codex, claude, or gemini, or set assistant.defaults.cli manually in settings.json.",
-    );
-  }
-
-  const chosen =
-    installed.length === 1
-      ? installed[0]
-      : await promptForCli(installed, "assistant", "assistant.defaults.cli");
-
-  if (installed.length === 1) {
-    process.stdout.write(
-      `Auto-selected default assistant CLI: ${chosen} (the only supported CLI installed).\n`,
-    );
-  }
-
-  // Persist to settings
-  const filePath = settingsPath(cfgDir);
-  if (existsSync(filePath)) {
-    const parsed = parseSettingsFile(filePath);
-    const assistant = (parsed.assistant ?? {}) as Record<string, unknown>;
-    const assistantDefaults = (assistant.defaults ?? {}) as Record<string, unknown>;
-    assistantDefaults.cli = chosen;
-    assistant.defaults = assistantDefaults;
-    parsed.assistant = assistant;
-    writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
-  }
-
-  settings.assistant.defaults.cli = chosen;
-  return chosen;
+  return ensureCli("assistant", "assistant.defaults.cli", settings.assistant.defaults.cli, (chosen) => {
+    persistCliSetting(cfgDir, (parsed, cli) => {
+      const assistant = (parsed.assistant ?? {}) as Record<string, unknown>;
+      const assistantDefaults = (assistant.defaults ?? {}) as Record<string, unknown>;
+      assistantDefaults.cli = cli;
+      assistant.defaults = assistantDefaults;
+      parsed.assistant = assistant;
+    }, chosen);
+    settings.assistant.defaults.cli = chosen;
+  });
 }
