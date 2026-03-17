@@ -1,8 +1,7 @@
-import { copyFileSync, existsSync, readFileSync, writeFileSync } from "fs";
+import { accessSync, constants, copyFileSync, existsSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 import readline from "readline/promises";
 import { fileURLToPath } from "url";
-import { spawnSync } from "child_process";
 import type { CliName } from "./types.js";
 
 const VALID_CLIS: CliName[] = ["claude", "codex", "gemini"];
@@ -12,16 +11,34 @@ export interface WorkersSettings {
   defaultCli: CliName;
   codexModel: string;
   defaultTaskTracker: string | undefined;
-  taskTrackers: Record<string, GitTodoTaskTrackerSettings>;
-  projects: Record<string, ProjectTaskTrackerSettings>;
+  taskTrackers: Record<string, TaskTrackerSettings>;
+  projects: ProjectTaskTrackerSettings[];
 }
 
 export interface GitTodoTaskTrackerSettings {
+  type?: "git-todo";
   repo: string;
   file?: string;
 }
 
+export interface GitHubIssueLabelsSettings {
+  planned?: string;
+  ready?: string;
+  inProgress?: string;
+}
+
+export interface GitHubIssuesTaskTrackerSettings {
+  type: "github-issues";
+  repository: string;
+  labels?: GitHubIssueLabelsSettings;
+}
+
+export type TaskTrackerSettings =
+  | GitTodoTaskTrackerSettings
+  | GitHubIssuesTaskTrackerSettings;
+
 export interface ProjectTaskTrackerSettings {
+  repo: string;
   taskTracker?: string;
 }
 
@@ -60,13 +77,119 @@ function parseSettingsFile(filePath: string): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
+function normalizeProjectEntries(
+  parsed: Record<string, unknown>,
+): ProjectTaskTrackerSettings[] {
+  if (!Array.isArray(parsed.projects)) {
+    return [];
+  }
+
+  return parsed.projects
+    .filter((entry): entry is ProjectTaskTrackerSettings => {
+      return Boolean(
+        entry
+        && typeof entry === "object"
+        && !Array.isArray(entry)
+        && typeof (entry as { repo?: unknown }).repo === "string"
+        && (entry as { repo: string }).repo.trim(),
+      );
+    })
+    .map((entry) => ({
+      repo: entry.repo.trim(),
+      taskTracker:
+        typeof entry.taskTracker === "string" && entry.taskTracker.trim()
+          ? entry.taskTracker.trim()
+          : undefined,
+    }));
+}
+
+function normalizeTaskTrackerSettings(
+  parsed: Record<string, unknown>,
+): Record<string, TaskTrackerSettings> {
+  if (!parsed.taskTrackers || typeof parsed.taskTrackers !== "object" || Array.isArray(parsed.taskTrackers)) {
+    return {};
+  }
+
+  const normalized: Record<string, TaskTrackerSettings> = {};
+
+  for (const [name, rawTracker] of Object.entries(parsed.taskTrackers)) {
+    if (!rawTracker || typeof rawTracker !== "object" || Array.isArray(rawTracker)) {
+      continue;
+    }
+
+    if ((rawTracker as { type?: unknown }).type === "github-issues") {
+      const repository = typeof (rawTracker as { repository?: unknown }).repository === "string"
+        ? (rawTracker as { repository: string }).repository.trim()
+        : "";
+      if (!repository) {
+        continue;
+      }
+
+      const rawLabels = (rawTracker as { labels?: unknown }).labels;
+      const labels =
+        rawLabels && typeof rawLabels === "object" && !Array.isArray(rawLabels)
+          ? {
+              planned:
+                typeof (rawLabels as { planned?: unknown }).planned === "string"
+                && (rawLabels as { planned: string }).planned.trim()
+                  ? (rawLabels as { planned: string }).planned.trim()
+                  : undefined,
+              ready:
+                typeof (rawLabels as { ready?: unknown }).ready === "string"
+                && (rawLabels as { ready: string }).ready.trim()
+                  ? (rawLabels as { ready: string }).ready.trim()
+                  : undefined,
+              inProgress:
+                typeof (rawLabels as { inProgress?: unknown }).inProgress === "string"
+                && (rawLabels as { inProgress: string }).inProgress.trim()
+                  ? (rawLabels as { inProgress: string }).inProgress.trim()
+                  : undefined,
+            }
+          : undefined;
+
+      normalized[name] = {
+        type: "github-issues",
+        repository,
+        labels,
+      };
+      continue;
+    }
+
+    const repo = typeof (rawTracker as { repo?: unknown }).repo === "string"
+      ? (rawTracker as { repo: string }).repo.trim()
+      : "";
+    if (!repo) {
+      continue;
+    }
+
+    normalized[name] = {
+      type: "git-todo",
+      repo,
+      file:
+        typeof (rawTracker as { file?: unknown }).file === "string"
+        && (rawTracker as { file: string }).file.trim()
+          ? (rawTracker as { file: string }).file.trim()
+          : undefined,
+    };
+  }
+
+  return normalized;
+}
+
 function detectInstalledClis(env: NodeJS.ProcessEnv): CliName[] {
+  const pathValue = env.PATH ?? process.env.PATH ?? "";
+  const pathEntries = pathValue.split(path.delimiter).filter(Boolean);
+
   return VALID_CLIS.filter((cli) => {
-    const result = spawnSync("/bin/bash", ["-c", `command -v ${cli} >/dev/null 2>&1`], {
-      env,
-      stdio: "ignore",
+    return pathEntries.some((entry) => {
+      const candidate = path.join(entry, cli);
+      try {
+        accessSync(candidate, constants.X_OK);
+        return true;
+      } catch {
+        return false;
+      }
     });
-    return result.status === 0;
   });
 }
 
@@ -178,13 +301,59 @@ export async function loadSettings(
       typeof parsed.defaultTaskTracker === "string" && parsed.defaultTaskTracker.trim()
         ? parsed.defaultTaskTracker.trim()
         : undefined,
-    taskTrackers:
-      parsed.taskTrackers && typeof parsed.taskTrackers === "object" && !Array.isArray(parsed.taskTrackers)
-        ? (parsed.taskTrackers as Record<string, GitTodoTaskTrackerSettings>)
-        : {},
-    projects:
-      parsed.projects && typeof parsed.projects === "object" && !Array.isArray(parsed.projects)
-        ? (parsed.projects as Record<string, ProjectTaskTrackerSettings>)
-        : {},
+    taskTrackers: normalizeTaskTrackerSettings(parsed),
+    projects: normalizeProjectEntries(parsed),
   };
+}
+
+export function persistProjectSettings(
+  updates: {
+    repo: string;
+    taskTracker?: string;
+  }[],
+  repoRoot = workersRepoRoot(),
+): boolean {
+  if (updates.length === 0) {
+    return false;
+  }
+
+  const filePath = settingsPath(repoRoot);
+  if (!existsSync(filePath)) {
+    return false;
+  }
+
+  const parsed = parseSettingsFile(filePath);
+  const projects = normalizeProjectEntries(parsed);
+  let changed = false;
+
+  for (const update of updates) {
+    const repo = update.repo.trim();
+    if (!repo) {
+      continue;
+    }
+
+    const existing = projects.find((project) => project.repo === repo);
+    if (!existing) {
+      projects.push({
+        repo,
+        taskTracker: update.taskTracker?.trim() || undefined,
+      });
+      changed = true;
+      continue;
+    }
+
+    const nextTracker = update.taskTracker?.trim() || undefined;
+    if (nextTracker && !existing.taskTracker) {
+      existing.taskTracker = nextTracker;
+      changed = true;
+    }
+  }
+
+  if (!changed) {
+    return false;
+  }
+
+  parsed.projects = projects;
+  writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
+  return true;
 }

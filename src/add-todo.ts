@@ -1,10 +1,12 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 
 import { readFileSync, writeFileSync } from "fs";
 import path from "path";
 import readline from "readline/promises";
-import { loadSettings } from "./settings.js";
+import { extractTodoField } from "./agent-prompt.js";
+import { loadSettings, persistProjectSettings } from "./settings.js";
 import { resolveTaskTrackerForTodoText } from "./task-tracker-settings.js";
+import { createGitHubIssueTask } from "./task-trackers.js";
 
 const SECTION_HEADERS = {
   planned: "## Planned",
@@ -142,12 +144,30 @@ async function main(): Promise<void> {
   const args = parseArgs(process.argv);
   const todoText = await readTodoText(args.text);
   const settings = await loadSettings();
+  const repoField = extractTodoField(todoText, "Repo");
+  if (repoField && repoField.toLowerCase() !== "none") {
+    persistProjectSettings([
+      {
+        repo: path.resolve(repoField),
+      },
+    ]);
+  }
   const tracker = resolveTaskTrackerForTodoText(todoText, settings);
+  const itemLines = normalizeTodoItem(todoText);
+
+  if (tracker.kind === "github-issues") {
+    const issueUrl = await createGitHubIssueTask(tracker, args.section, itemLines);
+    console.log(
+      `Added TODO to ${args.section} in ${tracker.repository} as GitHub issue ${issueUrl} (task tracker: ${tracker.name})`,
+    );
+    return;
+  }
+
   const todoPath = path.resolve(tracker.repo, tracker.file);
   const original = readFileSync(todoPath, "utf8");
   const nextContent = insertIntoSection(
     original,
-    normalizeTodoItem(todoText),
+    itemLines,
     args.section,
   );
   writeFileSync(todoPath, nextContent, "utf8");

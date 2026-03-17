@@ -1,13 +1,20 @@
 {
-  "name": "ai-work",
-  "version": "1.0.0",
-  "private": true,
+  "name": "work",
+  "version": "0.1.0",
   "type": "module",
+  "bin": {
+    "work": "./work",
+    "add-todo": "./add-todo",
+    "init-todo-repo": "./init-todo-repo"
+  },
   "scripts": {
-    "work": "tsx src/work.ts",
-    "init-todo-repo": "tsx src/init-todo-repo.ts",
-    "add-todo": "tsx src/add-todo.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "work": "node ./build/work.js",
+    "init-todo-repo": "node ./build/init-todo-repo.js",
+    "add-todo": "node ./build/add-todo.js",
     "claim-todo": "tsx src/claim-todo.ts",
+    "prepare": "npm run build",
+    "prepack": "npm run build",
     "test": "vitest run"
   },
   "dependencies": {

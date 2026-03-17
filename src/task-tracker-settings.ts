@@ -3,6 +3,7 @@ import { extractTodoField } from "./agent-prompt.js";
 import type {
   ProjectTaskTrackerSettings,
   GitTodoTaskTrackerSettings,
+  GitHubIssuesTaskTrackerSettings,
   WorkersSettings,
 } from "./settings.js";
 
@@ -11,6 +12,26 @@ export interface ResolvedGitTodoTaskTracker {
   kind: "git-todo";
   repo: string;
   file: string;
+}
+
+export interface ResolvedGitHubIssuesTaskTracker {
+  name: string;
+  kind: "github-issues";
+  repository: string;
+  labels: {
+    planned: string;
+    ready: string;
+    inProgress: string;
+  };
+}
+
+export type ResolvedTaskTracker =
+  | ResolvedGitTodoTaskTracker
+  | ResolvedGitHubIssuesTaskTracker;
+
+export interface PollableTaskTracker {
+  tracker: ResolvedTaskTracker;
+  source: "project" | "default";
 }
 
 function readEnv(name: string, env: NodeJS.ProcessEnv): string | undefined {
@@ -47,17 +68,35 @@ function resolveGitTodoTracker(
   };
 }
 
+function resolveGitHubIssuesTracker(
+  name: string,
+  tracker: GitHubIssuesTaskTrackerSettings,
+): ResolvedGitHubIssuesTaskTracker {
+  return {
+    name,
+    kind: "github-issues",
+    repository: tracker.repository.trim(),
+    labels: {
+      planned: tracker.labels?.planned?.trim() || "workers:planned",
+      ready: tracker.labels?.ready?.trim() || "workers:ready",
+      inProgress: tracker.labels?.inProgress?.trim() || "workers:in-progress",
+    },
+  };
+}
+
 export function resolveTaskTrackers(
   settings: WorkersSettings,
   env: NodeJS.ProcessEnv = process.env,
 ): {
-  trackers: Record<string, ResolvedGitTodoTaskTracker>;
+  trackers: Record<string, ResolvedTaskTracker>;
   defaultTrackerName: string | undefined;
 } {
   const trackers = Object.fromEntries(
     Object.entries(settings.taskTrackers).map(([name, tracker]) => [
       name,
-      resolveGitTodoTracker(name, tracker),
+      tracker.type === "github-issues"
+        ? resolveGitHubIssuesTracker(name, tracker)
+        : resolveGitTodoTracker(name, tracker),
     ]),
   );
 
@@ -91,13 +130,13 @@ export function resolveTaskTrackers(
 
 function resolveProjectTaskTrackerName(
   repoPath: string,
-  projects: Record<string, ProjectTaskTrackerSettings>,
+  projects: ProjectTaskTrackerSettings[],
 ): string | undefined {
   const normalizedRepo = normalizeProjectKey(repoPath);
 
-  for (const [projectPath, config] of Object.entries(projects)) {
-    if (normalizeProjectKey(projectPath) === normalizedRepo) {
-      return config.taskTracker?.trim() || undefined;
+  for (const project of projects) {
+    if (normalizeProjectKey(project.repo) === normalizedRepo) {
+      return project.taskTracker?.trim() || undefined;
     }
   }
 
@@ -108,7 +147,7 @@ export function resolveTaskTrackerForTodoText(
   todoText: string,
   settings: WorkersSettings,
   env: NodeJS.ProcessEnv = process.env,
-): ResolvedGitTodoTaskTracker {
+): ResolvedTaskTracker {
   const { trackers, defaultTrackerName } = resolveTaskTrackers(settings, env);
   const repoField = extractTodoField(todoText, "Repo");
 
@@ -132,4 +171,43 @@ export function resolveTaskTrackerForTodoText(
   }
 
   return tracker;
+}
+
+export function resolvePollingTaskTrackers(
+  settings: WorkersSettings,
+  env: NodeJS.ProcessEnv = process.env,
+): PollableTaskTracker[] {
+  const { trackers, defaultTrackerName } = resolveTaskTrackers(settings, env);
+  const ordered: PollableTaskTracker[] = [];
+  const seen = new Set<string>();
+
+  for (const project of settings.projects) {
+    const trackerName = project.taskTracker?.trim() || defaultTrackerName;
+    if (!trackerName) {
+      continue;
+    }
+
+    const tracker = trackers[trackerName];
+    if (!tracker || seen.has(tracker.name)) {
+      continue;
+    }
+
+    ordered.push({
+      tracker,
+      source: "project",
+    });
+    seen.add(tracker.name);
+  }
+
+  if (defaultTrackerName) {
+    const defaultTracker = trackers[defaultTrackerName];
+    if (defaultTracker && !seen.has(defaultTracker.name)) {
+      ordered.push({
+        tracker: defaultTracker,
+        source: "default",
+      });
+    }
+  }
+
+  return ordered;
 }
