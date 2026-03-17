@@ -6,8 +6,8 @@
     "build/"
   ],
   "bin": {
-    "assistant": "./build/bin/assistant.js",
-    "worker": "./build/bin/worker.js"
+    "assistant": "build/bin/assistant.js",
+    "worker": "build/bin/worker.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
