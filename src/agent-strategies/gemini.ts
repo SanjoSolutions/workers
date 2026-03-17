@@ -7,21 +7,16 @@ import {
 } from "fs";
 import path from "path";
 import { spawn } from "child_process";
-import { fileURLToPath } from "url";
 import type { AgentStrategy, AgentResult } from "./types.js";
 import { spawnAgentProcess } from "./process.js";
 import { extractTodoField } from "../agent-prompt.js";
+import { determinePackageRoot } from "../settings.js";
 
 interface ManagedInteractiveGeminiSession {
   env: NodeJS.ProcessEnv;
   nextPrompt: string;
   statusFile: string;
   cleanup: () => void;
-}
-
-function workersRepoRoot(): string {
-  const currentFile = fileURLToPath(import.meta.url);
-  return path.resolve(path.dirname(currentFile), "../..");
 }
 
 function shellQuote(value: string): string {
@@ -91,7 +86,7 @@ export function setupManagedInteractiveGeminiSession(
       ? { ...parsed.hooks }
       : {};
   const afterAgentGroups = Array.isArray(hooks.AfterAgent) ? [...hooks.AfterAgent] : [];
-  const hookScript = path.join(workersRepoRoot(), "src", "scripts", "gemini-after-agent-hook.mjs");
+  const hookScript = path.join(determinePackageRoot(), "src", "scripts", "gemini-after-agent-hook.mjs");
 
   afterAgentGroups.push({
     hooks: [

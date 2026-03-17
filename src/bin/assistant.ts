@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
-import { ensureAssistantCli, ensureDefaultTaskTracker, loadSettings, workersRepoRoot } from "../settings.js";
+import { ensureAssistantCli, ensureDefaultTaskTracker, loadSettings, determinePackageRoot } from "../settings.js";
 import { getAgentStrategy } from "../agent-strategies/index.js";
 import type { CliName, CliOptions } from "../types.js";
 
@@ -17,7 +17,7 @@ async function main(): Promise<void> {
   program.parse(process.argv);
   const opts = program.opts();
 
-  const repoRoot = workersRepoRoot();
+  const repoRoot = determinePackageRoot();
   const settings = await loadSettings(repoRoot);
 
   let cli: CliName;

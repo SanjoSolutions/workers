@@ -58,7 +58,7 @@ interface SettingsLoadOptions {
   configDir?: string;
 }
 
-export function workersRepoRoot(): string {
+export function determinePackageRoot(): string {
   const currentFile = fileURLToPath(import.meta.url);
   return path.resolve(path.dirname(currentFile), "..");
 }
@@ -81,7 +81,7 @@ export function settingsPath(dir = configDir()): string {
   return path.join(dir, "settings.json");
 }
 
-function settingsTemplatePath(repoRoot = workersRepoRoot()): string {
+function settingsTemplatePath(repoRoot = determinePackageRoot()): string {
   return path.join(repoRoot, "settings.template.json");
 }
 
@@ -285,7 +285,7 @@ function initializeSettingsFile(
 }
 
 export async function loadSettings(
-  repoRoot = workersRepoRoot(),
+  repoRoot = determinePackageRoot(),
   options: SettingsLoadOptions = {},
 ): Promise<WorkersSettings> {
   const cfgDir = options.configDir ?? configDir();
@@ -608,7 +608,7 @@ export async function ensureProjectSpecInitialized(
     writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
 
     if (accepted) {
-      const templateRoot = workersRepoRoot();
+      const templateRoot = determinePackageRoot();
       const specTemplate = path.join(templateRoot, "SPEC.template.md");
       const agentsTemplate = path.join(templateRoot, "AGENTS.template.md");
 

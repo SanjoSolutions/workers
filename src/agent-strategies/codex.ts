@@ -7,8 +7,8 @@ import {
 } from "fs";
 import path from "path";
 import { spawn } from "child_process";
-import { fileURLToPath } from "url";
 import { extractTodoField } from "../agent-prompt.js";
+import { determinePackageRoot } from "../settings.js";
 import type { AgentStrategy, AgentResult } from "./types.js";
 import { spawnAgentProcess } from "./process.js";
 
@@ -21,11 +21,6 @@ interface ManagedInteractiveCodexSession {
   nextPrompt: string;
   statusFile: string;
   cleanup: () => void;
-}
-
-function workersRepoRoot(): string {
-  const currentFile = fileURLToPath(import.meta.url);
-  return path.resolve(path.dirname(currentFile), "../..");
 }
 
 function shellQuote(value: string): string {
@@ -90,7 +85,7 @@ export function setupManagedInteractiveCodexSession(
       ? { ...parsed.hooks }
       : {};
   const stopGroups = Array.isArray(hooks.Stop) ? [...hooks.Stop] : [];
-  const hookScript = path.join(workersRepoRoot(), "src", "scripts", "codex-stop-hook.mjs");
+  const hookScript = path.join(determinePackageRoot(), "src", "scripts", "codex-stop-hook.mjs");
 
   stopGroups.push({
     hooks: [
