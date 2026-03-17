@@ -7,8 +7,6 @@ export interface CliOptions {
   cleanup: boolean;
   cleanupStale: boolean;
   interactive: boolean;
-  isolatedRuntime: boolean;
-  setupOnly: boolean;
   noTodo: boolean;
   model?: string;
   reasoningEffort?: string;

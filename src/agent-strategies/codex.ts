@@ -242,12 +242,10 @@ export class CodexAgentStrategy implements AgentStrategy {
     for (const dir of context.config?.agent?.codexWritableDirs ?? []) {
       codexArgs.push("--add-dir", dir);
     }
-    if (context.options.isolatedRuntime) {
-      codexArgs.push(
-        "--config",
-        "sandbox_workspace_write.network_access=true",
-      );
-    }
+    codexArgs.push(
+      "--config",
+      "sandbox_workspace_write.network_access=true",
+    );
 
     if (context.noTodo) {
       return spawnAgentProcess({

@@ -46,8 +46,6 @@ const options: CliOptions = {
   cleanup: false,
   cleanupStale: false,
   interactive: false,
-  isolatedRuntime: false,
-  setupOnly: false,
   noTodo: true,
 };
 

@@ -39,8 +39,6 @@ async function main(): Promise<void> {
     cleanup: false,
     cleanupStale: false,
     interactive: true,
-    isolatedRuntime: false,
-    setupOnly: false,
     noTodo: true,
     model: undefined,
     reasoningEffort: undefined,

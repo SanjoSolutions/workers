@@ -195,12 +195,12 @@ async function setupWorkspaceForRepo(
     }
 
     let runtimeInfo: RuntimeInfo | null = null;
-    if (options.isolatedRuntime && config.runtime) {
+    if (config.runtime) {
       runtimeInfo = computeRuntimeInfo(repoRoot, options.cli, worktree.path);
       await config.runtime.setup(runtimeInfo, worktree.path, repoRoot);
     }
 
-    if (options.isolatedRuntime && runtimeInfo && config.runtime?.printStatus) {
+    if (runtimeInfo && config.runtime?.printStatus) {
       config.runtime.printStatus(runtimeInfo);
     }
 
@@ -233,7 +233,7 @@ async function finalizeWorkspace(
   if (!options.cleanup) {
     console.log();
     log.info(`Finished. Worktree left in place: ${workspace.worktree.path}`);
-    if (options.isolatedRuntime && workspace.runtimeInfo) {
+    if (workspace.runtimeInfo) {
       log.info("Isolated runtime is still running for reuse.");
     }
     log.info("Use this branch for review/cherry-pick/merge, then remove it when done.");
@@ -314,11 +314,6 @@ async function runNoTodoMode(
   console.log();
 
   try {
-    if (options.setupOnly) {
-      log.success("Setup complete. Exiting (--setup-only).");
-      return;
-    }
-
     log.info("Launching agent without TODO (--no-todo mode).");
     const agentResult = await launchAgent(
       options,
@@ -431,11 +426,6 @@ async function main(): Promise<void> {
       console.log();
 
       syncClaimedTaskToLocal(claimedTask, activeWorkspace.localTodoPath);
-
-      if (options.setupOnly) {
-        log.success("Setup complete for claimed TODO. Exiting (--setup-only).");
-        return;
-      }
 
       const agentResult = await launchAgent(
         options,
