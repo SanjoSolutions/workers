@@ -10,6 +10,7 @@ A human-first process that supports spontaneity.
   * Each worker works on one task at a time.
 * Multi-project support.
 * TODO.md: A lightweight task management system.
+* Supports codex, claude and gemini CLIs.
 
 ## How to
 
