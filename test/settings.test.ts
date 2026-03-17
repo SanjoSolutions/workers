@@ -32,11 +32,13 @@ describe("settings bootstrap", () => {
 
     expect(settings.defaults.cli).toBe("codex");
     expect(settings.defaults.model).toBe("gpt-5.4");
+    expect(settings.assistant.defaults.cli).toBe("codex");
     expect(settings.taskTrackers).toEqual({});
     expect(settings.projects).toEqual([]);
     expect(existsSync(settingsFilePath)).toBe(true);
     expect(JSON.parse(readFileSync(settingsFilePath, "utf8"))).toMatchObject({
       worker: { defaults: { cli: "codex" } },
+      assistant: { defaults: { cli: "codex" } },
     });
   });
 
