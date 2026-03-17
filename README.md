@@ -17,7 +17,10 @@ Just start your agent CLI (claude or codex) in this folder and start telling it 
 
 In different terminals, start workers (`~/workers/work.sh`). They will pick up tasks, as they become available.
 
+## Prerequisites
 
+* Node.js
+* Bash
 
 
 ## Shared TODO Repo
