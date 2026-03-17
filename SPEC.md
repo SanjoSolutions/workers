@@ -62,7 +62,7 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - Workers must also provide a shared intake skill for the direct user-facing Codex session so this behavior can be applied by default.
 - After larger work is queued, the clarification skill remains responsible for refining it into an autonomous task that can move toward `## Ready to be picked up`.
 - When the coordinator skill invokes clarification, clarification acts as a temporary nested step and control returns to coordinator afterward.
-- Package installation must expose `worker`, `add-todo`, `init-todo-repo`, and `assistant` as Node bin commands.
+- Package installation must expose `worker` and `assistant` as Node bin commands.
 - Ready-to-pick-up tasks must record their target repo in structured task metadata.
 - Tasks that are not for any repo must record that explicitly as `Repo: none`.
 - New-project tasks must record the target repo path in structured task metadata.
