@@ -12,7 +12,7 @@ cp "$HOME/.claude/.credentials.json" "$CLAUDE_TMP/.credentials.json"
 echo '{}' > "$CLAUDE_TMP/settings.json"
 
 # Clean build files that may be owned by a different uid from previous Docker runs
-rm -rf build/
+docker run --rm -v "$(pwd):/app" node:lts rm -rf /app/build
 
 docker build -f Dockerfile.smoke -t workers-smoke .
 docker run --rm -it \
