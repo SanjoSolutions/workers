@@ -3,16 +3,12 @@
   "version": "0.1.0",
   "type": "module",
   "bin": {
-    "work": "./bin/work.mjs",
-    "add-todo": "./bin/add-todo.mjs",
-    "init-todo-repo": "./bin/init-todo-repo.mjs"
+    "work": "./build/bin/work.js",
+    "add-todo": "./build/bin/add-todo.js",
+    "init-todo-repo": "./build/bin/init-todo-repo.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "work": "node ./build/work.js",
-    "init-todo-repo": "node ./build/init-todo-repo.js",
-    "add-todo": "node ./build/add-todo.js",
-    "claim-todo": "tsx src/claim-todo.ts",
     "prepare": "npm run build",
     "prepack": "npm run build",
     "test": "vitest run"
