@@ -25,10 +25,6 @@ function fail(message: string): never {
 }
 
 async function main(): Promise<void> {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    fail("ANTHROPIC_API_KEY is not set");
-  }
-
   const root = mkdtempSync(path.join(tmpdir(), "smoke-coordinator-"));
   const projectPath = path.join(root, "test-project");
   const cwd = process.cwd();
