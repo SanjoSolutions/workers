@@ -105,7 +105,7 @@ function renderTodoFromIssues(
 }
 
 
-async function fastForwardRepo(repoRoot: string): Promise<boolean> {
+export async function fastForwardRepo(repoRoot: string): Promise<boolean> {
   const branchTarget = await resolveBranchTarget(repoRoot);
   if (!branchTarget.hasRemote) {
     return true;

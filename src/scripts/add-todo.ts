@@ -7,7 +7,8 @@ import { insertIntoSection, SECTION_HEADERS, type TodoSection } from "../add-tod
 import { extractTodoField } from "../agent-prompt.js";
 import { loadSettings, persistProjectSettings } from "../settings.js";
 import { resolveTaskTrackerForTodoText } from "../task-tracker-settings.js";
-import { commitAndPushTodoRepo, createGitHubIssueTask } from "../task-trackers.js";
+import { withTodoLock } from "../claim-todo.js";
+import { commitAndPushTodoRepo, createGitHubIssueTask, fastForwardRepo } from "../task-trackers.js";
 
 function parseArgs(argv: string[]): { section: TodoSection; text: string } {
   let section: TodoSection = "planned";
@@ -127,16 +128,21 @@ async function main(): Promise<void> {
   }
 
   const todoPath = path.resolve(tracker.repo, tracker.file);
-  const original = readFileSync(todoPath, "utf8");
-  const nextContent = insertIntoSection(original, itemLines, args.section);
-  writeFileSync(todoPath, nextContent, "utf8");
 
-  const summary = itemLines[0].replace(/^- /, "");
-  const pushed = await commitAndPushTodoRepo(
-    tracker.repo,
-    tracker.file,
-    `Add TODO: ${summary}`,
-  );
+  await fastForwardRepo(tracker.repo);
+
+  const pushed = await withTodoLock(todoPath, async () => {
+    const original = readFileSync(todoPath, "utf8");
+    const nextContent = insertIntoSection(original, itemLines, args.section);
+    writeFileSync(todoPath, nextContent, "utf8");
+
+    const summary = itemLines[0].replace(/^- /, "");
+    return commitAndPushTodoRepo(
+      tracker.repo,
+      tracker.file,
+      `Add TODO: ${summary}`,
+    );
+  });
 
   console.log(
     `Added TODO to ${args.section} in ${todoPath} (task tracker: ${tracker.name})${pushed ? "" : " (push failed)"}`,
