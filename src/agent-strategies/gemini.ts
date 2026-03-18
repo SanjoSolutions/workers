@@ -1,6 +1,8 @@
+import path from "path";
 import type { AgentStrategy } from "./types.js";
 import { spawnAgentProcess } from "./process.js";
 import { extractTodoField } from "../agent-prompt.js";
+import { determinePackageRoot } from "../settings.js";
 import {
   setupManagedInteractiveSession,
   spawnManagedInteractiveAgent,
@@ -46,12 +48,17 @@ export class GeminiAgentStrategy implements AgentStrategy {
       "auto_edit",
     ];
 
+    const packageRoot = determinePackageRoot();
+    const agentType = context.noTodo ? "assistant" : "worker";
+    const systemPromptFile = path.join(packageRoot, "agents", agentType, "SYSTEM.md");
+    const env = { ...context.env, GEMINI_SYSTEM_MD: systemPromptFile };
+
     if (context.noTodo) {
       return spawnAgentProcess({
         command: "gemini",
         args,
         cwd: context.worktreePath,
-        env: context.env,
+        env,
         captureOutput: false,
       });
     }
@@ -61,7 +68,7 @@ export class GeminiAgentStrategy implements AgentStrategy {
         context.worktreePath,
         context.claimedTodoItem,
         context.nextPrompt,
-        context.env,
+        env,
       );
       return spawnManagedInteractiveAgent(
         "gemini",
@@ -77,7 +84,7 @@ export class GeminiAgentStrategy implements AgentStrategy {
       command: "gemini",
       args: [...args, context.nextPrompt],
       cwd: context.worktreePath,
-      env: context.env,
+      env,
       captureOutput: true,
     });
   }
