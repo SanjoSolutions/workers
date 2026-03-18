@@ -34,8 +34,8 @@ export class ClaudeAgentStrategy implements AgentStrategy {
 
     const packageRoot = determinePackageRoot();
     const agentType = context.noTodo ? "assistant" : "worker";
-    const systemPromptFile = path.join(packageRoot, `${agentType.toUpperCase()}_SYSTEM.md`);
     const agentDir = path.join(packageRoot, "agents", agentType);
+    const systemPromptFile = path.join(agentDir, "SYSTEM.md");
     const systemPromptArgs = [
       "--append-system-prompt-file", systemPromptFile,
       "--add-dir", agentDir,

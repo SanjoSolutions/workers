@@ -92,8 +92,8 @@ async function main(): Promise<void> {
   console.log("coordinator delegated to TODO.md or started implementing directly.\n");
 
   const workersRoot = process.cwd();
-  const assistantSystemPath = path.join(workersRoot, "ASSISTANT_SYSTEM.md");
   const assistantAgentDir = path.join(workersRoot, "agents", "assistant");
+  const assistantSystemPath = path.join(assistantAgentDir, "SYSTEM.md");
 
   const child = spawn(
     "claude",
