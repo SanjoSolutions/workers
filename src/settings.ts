@@ -1,6 +1,6 @@
 import input from "@inquirer/input"
 import select from "@inquirer/select"
-import { accessSync, constants, copyFileSync, existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "fs"
+import { accessSync, constants, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from "fs"
 import os from "os"
 import path from "path"
 import { fileURLToPath } from "url"
@@ -560,12 +560,10 @@ export async function ensureProjectSpecInitialized(
 
   if (accepted) {
     const templateDir = path.join(determinePackageRoot(), "new-project-template");
-    const filesToCopy = ["SPEC.md", "AGENTS.md", "THIRD_PARTY_NOTICES.md"];
 
-    for (const file of filesToCopy) {
-      const source = path.join(templateDir, file);
-      if (existsSync(source)) {
-        copyFileSync(source, path.join(repoRoot, file));
+    if (existsSync(templateDir)) {
+      for (const file of readdirSync(templateDir)) {
+        copyFileSync(path.join(templateDir, file), path.join(repoRoot, file));
         process.stdout.write(`Created ${file}.\n`);
       }
     }
