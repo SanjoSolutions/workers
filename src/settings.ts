@@ -52,7 +52,7 @@ export type TaskTrackerSettings =
 export interface ProjectTaskTrackerSettings {
   repo: string;
   taskTracker?: string;
-
+  createPullRequest?: boolean;
 }
 
 interface SettingsLoadOptions {
@@ -126,6 +126,10 @@ function normalizeProjectEntries(
       taskTracker:
         typeof entry.taskTracker === "string" && entry.taskTracker.trim()
           ? entry.taskTracker.trim()
+          : undefined,
+      createPullRequest:
+        typeof (entry as { createPullRequest?: unknown }).createPullRequest === "boolean"
+          ? (entry as { createPullRequest: boolean }).createPullRequest
           : undefined,
     }));
 }
@@ -302,6 +306,19 @@ export async function loadSettings(
     taskTrackers: normalizeTaskTrackerSettings(parsed),
     projects: normalizeProjectEntries(parsed),
   };
+}
+
+export function isCreatePullRequestEnabled(
+  repoPath: string,
+  projects: ProjectTaskTrackerSettings[],
+): boolean {
+  const normalizedRepo = path.resolve(expandHomePath(repoPath));
+  for (const project of projects) {
+    if (path.resolve(expandHomePath(project.repo)) === normalizedRepo) {
+      return project.createPullRequest === true;
+    }
+  }
+  return false;
 }
 
 export function persistProjectSettings(

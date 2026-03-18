@@ -28,7 +28,7 @@ import {
   ensureTaskRepo,
   resolveClaimedTaskTarget,
 } from "../task-target.js";
-import { initializeProject, loadSettings, persistProjectSettings } from "../settings.js";
+import { initializeProject, isCreatePullRequestEnabled, loadSettings, persistProjectSettings } from "../settings.js";
 import {
   resolvePollingTaskTrackers,
 } from "../task-tracker-settings.js";
@@ -40,6 +40,7 @@ import {
 } from "../task-trackers.js";
 import { readEnv } from "../env-utils.js";
 import { findGitRepoRoot } from "../git-utils.js";
+import { createWorkerPullRequest } from "../github-pr.js";
 
 interface ActiveWorkspace {
   repoRoot: string;
@@ -424,6 +425,22 @@ async function main(): Promise<void> {
         );
       } else {
         log.info("Synced TODO completion to task tracker.");
+      }
+
+      const currentSettings = await loadSettings();
+      if (isCreatePullRequestEnabled(activeWorkspace.repoRoot, currentSettings.projects)) {
+        const prResult = await createWorkerPullRequest({
+          repoRoot: activeWorkspace.repoRoot,
+          branchName: activeWorkspace.worktree.branchName,
+          claimedTask,
+        });
+        if (prResult.status === "created") {
+          log.info(`GitHub PR created: ${prResult.url}`);
+        } else if (prResult.status === "skipped") {
+          log.info(`Skipped GitHub PR creation (${prResult.reason}).`);
+        } else {
+          log.info(`GitHub PR creation failed: ${prResult.reason}`);
+        }
       }
 
       if (agentResult.exitCode !== 0) {

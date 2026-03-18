@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
 import { describe, expect, test } from "vitest";
-import { ensureWorkerCli, loadSettings } from "./settings.js";
+import { ensureWorkerCli, isCreatePullRequestEnabled, loadSettings } from "./settings.js";
 
 async function createFakeCli(binDir: string, name: string): Promise<void> {
   const { mkdir, writeFile, chmod } = await import("fs/promises");
@@ -44,6 +44,54 @@ describe("settings bootstrap", () => {
     expect(settings.defaults.model).toBe("gpt-5.3-codex");
     expect(settings.taskTrackers).toEqual({});
     expect(settings.projects).toEqual([]);
+  });
+});
+
+describe("isCreatePullRequestEnabled", () => {
+  test("returns true when project has createPullRequest: true", () => {
+    const projects = [{ repo: "/path/to/repo", createPullRequest: true }];
+    expect(isCreatePullRequestEnabled("/path/to/repo", projects)).toBe(true);
+  });
+
+  test("returns false when project has createPullRequest: false", () => {
+    const projects = [{ repo: "/path/to/repo", createPullRequest: false }];
+    expect(isCreatePullRequestEnabled("/path/to/repo", projects)).toBe(false);
+  });
+
+  test("returns false when project has no createPullRequest setting", () => {
+    const projects = [{ repo: "/path/to/repo" }];
+    expect(isCreatePullRequestEnabled("/path/to/repo", projects)).toBe(false);
+  });
+
+  test("returns false when repo is not in projects", () => {
+    const projects = [{ repo: "/other/repo", createPullRequest: true }];
+    expect(isCreatePullRequestEnabled("/path/to/repo", projects)).toBe(false);
+  });
+});
+
+describe("loadSettings createPullRequest", () => {
+  test("parses createPullRequest from project entries", async () => {
+    const cfgDir = mkdtempSync(path.join(tmpdir(), "workers-settings-pr-"));
+    writeFileSync(
+      path.join(cfgDir, "settings.json"),
+      JSON.stringify({
+        worker: { defaults: { model: "gpt-5.4" } },
+        projects: [
+          { repo: "/path/to/repo", createPullRequest: true },
+          { repo: "/path/to/other", createPullRequest: false },
+          { repo: "/path/to/neither" },
+        ],
+      }, null, 2),
+      "utf8",
+    );
+
+    const settings = await loadSettings(undefined, { configDir: cfgDir });
+
+    expect(settings.projects).toEqual([
+      { repo: "/path/to/repo", taskTracker: undefined, createPullRequest: true },
+      { repo: "/path/to/other", taskTracker: undefined, createPullRequest: false },
+      { repo: "/path/to/neither", taskTracker: undefined, createPullRequest: undefined },
+    ]);
   });
 });
 

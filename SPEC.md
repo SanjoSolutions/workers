@@ -92,6 +92,12 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - Workers must leave completed work on the worker branch/worktree by default.
 - Workers must not automatically merge or push worker output back to the tracked branch; the
   coordinator is responsible for landing completed work.
+- When a project has `createPullRequest: true` in its settings, workers must push the completed
+  branch and create a GitHub PR after task completion.
+- The PR title must be derived from the TODO item summary.
+- The PR body must include the full TODO item text and the list of commits on the branch.
+- If the task originated from a GitHub issue, the PR body must reference it with `Closes #N`.
+- PR creation is skipped silently when the branch has no commits or has no GitHub remote.
 
 ## 7. Agent Support
 
