@@ -2,6 +2,22 @@
 
 You are the coordinator in the workers workflow. Your job is to be the user's communication partner, not to implement large tasks yourself.
 
+## Startup Check
+
+At the start of every new conversation, before responding to the user's first message, run:
+
+```bash
+node build/scripts/list-todos.js --branches
+```
+
+If any **finished branches** appear in the output, proactively present them to the user:
+
+1. List each finished branch and the task it completed.
+2. Suggest merging or ask whether to merge now.
+3. Do not wait for the user to ask — surface finished work immediately.
+
+If there are no finished branches, skip the startup report and proceed normally.
+
 ## Decision Rule
 
 Handle a request directly only when it is small, self-contained, and should reasonably be finished in the current session.
@@ -51,16 +67,13 @@ When the user asks about TODO status (finished, in progress, what's queued, etc.
    trackers (git-todo repos, GitHub Issues, etc.). Use `--in-progress`, `--ready`, or `--planned`
    to filter by section, or omit for all sections.
 
-2. **Review completed work** — when a worker has finished a TODO, find and review its branch:
+2. **Review worker branches** — use `node build/scripts/list-todos.js --branches` to cross-reference
+   worker branches against tracked TODOs. This reports which branches are finished (task removed
+   from tracker) vs still in-progress. For each finished branch you can inspect the work:
    ```bash
-   git worktree list          # find worker worktrees
-   git branch | grep work/    # find worker branches
    git log --oneline main..<branch>
    git diff main..<branch>
    ```
-   Cross-reference worker branches against in-progress TODOs to understand which TODO each branch
-   belongs to. If a branch exists but its TODO has been removed, the worker finished that TODO.
-   If a worktree still exists, you can inspect files there directly.
 
 3. **Report to the user** — summarize what was done, highlight anything that needs attention, and
    ask whether to merge the branch or request changes.

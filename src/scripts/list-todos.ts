@@ -1,16 +1,18 @@
 #!/usr/bin/env node
 
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import path from "path";
 import { $ } from "zx";
 import { loadSettings } from "../settings.js";
 import {
   resolveTaskTrackers,
-  type ResolvedGitTodoTaskTracker,
   type ResolvedGitHubIssuesTaskTracker,
+  type ResolvedGitTodoTaskTracker,
+  type ResolvedTaskTracker,
 } from "../task-tracker-settings.js";
 
 type SectionFilter = "in-progress" | "ready" | "planned" | "all";
+type Mode = "list" | "branches";
 
 function extractItemDependencies(item: string): string[] {
   const dependencies: string[] = [];
@@ -21,8 +23,9 @@ function extractItemDependencies(item: string): string[] {
   return dependencies;
 }
 
-function parseArgs(argv: string[]): { section: SectionFilter } {
+function parseArgs(argv: string[]): { section: SectionFilter; mode: Mode } {
   let section: SectionFilter = "all";
+  let mode: Mode = "list";
 
   for (let index = 2; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -35,14 +38,17 @@ function parseArgs(argv: string[]): { section: SectionFilter } {
       section = "planned";
     } else if (arg === "--all") {
       section = "all";
+    } else if (arg === "--branches") {
+      mode = "branches";
     } else if (arg === "--help" || arg === "-h") {
-      console.log("Usage: list-todos [--in-progress | --ready | --planned | --all]");
+      console.log("Usage: list-todos [--in-progress | --ready | --planned | --all | --branches]");
       console.log("Lists TODO items from all configured task trackers.");
+      console.log("  --branches  Cross-reference worker branches with tracked TODOs.");
       process.exit(0);
     }
   }
 
-  return { section };
+  return { section, mode };
 }
 
 const SECTION_HEADERS: Record<string, string> = {
@@ -182,10 +188,223 @@ async function listGitHubIssuesTracker(
   }
 }
 
+interface ParsedWorktree {
+  path: string;
+  head: string;
+  branch: string | null;
+}
+
+function parseWorktreePorcelain(output: string): ParsedWorktree[] {
+  const worktrees: ParsedWorktree[] = [];
+  let current: Partial<ParsedWorktree> = {};
+
+  for (const line of output.split("\n")) {
+    if (line === "") {
+      if (current.path) {
+        worktrees.push({
+          path: current.path,
+          head: current.head ?? "",
+          branch: current.branch ?? null,
+        });
+      }
+      current = {};
+      continue;
+    }
+
+    if (line.startsWith("worktree ")) {
+      current.path = line.slice("worktree ".length).trim();
+    } else if (line.startsWith("HEAD ")) {
+      current.head = line.slice("HEAD ".length).trim();
+    } else if (line.startsWith("branch refs/heads/")) {
+      current.branch = line.slice("branch refs/heads/".length).trim();
+    }
+  }
+
+  if (current.path) {
+    worktrees.push({
+      path: current.path,
+      head: current.head ?? "",
+      branch: current.branch ?? null,
+    });
+  }
+
+  return worktrees;
+}
+
+async function collectTrackerInProgressSummaries(
+  trackers: ResolvedTaskTracker[],
+): Promise<Set<string>> {
+  const summaries = new Set<string>();
+
+  for (const tracker of trackers) {
+    if (tracker.kind === "git-todo") {
+      const todoPath = path.resolve(tracker.repo, tracker.file);
+      try {
+        const content = readFileSync(todoPath, "utf8");
+        const items = extractSectionItems(content, SECTION_HEADERS["in-progress"]);
+        for (const item of items) {
+          summaries.add(item.split("\n")[0].replace(/^- /, "").trim());
+        }
+      } catch {
+        // skip unreadable trackers
+      }
+    } else {
+      // GitHub Issues tracker: fetch open in-progress issues
+      const result =
+        await $`gh issue list --repo ${tracker.repository} --state open --label ${tracker.labels.inProgress} --limit 100 --json title`
+          .quiet()
+          .nothrow();
+      if (result.exitCode === 0) {
+        const issues = JSON.parse(result.stdout) as { title: string }[];
+        for (const issue of issues) {
+          summaries.add(issue.title);
+        }
+      }
+    }
+  }
+
+  return summaries;
+}
+
+interface BranchStatus {
+  branch: string;
+  worktreePath: string;
+  summary: string | null;
+  status: "finished" | "in-progress" | "unknown";
+}
+
+async function getBranchStatuses(
+  projectRepo: string,
+  trackerInProgressSummaries: Set<string>,
+): Promise<BranchStatus[]> {
+  const result =
+    await $`git -C ${projectRepo} worktree list --porcelain`.quiet().nothrow();
+  if (result.exitCode !== 0) {
+    return [];
+  }
+
+  const worktrees = parseWorktreePorcelain(result.stdout);
+  const workWorktrees = worktrees.filter(
+    (wt) => wt.branch !== null && wt.branch.startsWith("work/"),
+  );
+
+  const statuses: BranchStatus[] = [];
+
+  for (const wt of workWorktrees) {
+    const localTodoPath = path.join(wt.path, "TODO.md");
+    let localSummary: string | null = null;
+
+    if (existsSync(localTodoPath)) {
+      try {
+        const localContent = readFileSync(localTodoPath, "utf8");
+        const localInProgress = extractSectionItems(localContent, SECTION_HEADERS["in-progress"]);
+        if (localInProgress.length > 0) {
+          localSummary = localInProgress[0].split("\n")[0].replace(/^- /, "").trim();
+        }
+      } catch {
+        // ignore read errors
+      }
+    }
+
+    let status: "finished" | "in-progress" | "unknown";
+    if (localSummary === null) {
+      status = "unknown";
+    } else if (trackerInProgressSummaries.has(localSummary)) {
+      status = "in-progress";
+    } else {
+      status = "finished";
+    }
+
+    statuses.push({
+      branch: wt.branch!,
+      worktreePath: wt.path,
+      summary: localSummary,
+      status,
+    });
+  }
+
+  return statuses;
+}
+
+async function listBranches(
+  trackers: Record<string, ResolvedTaskTracker>,
+  projectRepos: string[],
+): Promise<void> {
+  const trackerList = Object.values(trackers);
+
+  if (trackerList.length === 0 && projectRepos.length === 0) {
+    console.log("No task trackers or projects configured.");
+    return;
+  }
+
+  const trackerInProgressSummaries = await collectTrackerInProgressSummaries(trackerList);
+
+  // Collect unique project repos, including tracker repos for git-todo trackers
+  const allRepos = new Set<string>(projectRepos);
+  for (const tracker of trackerList) {
+    if (tracker.kind === "git-todo") {
+      allRepos.add(path.resolve(tracker.repo));
+    }
+  }
+
+  let anyBranches = false;
+
+  for (const projectRepo of allRepos) {
+    const statuses = await getBranchStatuses(projectRepo, trackerInProgressSummaries);
+    if (statuses.length === 0) continue;
+
+    anyBranches = true;
+    console.log(`[${path.basename(projectRepo)}] ${projectRepo}`);
+
+    const finished = statuses.filter((s) => s.status === "finished");
+    const inProgress = statuses.filter((s) => s.status === "in-progress");
+    const unknown = statuses.filter((s) => s.status === "unknown");
+
+    if (finished.length > 0) {
+      console.log("  Finished branches (ready to merge):");
+      for (const item of finished) {
+        console.log(`    ${item.branch}`);
+        if (item.summary) {
+          console.log(`      Task: ${item.summary}`);
+        }
+      }
+    }
+
+    if (inProgress.length > 0) {
+      console.log("  In-progress branches:");
+      for (const item of inProgress) {
+        console.log(`    ${item.branch}`);
+        if (item.summary) {
+          console.log(`      Task: ${item.summary}`);
+        }
+      }
+    }
+
+    if (unknown.length > 0) {
+      console.log("  Unknown branches (no local TODO found):");
+      for (const item of unknown) {
+        console.log(`    ${item.branch}`);
+      }
+    }
+
+    console.log();
+  }
+
+  if (!anyBranches) {
+    console.log("No worker branches found.");
+  }
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv);
   const settings = await loadSettings();
   const { trackers } = resolveTaskTrackers(settings);
+
+  if (args.mode === "branches") {
+    const projectRepos = settings.projects.map((project) => path.resolve(project.repo));
+    await listBranches(trackers, projectRepos);
+    return;
+  }
 
   const trackerList = Object.values(trackers);
   if (trackerList.length === 0) {

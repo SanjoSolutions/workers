@@ -156,6 +156,18 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - The assistant CLI is configurable via `assistant.defaults.cli` in settings, falling back to
   `worker.defaults.cli`.
 
+## 8.4 Branch Status Reporting
+
+- `list-todos --branches` must cross-reference all `work/*` worktree branches across configured
+  project repos against in-progress TODOs in all configured task trackers.
+- A branch is **finished** when its local `TODO.md` lists an in-progress item that no longer
+  appears in the shared tracker's in-progress section (i.e., the worker completed that task).
+- A branch is **in-progress** when its local `TODO.md` in-progress item still exists in the
+  tracker's current in-progress section.
+- A branch is **unknown** when no local `TODO.md` is found in its worktree.
+- The coordinator must run `list-todos --branches` at the start of every new conversation and
+  proactively present any finished branches to the user with a merge suggestion.
+
 ## 9. Platform Support
 
 - Workers must support Linux, Windows, and macOS.
