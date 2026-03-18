@@ -1,6 +1,33 @@
 import { readFileSync } from "fs";
 import { createSign } from "crypto";
+import { ProxyAgent, fetch as undiciFetch, type Dispatcher } from "undici";
 import { expandHomePath } from "./path-utils.js";
+
+function getProxyDispatcher(): Dispatcher | undefined {
+  const proxyUrl =
+    process.env.HTTPS_PROXY ||
+    process.env.https_proxy ||
+    process.env.HTTP_PROXY ||
+    process.env.http_proxy;
+  if (proxyUrl) {
+    return new ProxyAgent(proxyUrl);
+  }
+  return undefined;
+}
+
+function proxyFetch(
+  url: string,
+  options: { method?: string; headers?: Record<string, string> } = {},
+): Promise<Response> {
+  const dispatcher = getProxyDispatcher();
+  if (dispatcher) {
+    return undiciFetch(url, {
+      ...options,
+      dispatcher,
+    }) as unknown as Promise<Response>;
+  }
+  return fetch(url, options);
+}
 
 function base64url(buffer: Buffer): string {
   return buffer
@@ -35,7 +62,7 @@ export async function getGitHubAppInstallationToken(
   const privateKey = readFileSync(resolvedPath, "utf8");
   const jwt = createJWT(appId, privateKey);
 
-  const installationsResponse = await fetch(
+  const installationsResponse = await proxyFetch(
     "https://api.github.com/app/installations",
     {
       headers: {
@@ -60,7 +87,7 @@ export async function getGitHubAppInstallationToken(
 
   const installationId = installations[0].id;
 
-  const tokenResponse = await fetch(
+  const tokenResponse = await proxyFetch(
     `https://api.github.com/app/installations/${installationId}/access_tokens`,
     {
       method: "POST",
