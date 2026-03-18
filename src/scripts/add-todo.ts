@@ -3,6 +3,7 @@
 import { readFileSync, writeFileSync } from "fs";
 import path from "path";
 import readline from "readline/promises";
+import { $ } from "zx";
 import { insertIntoSection, SECTION_HEADERS, type TodoSection } from "../add-todo.js";
 import { extractTodoField } from "../agent-prompt.js";
 import { loadSettings, persistProjectSettings } from "../settings.js";
@@ -130,6 +131,11 @@ async function main(): Promise<void> {
   const original = readFileSync(todoPath, "utf8");
   const nextContent = insertIntoSection(original, itemLines, args.section);
   writeFileSync(todoPath, nextContent, "utf8");
+
+  const summary = itemLines[0].replace(/^- /, "");
+  await $({ cwd: tracker.repo })`git add ${tracker.file}`;
+  await $({ cwd: tracker.repo })`git commit -m ${`Add TODO: ${summary}`}`;
+
   console.log(
     `Added TODO to ${args.section} in ${todoPath} (task tracker: ${tracker.name})`,
   );
