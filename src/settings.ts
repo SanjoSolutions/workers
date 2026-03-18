@@ -321,6 +321,7 @@ export function isCreatePullRequestEnabled(
 export function persistProjectSettings(
   updates: {
     repo: string;
+    createPullRequest?: boolean;
   }[],
   cfgDir = configDir(),
 ): boolean {
@@ -345,7 +346,16 @@ export function persistProjectSettings(
 
     const existing = projects.find((project) => project.repo === repo);
     if (!existing) {
-      projects.push({ repo });
+      projects.push({
+        repo,
+        createPullRequest: update.createPullRequest,
+      });
+      changed = true;
+    } else if (
+      update.createPullRequest !== undefined &&
+      existing.createPullRequest !== update.createPullRequest
+    ) {
+      existing.createPullRequest = update.createPullRequest;
       changed = true;
     }
   }
