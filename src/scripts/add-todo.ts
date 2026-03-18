@@ -5,7 +5,7 @@ import path from "path";
 import readline from "readline/promises";
 import { insertIntoSection, SECTION_HEADERS, type TodoSection } from "../add-todo.js";
 import { extractTodoField } from "../agent-prompt.js";
-import { loadSettings, persistProjectSettings } from "../settings.js";
+import { hasTaskTracker, loadSettings, persistProjectSettings } from "../settings.js";
 import { applyGitHubToken, resolveTaskTrackers, resolveTaskTrackerForRepo } from "../task-tracker-settings.js";
 import { withTodoLock } from "../claim-todo.js";
 import { commitAndPushTodoRepo, createGitHubIssueTask, fastForwardRepo } from "../task-trackers.js";
@@ -154,6 +154,12 @@ async function main(): Promise<void> {
   const targetRepo = repoField && repoField.toLowerCase() !== "none"
     ? path.resolve(repoField)
     : process.cwd();
+
+  if (!hasTaskTracker(settings)) {
+    const { promptAndInitTaskTracker } = await import("../init-task-tracker.js");
+    await promptAndInitTaskTracker(process.cwd());
+  }
+
   const tracker = resolveTaskTrackerForRepo(targetRepo, settings);
   const itemLines = normalizeTodoItem(todoText);
 
