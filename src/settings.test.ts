@@ -144,6 +144,29 @@ describe("ensureWorkerCli", () => {
     });
   });
 
+  test("removes settings file in non-TTY when multiple CLIs are installed and no CLI is configured", async () => {
+    const cfgDir = mkdtempSync(path.join(tmpdir(), "workers-ensure-nontty-"));
+    const settingsFilePath = path.join(cfgDir, "settings.json");
+    const binDir = path.join(cfgDir, "bin");
+
+    writeFileSync(settingsFilePath, '{ "worker": { "defaults": { "model": "gpt-5.4" } } }\n', "utf8");
+    await createFakeCli(binDir, "claude");
+    await createFakeCli(binDir, "codex");
+
+    const settings = await loadSettings(undefined, { configDir: cfgDir });
+    expect(settings.defaults.cli).toBeUndefined();
+
+    // In a test environment stdin/stdout are not TTYs, so promptForCli throws.
+    // ensureWorkerCli should delete the partial settings file before re-throwing.
+    await expect(
+      ensureWorkerCli(settings, cfgDir, {
+        env: { ...process.env, PATH: binDir },
+      }),
+    ).rejects.toThrow();
+
+    expect(existsSync(settingsFilePath)).toBe(false);
+  });
+
   test("returns existing cli without prompting", async () => {
     const cfgDir = mkdtempSync(path.join(tmpdir(), "workers-ensure-existing-"));
     writeFileSync(

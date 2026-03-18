@@ -1,5 +1,5 @@
 import select from "@inquirer/select"
-import { accessSync, constants, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from "fs"
+import { accessSync, constants, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, symlinkSync, unlinkSync, writeFileSync } from "fs"
 import os from "os"
 import path from "path"
 import { fileURLToPath } from "url"
@@ -230,8 +230,10 @@ async function promptForCli(
   choices: CliName[],
   label: string,
   settingsKey: string,
+  onNonTtyFailure?: () => void,
 ): Promise<CliName> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    onNonTtyFailure?.();
     throw new Error(
       `Multiple CLIs are installed (${choices.join(", ")}). Set ${settingsKey} in settings.json.`,
     );
@@ -374,7 +376,7 @@ async function ensureCli(
   settingsKey: string,
   current: CliName | undefined,
   persist: (chosen: CliName) => void,
-  options?: { env?: NodeJS.ProcessEnv; promptForCli?: (choices: CliName[]) => Promise<CliName> },
+  options?: { env?: NodeJS.ProcessEnv; promptForCli?: (choices: CliName[]) => Promise<CliName>; onNonTtyFailure?: () => void },
 ): Promise<CliName> {
   if (current) {
     return current;
@@ -393,7 +395,7 @@ async function ensureCli(
     );
   }
 
-  const promptFn = options?.promptForCli ?? ((choices: CliName[]) => promptForCli(choices, label, settingsKey));
+  const promptFn = options?.promptForCli ?? ((choices: CliName[]) => promptForCli(choices, label, settingsKey, options?.onNonTtyFailure));
   const chosen =
     installed.length === 1
       ? installed[0]
@@ -438,7 +440,15 @@ export async function ensureWorkerCli(
       parsed.worker = worker;
     }, chosen);
     settings.defaults.cli = chosen;
-  }, options);
+  }, {
+    ...options,
+    onNonTtyFailure: () => {
+      const filePath = settingsPath(cfgDir);
+      if (existsSync(filePath)) {
+        unlinkSync(filePath);
+      }
+    },
+  });
 }
 
 /**
@@ -457,6 +467,13 @@ export async function ensureAssistantCli(
       parsed.assistant = assistant;
     }, chosen);
     settings.assistant.defaults.cli = chosen;
+  }, {
+    onNonTtyFailure: () => {
+      const filePath = settingsPath(cfgDir);
+      if (existsSync(filePath)) {
+        unlinkSync(filePath);
+      }
+    },
   });
 }
 
