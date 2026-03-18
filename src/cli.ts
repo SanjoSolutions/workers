@@ -42,7 +42,7 @@ export async function parseCliOptions(argv: string[]): Promise<CliOptions> {
     cli = await ensureWorkerCli(settings);
   }
 
-  const interactive = opts.interactive ? true : false;
+  const interactive = opts.fullyAutomated ? false : true;
 
   return {
     cli,
