@@ -51,16 +51,25 @@ When the user asks about TODO status (finished, in progress, what's queued, etc.
    trackers (git-todo repos, GitHub Issues, etc.). Use `--in-progress`, `--ready`, or `--planned`
    to filter by section, or omit for all sections.
 
-2. **Review completed work** — when a worker has finished a TODO, find and review its branch:
+2. **Find worker branches** — check for branches from finished or active workers:
    ```bash
    git worktree list          # find worker worktrees
    git branch | grep work/    # find worker branches
+   ```
+
+3. **Cross-reference** — match each worker branch against in-progress TODOs to understand which
+   TODO it belongs to. A branch with a worktree but whose TODO has already been removed from
+   TODO.md means the worker finished and the TODO was cleaned up. A branch whose TODO is still
+   in-progress means the worker is done but the TODO hasn't been marked complete yet.
+
+4. **Review completed work** — for finished branches:
+   ```bash
    git log --oneline main..<branch>
    git diff main..<branch>
    ```
    If a worktree still exists, you can inspect files there directly.
 
-3. **Report to the user** — summarize what was done, highlight anything that needs attention, and
+5. **Report to the user** — summarize what was done, highlight anything that needs attention, and
    ask whether to merge the branch or request changes.
 
 ## For Small Tasks
