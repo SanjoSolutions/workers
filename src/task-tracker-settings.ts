@@ -62,7 +62,7 @@ function resolveGitHubIssuesTracker(
     repository: tracker.repository.trim(),
     labels: {
       planned: tracker.labels?.planned?.trim() || "workers:planned",
-      ready: tracker.labels?.ready?.trim() || "workers:ready",
+      ready: tracker.labels?.ready?.trim() || "workers:ready-to-be-picked-up",
       inProgress: tracker.labels?.inProgress?.trim() || "workers:in-progress",
     },
   };
