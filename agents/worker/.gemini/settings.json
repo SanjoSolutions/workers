@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "AfterAgent": [
+      {
+        "hooks": [
+          {
+            "name": "workers-interactive-after-agent",
+            "type": "command",
+            "command": "node \"$WORKERS_GEMINI_HOOK_SCRIPT\"",
+            "timeout": 10000,
+            "description": "workers interactive after-agent hook"
+          }
+        ]
+      }
+    ]
+  }
+}

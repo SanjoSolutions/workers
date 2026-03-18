@@ -7,6 +7,10 @@ function extractAgentMessage(payload) {
     return undefined;
   }
 
+  // Gemini CLI AfterAgent hook payload field (AfterAgentInput.prompt_response)
+  if (typeof payload.prompt_response === "string") {
+    return payload.prompt_response;
+  }
   if (typeof payload.last_assistant_message === "string") {
     return payload.last_assistant_message;
   }

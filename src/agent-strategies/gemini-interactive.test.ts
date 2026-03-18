@@ -83,7 +83,7 @@ describe("gemini interactive workers hook", () => {
         WORKERS_TODO_SUMMARY: "Build feature",
       },
       input: JSON.stringify({
-        last_assistant_message: "I need one decision.\nWORKERS_STATUS: NEEDS_USER",
+        prompt_response: "I need one decision.\nWORKERS_STATUS: NEEDS_USER",
       }),
       encoding: "utf8",
     });
@@ -101,7 +101,7 @@ describe("gemini interactive workers hook", () => {
         WORKERS_TODO_SUMMARY: "Build feature",
       },
       input: JSON.stringify({
-        last_assistant_message: "Implemented and committed.\nWORKERS_STATUS: DONE",
+        prompt_response: "Implemented and committed.\nWORKERS_STATUS: DONE",
       }),
       encoding: "utf8",
     });
@@ -128,7 +128,7 @@ describe("gemini interactive workers hook", () => {
         WORKERS_TODO_SUMMARY: "Build feature",
       },
       input: JSON.stringify({
-        last_assistant_message: "All done, committed everything.",
+        prompt_response: "All done, committed everything.",
       }),
       encoding: "utf8",
     });

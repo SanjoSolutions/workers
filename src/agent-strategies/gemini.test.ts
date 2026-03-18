@@ -1,24 +1,22 @@
-import { describe, expect, test, vi } from "vitest";
+import { mkdtempSync, mkdirSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
 import path from "path";
+import { describe, expect, test, vi } from "vitest";
 import { GeminiAgentStrategy } from "./gemini.js";
 import { spawnAgentProcess } from "./process.js";
-import { setupManagedInteractiveSession } from "./managed-interactive.js";
 import { determinePackageRoot } from "../settings.js";
 
 vi.mock("./process.js", () => ({
   spawnAgentProcess: vi.fn().mockResolvedValue({ exitCode: 0, output: "" }),
 }));
 
-vi.mock("./managed-interactive.js", () => ({
-  setupManagedInteractiveSession: vi.fn().mockReturnValue({
-    env: { SESSION_ENV: "true" },
-    nextPrompt: "next",
-    statusFile: "status.json",
-    cleanup: vi.fn(),
-  }),
-  spawnManagedInteractiveAgent: vi.fn().mockResolvedValue({ exitCode: 0, output: "" }),
-  workersInteractiveInstructions: vi.fn().mockReturnValue("instructions"),
-}));
+vi.mock("./managed-interactive.js", async (importOriginal) => {
+  const actual = await importOriginal() as Record<string, unknown>;
+  return {
+    ...actual,
+    spawnManagedInteractiveAgent: vi.fn().mockResolvedValue({ exitCode: 0, output: "" }),
+  };
+});
 
 describe("GeminiAgentStrategy", () => {
   const strategy = new GeminiAgentStrategy();
@@ -39,7 +37,7 @@ describe("GeminiAgentStrategy", () => {
 
   test("sets GEMINI_SYSTEM_MD for non-interactive worker", async () => {
     await strategy.launch(baseContext as any);
-    
+
     expect(spawnAgentProcess).toHaveBeenCalledWith(expect.objectContaining({
       env: expect.objectContaining({
         GEMINI_SYSTEM_MD: path.join(packageRoot, "agents", "worker", "SYSTEM.md"),
@@ -50,7 +48,7 @@ describe("GeminiAgentStrategy", () => {
 
   test("sets GEMINI_SYSTEM_MD for noTodo (assistant)", async () => {
     await strategy.launch({ ...baseContext, noTodo: true } as any);
-    
+
     expect(spawnAgentProcess).toHaveBeenCalledWith(expect.objectContaining({
       env: expect.objectContaining({
         GEMINI_SYSTEM_MD: path.join(packageRoot, "agents", "assistant", "SYSTEM.md"),
@@ -59,19 +57,29 @@ describe("GeminiAgentStrategy", () => {
   });
 
   test("sets GEMINI_SYSTEM_MD for interactive worker", async () => {
+    const { spawnManagedInteractiveAgent } = await import("./managed-interactive.js");
+
+    const worktree = mkdtempSync(path.join(tmpdir(), "workers-gemini-test-"));
+    mkdirSync(path.join(worktree, ".gemini"), { recursive: true });
+    writeFileSync(path.join(worktree, "TODO.md"), "## In progress\n\n- Build feature\n", "utf8");
+
     await strategy.launch({
       ...baseContext,
+      worktreePath: worktree,
       options: { ...baseContext.options, interactive: true },
     } as any);
-    
-    expect(setupManagedInteractiveSession).toHaveBeenCalledWith(
-      worktreePath,
-      baseContext.claimedTodoItem,
-      baseContext.nextPrompt,
+
+    expect(spawnManagedInteractiveAgent).toHaveBeenCalledWith(
+      "gemini",
+      expect.any(Array),
+      worktree,
       expect.objectContaining({
         GEMINI_SYSTEM_MD: path.join(packageRoot, "agents", "worker", "SYSTEM.md"),
+        WORKERS_GEMINI_STATUS_FILE: expect.any(String),
+        WORKERS_GEMINI_HOOK_SCRIPT: expect.any(String),
       }),
-      expect.any(Object)
+      expect.any(String),
+      expect.any(Function),
     );
   });
 });
