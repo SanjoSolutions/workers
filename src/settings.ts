@@ -498,6 +498,7 @@ export function hasTaskTracker(settings: WorkersSettings): boolean {
  */
 export function initializeProject(
   repoRoot: string,
+  options?: { platform?: NodeJS.Platform },
 ): void {
   const templateDir = path.join(determinePackageRoot(), "new-project-template");
 
@@ -508,8 +509,13 @@ export function initializeProject(
     }
   }
 
+  const platform = options?.platform ?? os.platform();
   const claudeMdPath = path.join(repoRoot, "CLAUDE.md");
   if (existsSync(path.join(repoRoot, "AGENTS.md")) && !existsSync(claudeMdPath)) {
-    symlinkSync("AGENTS.md", claudeMdPath);
+    if (platform === "win32") {
+      copyFileSync(path.join(repoRoot, "AGENTS.md"), claudeMdPath);
+    } else {
+      symlinkSync("AGENTS.md", claudeMdPath);
+    }
   }
 }
