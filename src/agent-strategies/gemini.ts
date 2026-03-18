@@ -65,7 +65,7 @@ export class GeminiAgentStrategy implements AgentStrategy {
       );
       return spawnManagedInteractiveAgent(
         "gemini",
-        args,
+        ["--prompt", managedSession.nextPrompt, ...args],
         context.worktreePath,
         managedSession.env,
         managedSession.statusFile,

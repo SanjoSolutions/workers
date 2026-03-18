@@ -517,7 +517,7 @@ export async function ensureDefaultTaskTracker(
  * Copies SPEC.md, AGENTS.md, and other template files into a newly created
  * project repo.  Only call this for freshly bootstrapped repos.
  */
-export function initializeProjectSpec(
+export function initializeProject(
   repoRoot: string,
 ): void {
   const templateDir = path.join(determinePackageRoot(), "new-project-template");
