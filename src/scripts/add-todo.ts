@@ -16,6 +16,22 @@ interface ParsedArgs {
   issueNumber: number | undefined;
 }
 
+function printUsage(): void {
+  console.log(`Usage: add-todo.js [options] [text...]
+
+Add a TODO item to the configured task tracker.
+
+Options:
+  --ready             Add to the "Ready to be picked up" section
+  --planned           Add to the "Planned" section (default)
+  --section <name>    Add to a specific section by name
+  --issue <number>    Update an existing GitHub issue by number
+  -h, --help          Print this help message and exit
+
+Arguments:
+  text                TODO item text (reads from stdin if omitted)`);
+}
+
 function parseArgs(argv: string[]): ParsedArgs {
   let section: TodoSection = "planned";
   let issueNumber: number | undefined;
@@ -24,6 +40,10 @@ function parseArgs(argv: string[]): ParsedArgs {
   for (let index = 2; index < argv.length; index += 1) {
     const arg = argv[index];
 
+    if (arg === "--help" || arg === "-h") {
+      printUsage();
+      process.exit(0);
+    }
     if (arg === "--ready") {
       section = "ready";
       continue;
