@@ -48,6 +48,19 @@ async function setupProject(root: string, name: string): Promise<string> {
     path.join(skillDir, "SKILL.md"),
   );
 
+  // Copy the clarification skill (used by coordinator for task delegation)
+  const clarificationDir = path.join(
+    projectPath,
+    ".agents",
+    "skills",
+    "clarification",
+  );
+  mkdirSync(clarificationDir, { recursive: true });
+  copyFileSync(
+    path.join(cwd, ".agents", "skills", "clarification", "SKILL.md"),
+    path.join(clarificationDir, "SKILL.md"),
+  );
+
   // Copy AGENTS.md from the workers repo
   copyFileSync(
     path.join(cwd, "AGENTS.md"),

@@ -29,30 +29,26 @@ Queue the request into `TODO.md` when it is larger, including cases like:
 ## For Larger Tasks
 
 1. Turn the request into a concise markdown TODO item.
-2. Put it in `## Planned` by default.
-3. If the task is already autonomous and safe for a worker to start immediately, add it straight to
-   `## Ready to be picked up` with `node build/scripts/add-todo.js --ready`.
-4. Include useful context or acceptance bullets when they are already clear.
-5. Include `- Repo: /path/to/repo` for repo-targeted work, or `- Repo: none` for tasks that should
+2. Use the clarification skill to refine the item. Every queued task must be autonomous and ready
+   for a worker to pick up without follow-up questions.
+3. After clarification finishes, resume `coordinator` and add the clarified item with
+   `node build/scripts/add-todo.js --ready`.
+   Workers will route it to the configured task tracker for the target repo, or to the default task
+   tracker when no project-specific tracker is configured.
+4. Include `- Repo: /path/to/repo` for repo-targeted work, or `- Repo: none` for tasks that should
    run outside any project repo.
-6. If it is a brand new project, include `- Type: New project` and `- Repo: /path/to/new/repo`.
-7. For Codex-targeted tasks, add `- Reasoning: low|medium|high|xhigh` only when the task needs a
+5. If it is a brand new project, include `- Type: New project` and `- Repo: /path/to/new/repo`.
+6. For Codex-targeted tasks, add `- Reasoning: low|medium|high|xhigh` only when the task needs a
    non-default reasoning level. Omit it otherwise; workers defaults Codex reasoning to `high`.
-8. Add it with `node build/scripts/add-todo.js`. Workers will route it to the configured task tracker for the target
-   repo, or to the default task tracker when no project-specific tracker is configured.
-9. Tell the user that the task was queued instead of pretending it was started.
-
-If the queued task is too ambiguous for a worker to execute safely:
-
-10. Use the clarification skill to ask the missing questions and promote it toward `## Ready to be picked up`.
-11. After clarification finishes, return to `coordinator`.
-12. Tell the user whether the task is now ready for worker pickup or still remains queued with open questions.
+7. Tell the user that the task was queued instead of pretending it was started.
 
 Example:
 
 ```bash
-cat <<'EOF' | node build/scripts/add-todo.js
+cat <<'EOF' | node build/scripts/add-todo.js --ready
 - Add shared TODO repo bootstrap docs for new contributors
+  - Type: Development task
+  - Repo: /home/user/workers
   - Context: README should explain init flow and required env vars
   - Acceptance: A new contributor can initialize and configure the shared TODO repo without extra guidance
 EOF
