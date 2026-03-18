@@ -45,7 +45,7 @@ export class GeminiAgentStrategy implements AgentStrategy {
     const args = [
       ...(geminiModel ? ["--model", geminiModel] : []),
       "--approval-mode",
-      "auto_edit",
+      "yolo",
     ];
 
     const packageRoot = determinePackageRoot();
