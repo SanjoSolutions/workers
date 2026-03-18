@@ -190,11 +190,11 @@ describe("new user E2E", () => {
 
     // Verify they match the templates
     const specContent = readFileSync(path.join(targetProjectPath, "SPEC.md"), "utf8");
-    const specTemplate = readFileSync(path.join(process.cwd(), "SPEC.template.md"), "utf8");
+    const specTemplate = readFileSync(path.join(process.cwd(), "new-project-template", "SPEC.md"), "utf8");
     expect(specContent).toBe(specTemplate);
 
     const agentsContent = readFileSync(path.join(targetProjectPath, "AGENTS.md"), "utf8");
-    const agentsTemplate = readFileSync(path.join(process.cwd(), "AGENTS.template.md"), "utf8");
+    const agentsTemplate = readFileSync(path.join(process.cwd(), "new-project-template", "AGENTS.md"), "utf8");
     expect(agentsContent).toBe(agentsTemplate);
 
     // Verify the decision was persisted in settings

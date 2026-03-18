@@ -20,7 +20,7 @@
     "build/",
     "src/scripts/",
     "agents/",
-    "THIRD_PARTY_NOTICES.md"
+    "new-project-template/"
   ],
   "dependencies": {
     "@inquirer/input": "^5.0.10",

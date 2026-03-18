@@ -559,26 +559,20 @@ export async function ensureProjectSpecInitialized(
   writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
 
   if (accepted) {
-    const templateRoot = determinePackageRoot();
-    const specTemplate = path.join(templateRoot, "SPEC.template.md");
-    const agentsTemplate = path.join(templateRoot, "AGENTS.template.md");
+    const templateDir = path.join(determinePackageRoot(), "new-project-template");
+    const filesToCopy = ["SPEC.md", "AGENTS.md", "THIRD_PARTY_NOTICES.md"];
 
-    if (existsSync(specTemplate)) {
-      copyFileSync(specTemplate, path.join(repoRoot, "SPEC.md"));
-      process.stdout.write("Created SPEC.md.\n");
-    }
-    if (existsSync(agentsTemplate)) {
-      copyFileSync(agentsTemplate, path.join(repoRoot, "AGENTS.md"));
-      const claudeMdPath = path.join(repoRoot, "CLAUDE.md");
-      if (!existsSync(claudeMdPath)) {
-        symlinkSync("AGENTS.md", claudeMdPath);
+    for (const file of filesToCopy) {
+      const source = path.join(templateDir, file);
+      if (existsSync(source)) {
+        copyFileSync(source, path.join(repoRoot, file));
+        process.stdout.write(`Created ${file}.\n`);
       }
-      process.stdout.write("Created AGENTS.md.\n");
     }
-    const thirdPartyNotices = path.join(templateRoot, "THIRD_PARTY_NOTICES.md");
-    if (existsSync(thirdPartyNotices)) {
-      copyFileSync(thirdPartyNotices, path.join(repoRoot, "THIRD_PARTY_NOTICES.md"));
-      process.stdout.write("Created THIRD_PARTY_NOTICES.md.\n");
+
+    const claudeMdPath = path.join(repoRoot, "CLAUDE.md");
+    if (existsSync(path.join(repoRoot, "AGENTS.md")) && !existsSync(claudeMdPath)) {
+      symlinkSync("AGENTS.md", claudeMdPath);
     }
   }
 }
