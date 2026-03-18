@@ -196,13 +196,6 @@ describe("new user E2E", () => {
     const agentsTemplate = readFileSync(path.join(process.cwd(), "new-project-template", "AGENTS.md"), "utf8");
     expect(agentsContent).toBe(agentsTemplate);
 
-    // Verify the decision was persisted in settings
-    const settingsAfterSpec = JSON.parse(readFileSync(path.join(configDir, "settings.json"), "utf8"));
-    const projectEntry = settingsAfterSpec.projects?.find(
-      (p: { repo: string }) => p.repo === targetProjectPath,
-    );
-    expect(projectEntry?.specInitialized).toBe(true);
-
     // --- Step 6: Verify a worktree was created ---
     const worktreeListResult =
       await $`git -C ${targetProjectPath} worktree list --porcelain`.quiet();

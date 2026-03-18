@@ -52,7 +52,7 @@ export type TaskTrackerSettings =
 export interface ProjectTaskTrackerSettings {
   repo: string;
   taskTracker?: string;
-  specInitialized?: boolean;
+
 }
 
 interface SettingsLoadOptions {
@@ -126,10 +126,6 @@ function normalizeProjectEntries(
       taskTracker:
         typeof entry.taskTracker === "string" && entry.taskTracker.trim()
           ? entry.taskTracker.trim()
-          : undefined,
-      specInitialized:
-        typeof (entry as { specInitialized?: unknown }).specInitialized === "boolean"
-          ? (entry as { specInitialized: boolean }).specInitialized
           : undefined,
     }));
 }
@@ -517,28 +513,13 @@ export async function ensureDefaultTaskTracker(
  * When a project has no SPEC.md, prompt the user once to initialize it.
  * The decision is persisted per project so the question is never asked again.
  */
-export async function ensureProjectSpecInitialized(
+/**
+ * Copies SPEC.md, AGENTS.md, and other template files into a newly created
+ * project repo.  Only call this for freshly bootstrapped repos.
+ */
+export function initializeProjectSpec(
   repoRoot: string,
-  cfgDir = configDir(),
-): Promise<void> {
-  // Already initialized — nothing to do.
-  if (existsSync(path.join(repoRoot, "SPEC.md"))) {
-    return;
-  }
-
-  const filePath = settingsPath(cfgDir);
-  if (!existsSync(filePath)) return;
-
-  const parsed = parseSettingsFile(filePath);
-  const projects = normalizeProjectEntries(parsed);
-  const existing = projects.find((p) => p.repo === repoRoot);
-
-  // Already asked (regardless of answer) — respect the saved decision.
-  if (existing?.specInitialized !== undefined) {
-    return;
-  }
-
-  // Always initialize automatically.
+): void {
   const templateDir = path.join(determinePackageRoot(), "new-project-template");
 
   if (existsSync(templateDir)) {
@@ -552,12 +533,4 @@ export async function ensureProjectSpecInitialized(
   if (existsSync(path.join(repoRoot, "AGENTS.md")) && !existsSync(claudeMdPath)) {
     symlinkSync("AGENTS.md", claudeMdPath);
   }
-
-  if (existing) {
-    existing.specInitialized = true;
-  } else {
-    projects.push({ repo: repoRoot, specInitialized: true });
-  }
-  parsed.projects = projects;
-  writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
 }

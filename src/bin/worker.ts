@@ -28,7 +28,7 @@ import {
   ensureTaskRepo,
   resolveClaimedTaskTarget,
 } from "../task-target.js";
-import { ensureProjectSpecInitialized, loadSettings, persistProjectSettings } from "../settings.js";
+import { initializeProjectSpec, loadSettings, persistProjectSettings } from "../settings.js";
 import {
   resolvePollingTaskTrackers,
 } from "../task-tracker-settings.js";
@@ -393,7 +393,9 @@ async function main(): Promise<void> {
         log.info(`Resolved target repo: ${ensuredRepo.repoRoot}`);
       }
 
-      await ensureProjectSpecInitialized(ensuredRepo.repoRoot);
+      if (ensuredRepo.bootstrapped) {
+        initializeProjectSpec(ensuredRepo.repoRoot);
+      }
 
       activeWorkspace = await setupWorkspaceForRepo(
         ensuredRepo.repoRoot,
