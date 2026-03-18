@@ -14,6 +14,60 @@ import {
 type SectionFilter = "in-progress" | "ready" | "planned" | "all";
 type Mode = "list" | "branches";
 
+/**
+ * Parse a duration string like "7d", "24h", "2w" into:
+ * - gitSince: a string suitable for git --since (e.g. "7 days ago")
+ * - isoDate: an ISO 8601 date string for filtering gh issue lists
+ */
+function parseDuration(duration: string): { gitSince: string; isoDate: string } {
+  const match = duration.match(/^(\d+)(d|h|w)$/);
+  if (!match) {
+    throw new Error(`Invalid duration format: "${duration}". Expected formats like 7d, 24h, 2w.`);
+  }
+  const amount = parseInt(match[1], 10);
+  const unit = match[2];
+
+  const unitNames: Record<string, string> = { d: "days", h: "hours", w: "weeks" };
+  const gitSince = `${amount} ${unitNames[unit]} ago`;
+
+  const now = new Date();
+  if (unit === "d") {
+    now.setDate(now.getDate() - amount);
+  } else if (unit === "h") {
+    now.setHours(now.getHours() - amount);
+  } else if (unit === "w") {
+    now.setDate(now.getDate() - amount * 7);
+  }
+  const isoDate = now.toISOString();
+
+  return { gitSince, isoDate };
+}
+
+async function getCompletedGitTodos(
+  repoPath: string,
+  filePath: string,
+  gitSince: string,
+): Promise<string[]> {
+  const result = await $`git -C ${repoPath} log -p --since=${gitSince} -- ${filePath}`
+    .quiet()
+    .nothrow();
+  if (result.exitCode !== 0 || !result.stdout) return [];
+
+  const completed: string[] = [];
+  for (const line of result.stdout.split("\n")) {
+    // Lines removed from the file start with "-" in a diff hunk (but not "---" file header)
+    if (/^-[^-]/.test(line)) {
+      const content = line.slice(1);
+      if (/^- /.test(content)) {
+        completed.push(content);
+      }
+    }
+  }
+
+  // Deduplicate while preserving order
+  return [...new Set(completed)];
+}
+
 function extractItemDependencies(item: string): string[] {
   const dependencies: string[] = [];
   for (const line of item.split("\n")) {
@@ -23,9 +77,11 @@ function extractItemDependencies(item: string): string[] {
   return dependencies;
 }
 
-function parseArgs(argv: string[]): { section: SectionFilter; mode: Mode } {
+function parseArgs(argv: string[]): { section: SectionFilter; mode: Mode; completed: boolean; since: string } {
   let section: SectionFilter = "all";
   let mode: Mode = "list";
+  let completed = false;
+  let since = "7d";
 
   for (let index = 2; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -40,15 +96,28 @@ function parseArgs(argv: string[]): { section: SectionFilter; mode: Mode } {
       section = "all";
     } else if (arg === "--branches") {
       mode = "branches";
+    } else if (arg === "--completed") {
+      completed = true;
+    } else if (arg === "--since") {
+      index += 1;
+      const value = argv[index];
+      if (!value) {
+        console.error("--since requires a value (e.g. 7d, 24h, 2w)");
+        process.exit(1);
+      }
+      since = value;
     } else if (arg === "--help" || arg === "-h") {
-      console.log("Usage: list-todos [--in-progress | --ready | --planned | --all | --branches]");
+      console.log("Usage: list-todos [--in-progress | --ready | --planned | --all | --branches] [--completed [--since <duration>]]");
       console.log("Lists TODO items from all configured task trackers.");
-      console.log("  --branches  Cross-reference worker branches with tracked TODOs.");
+      console.log("  --branches          Cross-reference worker branches with tracked TODOs.");
+      console.log("  --completed         Show completed (removed) TODO items from history.");
+      console.log("  --since <duration>  How far back to look for completed items (default: 7d).");
+      console.log("                      Supported formats: 7d (days), 24h (hours), 2w (weeks).");
       process.exit(0);
     }
   }
 
-  return { section, mode };
+  return { section, mode, completed, since };
 }
 
 const SECTION_HEADERS: Record<string, string> = {
@@ -90,6 +159,8 @@ function extractSectionItems(
 async function listGitTodoTracker(
   tracker: ResolvedGitTodoTaskTracker,
   section: SectionFilter,
+  completed: boolean,
+  since: string,
 ): Promise<void> {
   const todoPath = path.resolve(tracker.repo, tracker.file);
   let content: string;
@@ -130,11 +201,24 @@ async function listGitTodoTracker(
       }
     }
   }
+
+  if (completed) {
+    const { gitSince } = parseDuration(since);
+    const completedItems = await getCompletedGitTodos(tracker.repo, tracker.file, gitSince);
+    if (completedItems.length > 0) {
+      console.log(`  ## Completed (since ${since}):`);
+      for (const item of completedItems) {
+        console.log(`    ${item}`);
+      }
+    }
+  }
 }
 
 async function listGitHubIssuesTracker(
   tracker: ResolvedGitHubIssuesTaskTracker,
   section: SectionFilter,
+  completed: boolean,
+  since: string,
 ): Promise<void> {
   const labelMap: Record<string, string> = {
     "in-progress": tracker.labels.inProgress,
@@ -182,6 +266,24 @@ async function listGitHubIssuesTracker(
         const blockedBy = dependencies.filter((dep) => activeTitles.has(dep));
         if (blockedBy.length > 0) {
           console.log(`      (blocked by: ${blockedBy.join(", ")})`);
+        }
+      }
+    }
+  }
+
+  if (completed) {
+    const { isoDate } = parseDuration(since);
+    const result =
+      await $`gh issue list --repo ${tracker.repository} --state closed --limit 100 --json number,title,closedAt`
+        .quiet()
+        .nothrow();
+    if (result.exitCode === 0) {
+      const closedIssues = JSON.parse(result.stdout) as { number: number; title: string; closedAt: string }[];
+      const recentlyClosed = closedIssues.filter((issue) => issue.closedAt >= isoDate);
+      if (recentlyClosed.length > 0) {
+        console.log(`  ## Completed (since ${since}):`);
+        for (const issue of recentlyClosed) {
+          console.log(`    - ${issue.title} (#${issue.number})`);
         }
       }
     }
@@ -415,9 +517,9 @@ async function main(): Promise<void> {
   for (const tracker of trackerList) {
     console.log(`[${tracker.name}] (${tracker.kind})`);
     if (tracker.kind === "git-todo") {
-      await listGitTodoTracker(tracker, args.section);
+      await listGitTodoTracker(tracker, args.section, args.completed, args.since);
     } else {
-      await listGitHubIssuesTracker(tracker, args.section);
+      await listGitHubIssuesTracker(tracker, args.section, args.completed, args.since);
     }
     console.log();
   }
