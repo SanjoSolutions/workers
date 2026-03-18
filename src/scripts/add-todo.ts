@@ -10,8 +10,15 @@ import { resolveTaskTrackerForTodoText } from "../task-tracker-settings.js";
 import { withTodoLock } from "../claim-todo.js";
 import { commitAndPushTodoRepo, createGitHubIssueTask, fastForwardRepo } from "../task-trackers.js";
 
-function parseArgs(argv: string[]): { section: TodoSection; text: string } {
+interface ParsedArgs {
+  section: TodoSection;
+  text: string;
+  issueNumber: number | undefined;
+}
+
+function parseArgs(argv: string[]): ParsedArgs {
   let section: TodoSection = "planned";
+  let issueNumber: number | undefined;
   const textArgs: string[] = [];
 
   for (let index = 2; index < argv.length; index += 1) {
@@ -36,6 +43,15 @@ function parseArgs(argv: string[]): { section: TodoSection; text: string } {
       index += 1;
       continue;
     }
+    if (arg === "--issue") {
+      const value = argv[index + 1]?.trim();
+      if (!value || Number.isNaN(Number(value))) {
+        throw new Error("--issue requires a numeric issue number.");
+      }
+      issueNumber = Number(value);
+      index += 1;
+      continue;
+    }
 
     textArgs.push(arg);
   }
@@ -43,6 +59,7 @@ function parseArgs(argv: string[]): { section: TodoSection; text: string } {
   return {
     section,
     text: textArgs.join(" ").trim(),
+    issueNumber,
   };
 }
 
@@ -120,9 +137,11 @@ async function main(): Promise<void> {
       tracker,
       args.section,
       itemLines,
+      args.issueNumber,
     );
+    const verb = args.issueNumber !== undefined ? "Updated" : "Added";
     console.log(
-      `Added TODO to ${args.section} in ${tracker.repository} as GitHub issue ${issueUrl} (task tracker: ${tracker.name})`,
+      `${verb} TODO in ${args.section} in ${tracker.repository} as GitHub issue ${issueUrl} (task tracker: ${tracker.name})`,
     );
     return;
   }

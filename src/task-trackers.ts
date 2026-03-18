@@ -444,12 +444,27 @@ export async function createGitHubIssueTask(
   tracker: ResolvedGitHubIssuesTaskTracker,
   section: "planned" | "ready",
   itemLines: string[],
+  issueNumber?: number,
 ): Promise<string> {
   await ensureGitHubLabels(tracker);
 
   const title = itemLines[0].replace(/^- /, "").trim();
   const body = itemLines.slice(1).join("\n").trim();
   const label = section === "ready" ? tracker.labels.ready : tracker.labels.planned;
+
+  if (issueNumber !== undefined) {
+    const editResult =
+      await $`gh issue edit ${String(issueNumber)} --repo ${tracker.repository} --title ${title} --body ${body} --add-label ${label}`
+        .quiet()
+        .nothrow();
+    if (editResult.exitCode !== 0) {
+      throw new Error(
+        `Failed to update GitHub issue #${issueNumber} in ${tracker.repository}.`,
+      );
+    }
+
+    return `https://github.com/${tracker.repository}/issues/${issueNumber}`;
+  }
 
   const result =
     await $`gh issue create --repo ${tracker.repository} --title ${title} --body ${body} --label ${label}`
