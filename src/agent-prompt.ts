@@ -57,15 +57,23 @@ Instructions:
 ${todoSyncInstruction}`;
 }
 
+function stripRuntimeMetadata(item: string): string {
+  return item
+    .split(/\r?\n/)
+    .filter((line) => !/^\s+-\s*Repo:\s/i.test(line))
+    .join("\n");
+}
+
 export function buildAgentPrompt(
   claimedTodoItem: string,
   claimedTodoItemType: string,
   config: WorkConfig | undefined,
 ): string {
+  const cleanedItem = stripRuntimeMetadata(claimedTodoItem);
   return config?.agent?.buildPrompt
-    ? config.agent.buildPrompt(claimedTodoItem, claimedTodoItemType)
+    ? config.agent.buildPrompt(cleanedItem, claimedTodoItemType)
     : defaultPrompt(
-        claimedTodoItem,
+        cleanedItem,
         claimedTodoItemType,
         usesSharedTodoRepo(),
       );
