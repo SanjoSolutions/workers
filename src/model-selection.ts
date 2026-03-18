@@ -50,12 +50,15 @@ export async function evaluateClaudeModel(todoItem: string): Promise<string> {
       prompt,
       "--json-schema",
       MODEL_SCHEMA,
+      "--output-format",
+      "json",
       "--dangerously-skip-permissions",
       "--allowedTools",
       "",
     ]);
 
-    const parsed: EvaluationResult = JSON.parse(result);
+    const envelope = JSON.parse(result);
+    const parsed: EvaluationResult = envelope.structured_output ?? {};
     const model = parsed.model?.trim().toLowerCase();
 
     if (model && VALID_CLAUDE_MODELS.has(model)) {
