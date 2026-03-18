@@ -61,14 +61,6 @@ async function setupProject(root: string, name: string): Promise<string> {
     path.join(clarificationDir, "SKILL.md"),
   );
 
-  // Copy CLAUDE.md (project instructions) from the workers repo.
-  // The workers repo has CLAUDE.md -> AGENTS.md; read the real content
-  // and write it as CLAUDE.md so the CLI picks it up.
-  copyFileSync(
-    path.join(cwd, "CLAUDE.md"),
-    path.join(projectPath, "CLAUDE.md"),
-  );
-
   // TODO.md from template
   writeFileSync(path.join(projectPath, "TODO.md"), TODO_TEMPLATE);
 

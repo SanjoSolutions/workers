@@ -46,7 +46,7 @@ async function main(): Promise<void> {
   const strategy = getAgentStrategy(cli);
   const result = await strategy.launch({
     options,
-    worktreePath: repoRoot,
+    worktreePath: process.cwd(),
     claimedTodoItem: "",
     claimedTodoItemType: "",
     nextPrompt: "",
