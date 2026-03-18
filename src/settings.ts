@@ -179,9 +179,16 @@ function normalizeTaskTrackerSettings(
             }
           : undefined;
 
+      const rawTokenCommand = (rawTracker as { tokenCommand?: unknown }).tokenCommand;
+      const tokenCommand =
+        typeof rawTokenCommand === "string" && rawTokenCommand.trim()
+          ? rawTokenCommand.trim()
+          : undefined;
+
       normalized[name] = {
         type: "github-issues",
         repository,
+        tokenCommand,
         labels,
       };
       continue;
