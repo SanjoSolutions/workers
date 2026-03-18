@@ -22,7 +22,7 @@ function mockSpawn(stdout: string, exitCode = 0) {
 }
 
 function jsonResponse(model: string) {
-  return JSON.stringify({ model });
+  return JSON.stringify({ structured_output: { model } });
 }
 
 const { evaluateClaudeModel } = await import("./model-selection.js");
@@ -64,7 +64,7 @@ describe("evaluateClaudeModel", () => {
   });
 
   test("falls back to sonnet on invalid model in JSON", async () => {
-    mockSpawn(JSON.stringify({ model: "gpt-4" }));
+    mockSpawn(JSON.stringify({ structured_output: { model: "gpt-4" } }));
     const model = await evaluateClaudeModel("- Do something");
     expect(model).toBe("sonnet");
   });
