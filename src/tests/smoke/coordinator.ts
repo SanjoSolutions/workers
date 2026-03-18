@@ -11,7 +11,6 @@
 
 import { spawn } from "child_process";
 import {
-  copyFileSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -28,38 +27,11 @@ const TODO_TEMPLATE = readFileSync(
 
 async function setupProject(root: string, name: string): Promise<string> {
   const projectPath = path.join(root, name);
-  const cwd = process.cwd();
 
   mkdirSync(projectPath, { recursive: true });
   await $`git -C ${projectPath} init -b main`.quiet();
   await $`git -C ${projectPath} config user.name Test`.quiet();
   await $`git -C ${projectPath} config user.email test@test`.quiet();
-
-  // Copy the coordinator skill
-  const skillDir = path.join(
-    projectPath,
-    ".agents",
-    "skills",
-    "coordinator",
-  );
-  mkdirSync(skillDir, { recursive: true });
-  copyFileSync(
-    path.join(cwd, ".agents", "skills", "coordinator", "SKILL.md"),
-    path.join(skillDir, "SKILL.md"),
-  );
-
-  // Copy the clarification skill (used by coordinator for task delegation)
-  const clarificationDir = path.join(
-    projectPath,
-    ".agents",
-    "skills",
-    "clarification",
-  );
-  mkdirSync(clarificationDir, { recursive: true });
-  copyFileSync(
-    path.join(cwd, ".agents", "skills", "clarification", "SKILL.md"),
-    path.join(clarificationDir, "SKILL.md"),
-  );
 
   // TODO.md from template
   writeFileSync(path.join(projectPath, "TODO.md"), TODO_TEMPLATE);
@@ -119,7 +91,9 @@ async function main(): Promise<void> {
   console.log("Watch the output — stop with Ctrl+C once it's clear whether the");
   console.log("coordinator delegated to TODO.md or started implementing directly.\n");
 
-  const assistantSystemPath = path.join(process.cwd(), "ASSISTANT_SYSTEM.md");
+  const workersRoot = process.cwd();
+  const assistantSystemPath = path.join(workersRoot, "ASSISTANT_SYSTEM.md");
+  const assistantAgentDir = path.join(workersRoot, "agents", "assistant");
 
   const child = spawn(
     "claude",
@@ -127,6 +101,8 @@ async function main(): Promise<void> {
       "--dangerously-skip-permissions",
       "--append-system-prompt-file",
       assistantSystemPath,
+      "--add-dir",
+      assistantAgentDir,
       "--",
       PROMPT,
     ],

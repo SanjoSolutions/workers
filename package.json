@@ -19,6 +19,7 @@
   "files": [
     "build/",
     "src/scripts/",
+    "agents/",
     "ASSISTANT_SYSTEM.md",
     "WORKER_SYSTEM.md"
   ],
