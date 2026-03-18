@@ -6,7 +6,7 @@ import { fileURLToPath } from "url"
 import { expandHomePath } from "./path-utils.js"
 import type { CliName } from "./types.js"
 
-export const VALID_CLIS: CliName[] = ["claude", "codex", "gemini"];
+export const VALID_CLIS: CliName[] = ["claude", "codex", "gemini", "pi"];
 export const VALID_CLI_SET = new Set<CliName>(VALID_CLIS);
 
 export interface WorkerDefaults {

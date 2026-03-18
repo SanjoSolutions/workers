@@ -1,4 +1,4 @@
-export type CliName = "claude" | "codex" | "gemini";
+export type CliName = "claude" | "codex" | "gemini" | "pi";
 
 export interface CliOptions {
   cli: CliName;
@@ -52,6 +52,10 @@ export interface WorkConfig {
     codexDefaultReasoning?: string;
     /** Codex --add-dir paths. */
     codexWritableDirs?: string[];
+    /** Default pi model. */
+    piDefaultModel?: string;
+    /** Pi --tools list (default: read,bash,edit,write). */
+    piDefaultTools?: string[];
     /** Extra env vars for the agent child process. */
     env?: (ctx: AgentEnvContext) => Record<string, string>;
   };
