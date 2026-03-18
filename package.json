@@ -14,7 +14,11 @@
     "prepack": "npm run build",
     "test": "vitest run --exclude 'src/tests/e2e/**'",
     "test:e2e": "docker build -t workers-e2e . && docker run --rm -v \"$(pwd):/app\" -v /app/node_modules workers-e2e",
-    "test:smoke": "scripts/smoke-test-coordinator.sh"
+    "test:smoke": "scripts/smoke-test-all.sh",
+    "test:smoke:claude": "npx tsx src/tests/smoke/claude.ts",
+    "test:smoke:codex": "npx tsx src/tests/smoke/codex.ts",
+    "test:smoke:gemini": "npx tsx src/tests/smoke/gemini.ts",
+    "test:smoke:coordinator": "scripts/smoke-test-coordinator.sh"
   },
   "files": [
     "build/",
