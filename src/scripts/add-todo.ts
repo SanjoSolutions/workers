@@ -14,13 +14,11 @@ interface ParsedArgs {
   section: TodoSection;
   text: string;
   issueNumber: number | undefined;
-  createPullRequest: boolean | undefined;
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
   let section: TodoSection = "planned";
   let issueNumber: number | undefined;
-  let createPullRequest: boolean | undefined;
   const textArgs: string[] = [];
 
   for (let index = 2; index < argv.length; index += 1) {
@@ -54,14 +52,6 @@ function parseArgs(argv: string[]): ParsedArgs {
       index += 1;
       continue;
     }
-    if (arg === "--create-pull-request") {
-      createPullRequest = true;
-      continue;
-    }
-    if (arg === "--no-create-pull-request") {
-      createPullRequest = false;
-      continue;
-    }
 
     textArgs.push(arg);
   }
@@ -70,7 +60,6 @@ function parseArgs(argv: string[]): ParsedArgs {
     section,
     text: textArgs.join(" ").trim(),
     issueNumber,
-    createPullRequest,
   };
 }
 
@@ -138,7 +127,6 @@ async function main(): Promise<void> {
     persistProjectSettings([
       {
         repo: path.resolve(repoField),
-        createPullRequest: args.createPullRequest,
       },
     ]);
   }

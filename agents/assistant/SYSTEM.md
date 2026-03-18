@@ -44,8 +44,8 @@ Queue the request into TODO.md when it is larger, including cases like:
    run outside any project repo.
 5. If it is a brand new project, include `- Type: New project` and `- Repo: /path/to/new/repo`.
 6. When adding a task for a repo that does not yet have a project entry in settings, ask the user
-   whether workers should create pull requests for completed tasks in that repo. Pass
-   `--create-pull-request` or `--no-create-pull-request` to `add-todo.js` accordingly.
+   whether workers should create pull requests for completed tasks in that repo. If yes, add
+   `"createPullRequest": true` to the project entry in the workers settings.json file.
 7. For Codex-targeted tasks, add `- Reasoning: low|medium|high|xhigh` only when the task needs a
    non-default reasoning level. Omit it otherwise; workers defaults Codex reasoning to `high`.
 8. Tell the user that the task was queued instead of pretending it was started.
