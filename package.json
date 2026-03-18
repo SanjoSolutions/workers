@@ -19,7 +19,8 @@
   "files": [
     "build/",
     "src/scripts/",
-    "agents/"
+    "agents/",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "dependencies": {
     "@inquirer/input": "^5.0.10",

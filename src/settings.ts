@@ -1,6 +1,6 @@
 import input from "@inquirer/input"
 import select from "@inquirer/select"
-import { accessSync, constants, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs"
+import { accessSync, constants, copyFileSync, existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "fs"
 import os from "os"
 import path from "path"
 import { fileURLToPath } from "url"
@@ -569,7 +569,16 @@ export async function ensureProjectSpecInitialized(
     }
     if (existsSync(agentsTemplate)) {
       copyFileSync(agentsTemplate, path.join(repoRoot, "AGENTS.md"));
+      const claudeMdPath = path.join(repoRoot, "CLAUDE.md");
+      if (!existsSync(claudeMdPath)) {
+        symlinkSync("AGENTS.md", claudeMdPath);
+      }
       process.stdout.write("Created AGENTS.md.\n");
+    }
+    const thirdPartyNotices = path.join(templateRoot, "THIRD_PARTY_NOTICES.md");
+    if (existsSync(thirdPartyNotices)) {
+      copyFileSync(thirdPartyNotices, path.join(repoRoot, "THIRD_PARTY_NOTICES.md"));
+      process.stdout.write("Created THIRD_PARTY_NOTICES.md.\n");
     }
   }
 }
