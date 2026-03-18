@@ -123,7 +123,7 @@ async function fastForwardRepo(repoRoot: string): Promise<boolean> {
   return pullResult.exitCode === 0;
 }
 
-async function commitAndPushTodoRepo(
+export async function commitAndPushTodoRepo(
   repoRoot: string,
   todoRelativePath: string,
   message: string,

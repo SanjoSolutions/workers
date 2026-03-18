@@ -3,12 +3,11 @@
 import { readFileSync, writeFileSync } from "fs";
 import path from "path";
 import readline from "readline/promises";
-import { $ } from "zx";
 import { insertIntoSection, SECTION_HEADERS, type TodoSection } from "../add-todo.js";
 import { extractTodoField } from "../agent-prompt.js";
 import { loadSettings, persistProjectSettings } from "../settings.js";
 import { resolveTaskTrackerForTodoText } from "../task-tracker-settings.js";
-import { createGitHubIssueTask } from "../task-trackers.js";
+import { commitAndPushTodoRepo, createGitHubIssueTask } from "../task-trackers.js";
 
 function parseArgs(argv: string[]): { section: TodoSection; text: string } {
   let section: TodoSection = "planned";
@@ -133,11 +132,14 @@ async function main(): Promise<void> {
   writeFileSync(todoPath, nextContent, "utf8");
 
   const summary = itemLines[0].replace(/^- /, "");
-  await $({ cwd: tracker.repo })`git add ${tracker.file}`;
-  await $({ cwd: tracker.repo })`git commit -m ${`Add TODO: ${summary}`}`;
+  const pushed = await commitAndPushTodoRepo(
+    tracker.repo,
+    tracker.file,
+    `Add TODO: ${summary}`,
+  );
 
   console.log(
-    `Added TODO to ${args.section} in ${todoPath} (task tracker: ${tracker.name})`,
+    `Added TODO to ${args.section} in ${todoPath} (task tracker: ${tracker.name})${pushed ? "" : " (push failed)"}`,
   );
 }
 
