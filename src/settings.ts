@@ -39,10 +39,16 @@ export interface GitHubIssueLabelsSettings {
   inProgress?: string;
 }
 
+export interface GitHubAppSettings {
+  appId: string;
+  privateKeyPath: string;
+}
+
 export interface GitHubIssuesTaskTrackerSettings {
   type: "github-issues";
   repository: string;
   tokenCommand?: string;
+  githubApp?: GitHubAppSettings;
   labels?: GitHubIssueLabelsSettings;
 }
 
@@ -185,10 +191,24 @@ function normalizeTaskTrackerSettings(
           ? rawTokenCommand.trim()
           : undefined;
 
+      const rawGitHubApp = (rawTracker as { githubApp?: unknown }).githubApp;
+      const githubApp =
+        rawGitHubApp &&
+        typeof rawGitHubApp === "object" &&
+        !Array.isArray(rawGitHubApp) &&
+        typeof (rawGitHubApp as { appId?: unknown }).appId === "string" &&
+        typeof (rawGitHubApp as { privateKeyPath?: unknown }).privateKeyPath === "string"
+          ? {
+              appId: (rawGitHubApp as { appId: string }).appId.trim(),
+              privateKeyPath: (rawGitHubApp as { privateKeyPath: string }).privateKeyPath.trim(),
+            }
+          : undefined;
+
       normalized[name] = {
         type: "github-issues",
         repository,
         tokenCommand,
+        githubApp,
         labels,
       };
       continue;

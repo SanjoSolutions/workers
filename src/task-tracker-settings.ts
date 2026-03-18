@@ -3,6 +3,7 @@ import { extractTodoField } from "./agent-prompt.js";
 import { expandHomePath } from "./path-utils.js";
 import { readEnv } from "./env-utils.js";
 import type {
+  GitHubAppSettings,
   ProjectTaskTrackerSettings,
   GitTodoTaskTrackerSettings,
   GitHubIssuesTaskTrackerSettings,
@@ -21,6 +22,7 @@ export interface ResolvedGitHubIssuesTaskTracker {
   kind: "github-issues";
   repository: string;
   tokenCommand: string | undefined;
+  githubApp: GitHubAppSettings | undefined;
   labels: {
     planned: string;
     ready: string;
@@ -62,6 +64,7 @@ function resolveGitHubIssuesTracker(
     kind: "github-issues",
     repository: tracker.repository.trim(),
     tokenCommand: tracker.tokenCommand?.trim() || undefined,
+    githubApp: tracker.githubApp ?? undefined,
     labels: {
       planned: tracker.labels?.planned?.trim() || "workers:planned",
       ready: tracker.labels?.ready?.trim() || "workers:ready-to-be-picked-up",
@@ -199,17 +202,31 @@ export function resolvePollingTaskTrackers(
 }
 
 /**
- * Run the tokenCommand from the first GitHub Issues tracker that has one
- * configured, and set GH_TOKEN in process.env with the result. When
- * GH_TOKEN is already set and no tracker has a tokenCommand, it is left
- * unchanged. Call this before any `gh` CLI invocations — safe to call
- * repeatedly (e.g. in a polling loop) to refresh expiring tokens.
+ * Obtain a fresh GitHub token from the first GitHub Issues tracker that has
+ * a githubApp or tokenCommand configured, and set GH_TOKEN in process.env.
+ * Safe to call repeatedly (e.g. in a polling loop) to refresh expiring tokens.
  */
 export async function applyGitHubToken(
   trackers: Record<string, ResolvedTaskTracker>,
 ): Promise<void> {
   for (const tracker of Object.values(trackers)) {
-    if (tracker.kind === "github-issues" && tracker.tokenCommand) {
+    if (tracker.kind !== "github-issues") {
+      continue;
+    }
+
+    if (tracker.githubApp) {
+      const { getGitHubAppInstallationToken } = await import("./github-app-token.js");
+      const token = await getGitHubAppInstallationToken(
+        tracker.githubApp.appId,
+        tracker.githubApp.privateKeyPath,
+      );
+      if (token) {
+        process.env.GH_TOKEN = token;
+      }
+      return;
+    }
+
+    if (tracker.tokenCommand) {
       const { execSync } = await import("child_process");
       const token = execSync(tracker.tokenCommand, { encoding: "utf8" }).trim();
       if (token) {
