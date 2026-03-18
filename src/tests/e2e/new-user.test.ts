@@ -160,7 +160,6 @@ describe("new user E2E", () => {
       ["--worktree-dir", worktreeDir],
       [
         { waitFor: "Choose the default worker CLI", send: "\r" },           // Enter → select claude (first option)
-        { waitFor: "Initialize SPEC.md", send: "\r" },                      // Enter → select Yes (first option)
       ],
       30,
     );

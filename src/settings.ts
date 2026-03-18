@@ -538,39 +538,26 @@ export async function ensureProjectSpecInitialized(
     return;
   }
 
-  if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    return;
+  // Always initialize automatically.
+  const templateDir = path.join(determinePackageRoot(), "new-project-template");
+
+  if (existsSync(templateDir)) {
+    for (const file of readdirSync(templateDir)) {
+      copyFileSync(path.join(templateDir, file), path.join(repoRoot, file));
+      process.stdout.write(`Created ${file}.\n`);
+    }
   }
 
-  const accepted = await select({
-    message: "This project has no SPEC.md. Initialize SPEC.md and AGENTS.md?",
-    choices: [
-      { name: "Yes", value: true },
-      { name: "No", value: false },
-    ],
-  });
+  const claudeMdPath = path.join(repoRoot, "CLAUDE.md");
+  if (existsSync(path.join(repoRoot, "AGENTS.md")) && !existsSync(claudeMdPath)) {
+    symlinkSync("AGENTS.md", claudeMdPath);
+  }
 
   if (existing) {
-    existing.specInitialized = accepted;
+    existing.specInitialized = true;
   } else {
-    projects.push({ repo: repoRoot, specInitialized: accepted });
+    projects.push({ repo: repoRoot, specInitialized: true });
   }
   parsed.projects = projects;
   writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
-
-  if (accepted) {
-    const templateDir = path.join(determinePackageRoot(), "new-project-template");
-
-    if (existsSync(templateDir)) {
-      for (const file of readdirSync(templateDir)) {
-        copyFileSync(path.join(templateDir, file), path.join(repoRoot, file));
-        process.stdout.write(`Created ${file}.\n`);
-      }
-    }
-
-    const claudeMdPath = path.join(repoRoot, "CLAUDE.md");
-    if (existsSync(path.join(repoRoot, "AGENTS.md")) && !existsSync(claudeMdPath)) {
-      symlinkSync("AGENTS.md", claudeMdPath);
-    }
-  }
 }
