@@ -112,7 +112,7 @@ function extractConflictRiskSummaries(lines: string[], itemStart: number, itemEn
 function extractDependencies(lines: string[], itemStart: number, itemEnd: number): string[] {
   const summaries: string[] = [];
   for (let index = itemStart; index < itemEnd; index += 1) {
-    const match = lines[index].match(/^\s+- Depends on: "(.+)"$/);
+    const match = lines[index].match(/^\s+- Depends on:\s+(.+?)\s*$/);
     if (match) {
       summaries.push(match[1]);
     }
@@ -182,6 +182,7 @@ export function selectFromTodoText(
 
   let chosenItem: ItemRange | null = null;
   let hasReadyItems = false;
+  let blockedByDependency = false;
   for (const candidate of readyItems) {
     const itemAgent = extractItemAgent(lines, candidate.start, candidate.end);
     if (!isAgentMatch(itemAgent, filterAgent)) continue;
@@ -193,7 +194,10 @@ export function selectFromTodoText(
       const hasPendingDependency = dependencies.some(
         (dep) => readySummaries.includes(dep) || inProgressSummaries.includes(dep),
       );
-      if (hasPendingDependency) continue;
+      if (hasPendingDependency) {
+        blockedByDependency = true;
+        continue;
+      }
     }
 
     const conflictSummaries = extractConflictRiskSummaries(lines, candidate.start, candidate.end);
@@ -207,9 +211,14 @@ export function selectFromTodoText(
   }
 
   if (chosenItem === null) {
+    const reason = !hasReadyItems
+      ? "no-matching-agent"
+      : blockedByDependency
+        ? "all-blocked-by-dependency"
+        : "all-blocked-by-conflict";
     return {
       status: "none",
-      reason: hasReadyItems ? "all-blocked-by-conflict" : "no-matching-agent",
+      reason,
       item: "",
       itemType: "unknown",
       itemAgent: "",
@@ -295,6 +304,7 @@ export function claimFromTodoText(
 
   let chosenItem: ItemRange | null = null;
   let hasReadyItems = false;
+  let blockedByDependency = false;
   for (const candidate of readyItems) {
     const itemAgent = extractItemAgent(lines, candidate.start, candidate.end);
     if (!isAgentMatch(itemAgent, filterAgent)) continue;
@@ -306,7 +316,10 @@ export function claimFromTodoText(
       const hasPendingDependency = dependencies.some(
         (dep) => readySummaries.includes(dep) || inProgressSummaries.includes(dep),
       );
-      if (hasPendingDependency) continue;
+      if (hasPendingDependency) {
+        blockedByDependency = true;
+        continue;
+      }
     }
 
     const conflictSummaries = extractConflictRiskSummaries(lines, candidate.start, candidate.end);
@@ -320,9 +333,14 @@ export function claimFromTodoText(
   }
 
   if (chosenItem === null) {
+    const reason = !hasReadyItems
+      ? "no-matching-agent"
+      : blockedByDependency
+        ? "all-blocked-by-dependency"
+        : "all-blocked-by-conflict";
     return {
       status: "no-claim",
-      reason: hasReadyItems ? "all-blocked-by-conflict" : "no-matching-agent",
+      reason,
       item: "",
       itemType: "unknown",
       itemAgent: "",

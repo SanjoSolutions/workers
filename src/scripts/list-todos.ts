@@ -12,6 +12,15 @@ import {
 
 type SectionFilter = "in-progress" | "ready" | "planned" | "all";
 
+function extractItemDependencies(item: string): string[] {
+  const dependencies: string[] = [];
+  for (const line of item.split("\n")) {
+    const match = line.match(/^\s+- Depends on:\s+(.+?)\s*$/);
+    if (match) dependencies.push(match[1]);
+  }
+  return dependencies;
+}
+
 function parseArgs(argv: string[]): { section: SectionFilter } {
   let section: SectionFilter = "all";
 
@@ -85,6 +94,12 @@ async function listGitTodoTracker(
     return;
   }
 
+  const inProgressItems = extractSectionItems(content, SECTION_HEADERS["in-progress"]);
+  const readyItems = extractSectionItems(content, SECTION_HEADERS["ready"]);
+  const activeSummaries = new Set(
+    [...inProgressItems, ...readyItems].map((item) => item.split("\n")[0].replace(/^- /, "").trim()),
+  );
+
   const sections =
     section === "all"
       ? (["in-progress", "ready", "planned"] as const)
@@ -99,6 +114,14 @@ async function listGitTodoTracker(
     for (const item of items) {
       const summary = item.split("\n")[0];
       console.log(`    ${summary}`);
+
+      if (sectionName === "ready") {
+        const dependencies = extractItemDependencies(item);
+        const blockedBy = dependencies.filter((dep) => activeSummaries.has(dep));
+        if (blockedBy.length > 0) {
+          console.log(`      (blocked by: ${blockedBy.join(", ")})`);
+        }
+      }
     }
   }
 }
@@ -118,26 +141,43 @@ async function listGitHubIssuesTracker(
       ? (["in-progress", "ready", "planned"] as const)
       : [section];
 
+  const openIssuesBySection: Record<string, { number: number; title: string; body: string }[]> = {};
   for (const sectionName of sections) {
     const label = labelMap[sectionName];
     const result =
-      await $`gh issue list --repo ${tracker.repository} --state open --label ${label} --limit 100 --json number,title`
+      await $`gh issue list --repo ${tracker.repository} --state open --label ${label} --limit 100 --json number,title,body`
         .quiet()
         .nothrow();
     if (result.exitCode !== 0) {
-      console.log(`  (failed to list ${sectionName} issues)`);
-      continue;
+      openIssuesBySection[sectionName] = [];
+    } else {
+      openIssuesBySection[sectionName] = JSON.parse(result.stdout) as { number: number; title: string; body: string }[];
     }
+  }
 
-    const issues = JSON.parse(result.stdout) as {
-      number: number;
-      title: string;
-    }[];
-    if (issues.length === 0) continue;
+  const activeTitles = new Set<string>();
+  for (const sectionName of ["in-progress", "ready"] as const) {
+    for (const issue of openIssuesBySection[sectionName] ?? []) {
+      activeTitles.add(issue.title);
+    }
+  }
 
-    console.log(`  ## ${sectionName === "in-progress" ? "In progress" : sectionName === "ready" ? "Ready to be picked up" : "Planned"}:`);
+  for (const sectionName of sections) {
+    const issues = openIssuesBySection[sectionName];
+    if (!issues || issues.length === 0) continue;
+
+    const header = sectionName === "in-progress" ? "In progress" : sectionName === "ready" ? "Ready to be picked up" : "Planned";
+    console.log(`  ## ${header}:`);
     for (const issue of issues) {
       console.log(`    - ${issue.title} (#${issue.number})`);
+
+      if (sectionName === "ready") {
+        const dependencies = extractItemDependencies(`- ${issue.title}\n${issue.body}`);
+        const blockedBy = dependencies.filter((dep) => activeTitles.has(dep));
+        if (blockedBy.length > 0) {
+          console.log(`      (blocked by: ${blockedBy.join(", ")})`);
+        }
+      }
     }
   }
 }
