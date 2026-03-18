@@ -61,10 +61,12 @@ async function setupProject(root: string, name: string): Promise<string> {
     path.join(clarificationDir, "SKILL.md"),
   );
 
-  // Copy AGENTS.md from the workers repo
+  // Copy CLAUDE.md (project instructions) from the workers repo.
+  // The workers repo has CLAUDE.md -> AGENTS.md; read the real content
+  // and write it as CLAUDE.md so the CLI picks it up.
   copyFileSync(
-    path.join(cwd, "AGENTS.md"),
-    path.join(projectPath, "AGENTS.md"),
+    path.join(cwd, "CLAUDE.md"),
+    path.join(projectPath, "CLAUDE.md"),
   );
 
   // TODO.md from template
@@ -125,9 +127,17 @@ async function main(): Promise<void> {
   console.log("Watch the output — stop with Ctrl+C once it's clear whether the");
   console.log("coordinator delegated to TODO.md or started implementing directly.\n");
 
+  const assistantSystemPath = path.join(process.cwd(), "ASSISTANT_SYSTEM.md");
+
   const child = spawn(
     "claude",
-    ["--dangerously-skip-permissions", "--", PROMPT],
+    [
+      "--dangerously-skip-permissions",
+      "--append-system-prompt-file",
+      assistantSystemPath,
+      "--",
+      PROMPT,
+    ],
     {
       cwd: projectPath,
       stdio: "inherit",

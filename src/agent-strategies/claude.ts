@@ -1,5 +1,7 @@
+import path from "path";
 import { extractTodoField } from "../agent-prompt.js";
 import { evaluateClaudeModel } from "../model-selection.js";
+import { determinePackageRoot } from "../settings.js";
 import type { AgentStrategy } from "./types.js";
 import { spawnAgentProcess } from "./process.js";
 
@@ -30,15 +32,22 @@ export class ClaudeAgentStrategy implements AgentStrategy {
 
     const modelArgs = claudeModel ? ["--model", claudeModel] : [];
 
+    const packageRoot = determinePackageRoot();
+    const systemPromptFile = context.noTodo
+      ? path.join(packageRoot, "ASSISTANT_SYSTEM.md")
+      : path.join(packageRoot, "WORKER_SYSTEM.md");
+    const systemPromptArgs = ["--append-system-prompt-file", systemPromptFile];
+
     let args: string[];
     let captureOutput: boolean;
 
     if (context.noTodo) {
-      args = [...modelArgs, "--allowedTools", claudeAllowedTools];
+      args = [...modelArgs, ...systemPromptArgs, "--allowedTools", claudeAllowedTools];
       captureOutput = false;
     } else if (context.options.interactive) {
       args = [
         ...modelArgs,
+        ...systemPromptArgs,
         "--allowedTools",
         claudeAllowedTools,
         "--",
@@ -48,6 +57,7 @@ export class ClaudeAgentStrategy implements AgentStrategy {
     } else {
       args = [
         ...modelArgs,
+        ...systemPromptArgs,
         "-p",
         context.nextPrompt,
         "--dangerously-skip-permissions",

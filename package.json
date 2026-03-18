@@ -18,7 +18,9 @@
   },
   "files": [
     "build/",
-    "src/scripts/"
+    "src/scripts/",
+    "ASSISTANT_SYSTEM.md",
+    "WORKER_SYSTEM.md"
   ],
   "dependencies": {
     "@inquirer/input": "^5.0.10",

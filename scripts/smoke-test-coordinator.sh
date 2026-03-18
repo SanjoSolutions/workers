@@ -8,8 +8,12 @@ cd "$(dirname "$0")/.."
 CLAUDE_TMP="$(mktemp -d)"
 trap 'rm -rf "$CLAUDE_TMP"' EXIT
 cp "$HOME/.claude/.credentials.json" "$CLAUDE_TMP/.credentials.json"
-# Mark onboarding as complete so Claude doesn't show first-run setup
-echo '{"hasCompletedOnboarding":true,"theme":"dark"}' > "$CLAUDE_TMP/.config.json"
+# Read user's theme preference from ~/.claude.json
+THEME="dark"
+if [ -f "$HOME/.claude.json" ]; then
+  THEME="$(node -e "console.log(JSON.parse(require('fs').readFileSync('$HOME/.claude.json','utf8')).theme || 'dark')")"
+fi
+echo "{\"hasCompletedOnboarding\":true,\"theme\":\"$THEME\"}" > "$CLAUDE_TMP/.claude.json"
 
 # Clean build files that may be owned by a different uid from previous Docker runs
 docker run --rm -v "$(pwd):/app" node:lts rm -rf /app/build
@@ -24,7 +28,7 @@ docker run --rm -it \
   workers-smoke sh -c '
     mkdir -p /tmp/home/.claude &&
     cp /tmp/claude-config/.credentials.json /tmp/home/.claude/.credentials.json &&
-    cp /tmp/claude-config/.config.json /tmp/home/.claude/.config.json &&
+    cp /tmp/claude-config/.claude.json /tmp/home/.claude.json &&
     echo "{\"model\":\"claude-opus-4-6\"}" > /tmp/home/.claude/settings.json &&
     exec npx tsx src/tests/smoke/coordinator.ts
   '
