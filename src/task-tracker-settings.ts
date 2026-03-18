@@ -21,6 +21,7 @@ export interface ResolvedGitHubIssuesTaskTracker {
   name: string;
   kind: "github-issues";
   repository: string;
+  defaultRepo: string | undefined;
   tokenCommand: string | undefined;
   githubApp: GitHubAppSettings | undefined;
   labels: {
@@ -63,6 +64,7 @@ function resolveGitHubIssuesTracker(
     name,
     kind: "github-issues",
     repository: tracker.repository.trim(),
+    defaultRepo: tracker.defaultRepo?.trim() || undefined,
     tokenCommand: tracker.tokenCommand?.trim() || undefined,
     githubApp: tracker.githubApp ?? undefined,
     labels: {

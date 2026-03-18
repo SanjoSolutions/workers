@@ -47,6 +47,7 @@ export interface GitHubAppSettings {
 export interface GitHubIssuesTaskTrackerSettings {
   type: "github-issues";
   repository: string;
+  defaultRepo?: string;
   tokenCommand?: string;
   githubApp?: GitHubAppSettings;
   labels?: GitHubIssueLabelsSettings;
@@ -185,6 +186,12 @@ function normalizeTaskTrackerSettings(
             }
           : undefined;
 
+      const rawDefaultRepo = (rawTracker as { defaultRepo?: unknown }).defaultRepo;
+      const defaultRepo =
+        typeof rawDefaultRepo === "string" && rawDefaultRepo.trim()
+          ? rawDefaultRepo.trim()
+          : undefined;
+
       const rawTokenCommand = (rawTracker as { tokenCommand?: unknown }).tokenCommand;
       const tokenCommand =
         typeof rawTokenCommand === "string" && rawTokenCommand.trim()
@@ -207,6 +214,7 @@ function normalizeTaskTrackerSettings(
       normalized[name] = {
         type: "github-issues",
         repository,
+        defaultRepo,
         tokenCommand,
         githubApp,
         labels,

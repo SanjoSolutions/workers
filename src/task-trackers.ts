@@ -341,14 +341,19 @@ async function claimTaskFromGitHubIssuesTracker(
     readyIssues.filter((issue) => issue.number !== selectedIssue.number),
   );
 
+  let claimedItem = selection.item;
+  if (tracker.defaultRepo && !claimedItem.includes("- Repo:")) {
+    claimedItem += `\n  - Repo: ${tracker.defaultRepo}`;
+  }
+
   return {
     status: "claimed",
     reason: "claimed",
     claimedTask: {
       trackerName: tracker.name,
       trackerKind: "github-issues",
-      trackerBasePath: invocationPath,
-      item: selection.item,
+      trackerBasePath: tracker.defaultRepo || invocationPath,
+      item: claimedItem,
       itemType: selection.itemType,
       itemAgent: selection.itemAgent,
       summary,
