@@ -1,4 +1,3 @@
-import input from "@inquirer/input"
 import select from "@inquirer/select"
 import { accessSync, constants, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from "fs"
 import os from "os"
@@ -22,9 +21,7 @@ export interface AssistantDefaults {
 export interface WorkersSettings {
   defaults: WorkerDefaults;
   assistant: { defaults: AssistantDefaults };
-  defaultTaskTracker: string | undefined;
-  taskTrackers: Record<string, TaskTrackerSettings>;
-  projects: ProjectTaskTrackerSettings[];
+  projects: ProjectSettings[];
 }
 
 export interface GitTodoTaskTrackerSettings {
@@ -47,7 +44,6 @@ export interface GitHubAppSettings {
 export interface GitHubIssuesTaskTrackerSettings {
   type: "github-issues";
   repository: string;
-  defaultRepo?: string;
   tokenCommand?: string;
   githubApp?: GitHubAppSettings;
   labels?: GitHubIssueLabelsSettings;
@@ -57,9 +53,9 @@ export type TaskTrackerSettings =
   | GitTodoTaskTrackerSettings
   | GitHubIssuesTaskTrackerSettings;
 
-export interface ProjectTaskTrackerSettings {
+export interface ProjectSettings {
   repo: string;
-  taskTracker?: string;
+  taskTracker?: TaskTrackerSettings;
   createPullRequest?: boolean;
 }
 
@@ -112,15 +108,88 @@ function parseSettingsFile(filePath: string): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
+function normalizeInlineTracker(
+  raw: unknown,
+): TaskTrackerSettings | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return undefined;
+  }
+
+  const obj = raw as Record<string, unknown>;
+
+  if (obj.type === "github-issues") {
+    const repository = typeof obj.repository === "string" ? obj.repository.trim() : "";
+    if (!repository) return undefined;
+
+    const rawLabels = obj.labels;
+    const labels =
+      rawLabels && typeof rawLabels === "object" && !Array.isArray(rawLabels)
+        ? {
+            planned:
+              typeof (rawLabels as Record<string, unknown>).planned === "string"
+              && ((rawLabels as Record<string, string>).planned).trim()
+                ? ((rawLabels as Record<string, string>).planned).trim()
+                : undefined,
+            ready:
+              typeof (rawLabels as Record<string, unknown>).ready === "string"
+              && ((rawLabels as Record<string, string>).ready).trim()
+                ? ((rawLabels as Record<string, string>).ready).trim()
+                : undefined,
+            inProgress:
+              typeof (rawLabels as Record<string, unknown>).inProgress === "string"
+              && ((rawLabels as Record<string, string>).inProgress).trim()
+                ? ((rawLabels as Record<string, string>).inProgress).trim()
+                : undefined,
+          }
+        : undefined;
+
+    const rawTokenCommand = obj.tokenCommand;
+    const tokenCommand =
+      typeof rawTokenCommand === "string" && rawTokenCommand.trim()
+        ? rawTokenCommand.trim()
+        : undefined;
+
+    const rawGitHubApp = obj.githubApp;
+    const githubApp =
+      rawGitHubApp &&
+      typeof rawGitHubApp === "object" &&
+      !Array.isArray(rawGitHubApp) &&
+      typeof (rawGitHubApp as Record<string, unknown>).appId === "string" &&
+      typeof (rawGitHubApp as Record<string, unknown>).privateKeyPath === "string"
+        ? {
+            appId: ((rawGitHubApp as Record<string, string>).appId).trim(),
+            privateKeyPath: ((rawGitHubApp as Record<string, string>).privateKeyPath).trim(),
+          }
+        : undefined;
+
+    return {
+      type: "github-issues",
+      repository,
+      tokenCommand,
+      githubApp,
+      labels,
+    };
+  }
+
+  // git-todo tracker (type is optional, defaults to git-todo)
+  const repo = typeof obj.repo === "string" ? obj.repo.trim() : "";
+  if (!repo) return undefined;
+
+  return {
+    repo,
+    file: typeof obj.file === "string" && obj.file.trim() ? obj.file.trim() : undefined,
+  };
+}
+
 function normalizeProjectEntries(
   parsed: Record<string, unknown>,
-): ProjectTaskTrackerSettings[] {
+): ProjectSettings[] {
   if (!Array.isArray(parsed.projects)) {
     return [];
   }
 
   return parsed.projects
-    .filter((entry): entry is ProjectTaskTrackerSettings => {
+    .filter((entry): entry is Record<string, unknown> => {
       return Boolean(
         entry
         && typeof entry === "object"
@@ -130,118 +199,15 @@ function normalizeProjectEntries(
       );
     })
     .map((entry) => ({
-      repo: entry.repo.trim(),
-      taskTracker:
-        typeof entry.taskTracker === "string" && entry.taskTracker.trim()
-          ? entry.taskTracker.trim()
-          : undefined,
+      repo: (entry.repo as string).trim(),
+      taskTracker: normalizeInlineTracker(entry.taskTracker),
       createPullRequest:
-        typeof (entry as { createPullRequest?: unknown }).createPullRequest === "boolean"
-          ? (entry as { createPullRequest: boolean }).createPullRequest
+        typeof entry.createPullRequest === "boolean"
+          ? entry.createPullRequest
           : undefined,
     }));
 }
 
-function normalizeTaskTrackerSettings(
-  parsed: Record<string, unknown>,
-): Record<string, TaskTrackerSettings> {
-  if (!parsed.taskTrackers || typeof parsed.taskTrackers !== "object" || Array.isArray(parsed.taskTrackers)) {
-    return {};
-  }
-
-  const normalized: Record<string, TaskTrackerSettings> = {};
-
-  for (const [name, rawTracker] of Object.entries(parsed.taskTrackers)) {
-    if (!rawTracker || typeof rawTracker !== "object" || Array.isArray(rawTracker)) {
-      continue;
-    }
-
-    if ((rawTracker as { type?: unknown }).type === "github-issues") {
-      const repository = typeof (rawTracker as { repository?: unknown }).repository === "string"
-        ? (rawTracker as { repository: string }).repository.trim()
-        : "";
-      if (!repository) {
-        continue;
-      }
-
-      const rawLabels = (rawTracker as { labels?: unknown }).labels;
-      const labels =
-        rawLabels && typeof rawLabels === "object" && !Array.isArray(rawLabels)
-          ? {
-              planned:
-                typeof (rawLabels as { planned?: unknown }).planned === "string"
-                && (rawLabels as { planned: string }).planned.trim()
-                  ? (rawLabels as { planned: string }).planned.trim()
-                  : undefined,
-              ready:
-                typeof (rawLabels as { ready?: unknown }).ready === "string"
-                && (rawLabels as { ready: string }).ready.trim()
-                  ? (rawLabels as { ready: string }).ready.trim()
-                  : undefined,
-              inProgress:
-                typeof (rawLabels as { inProgress?: unknown }).inProgress === "string"
-                && (rawLabels as { inProgress: string }).inProgress.trim()
-                  ? (rawLabels as { inProgress: string }).inProgress.trim()
-                  : undefined,
-            }
-          : undefined;
-
-      const rawDefaultRepo = (rawTracker as { defaultRepo?: unknown }).defaultRepo;
-      const defaultRepo =
-        typeof rawDefaultRepo === "string" && rawDefaultRepo.trim()
-          ? rawDefaultRepo.trim()
-          : undefined;
-
-      const rawTokenCommand = (rawTracker as { tokenCommand?: unknown }).tokenCommand;
-      const tokenCommand =
-        typeof rawTokenCommand === "string" && rawTokenCommand.trim()
-          ? rawTokenCommand.trim()
-          : undefined;
-
-      const rawGitHubApp = (rawTracker as { githubApp?: unknown }).githubApp;
-      const githubApp =
-        rawGitHubApp &&
-        typeof rawGitHubApp === "object" &&
-        !Array.isArray(rawGitHubApp) &&
-        typeof (rawGitHubApp as { appId?: unknown }).appId === "string" &&
-        typeof (rawGitHubApp as { privateKeyPath?: unknown }).privateKeyPath === "string"
-          ? {
-              appId: (rawGitHubApp as { appId: string }).appId.trim(),
-              privateKeyPath: (rawGitHubApp as { privateKeyPath: string }).privateKeyPath.trim(),
-            }
-          : undefined;
-
-      normalized[name] = {
-        type: "github-issues",
-        repository,
-        defaultRepo,
-        tokenCommand,
-        githubApp,
-        labels,
-      };
-      continue;
-    }
-
-    const repo = typeof (rawTracker as { repo?: unknown }).repo === "string"
-      ? (rawTracker as { repo: string }).repo.trim()
-      : "";
-    if (!repo) {
-      continue;
-    }
-
-    normalized[name] = {
-      type: "git-todo",
-      repo,
-      file:
-        typeof (rawTracker as { file?: unknown }).file === "string"
-        && (rawTracker as { file: string }).file.trim()
-          ? (rawTracker as { file: string }).file.trim()
-          : undefined,
-    };
-  }
-
-  return normalized;
-}
 
 function detectInstalledClis(env: NodeJS.ProcessEnv): CliName[] {
   const pathValue = env.PATH ?? process.env.PATH ?? "";
@@ -335,18 +301,13 @@ export async function loadSettings(
         cli: assistantCli,
       },
     },
-    defaultTaskTracker:
-      typeof parsed.defaultTaskTracker === "string" && parsed.defaultTaskTracker.trim()
-        ? parsed.defaultTaskTracker.trim()
-        : undefined,
-    taskTrackers: normalizeTaskTrackerSettings(parsed),
     projects: normalizeProjectEntries(parsed),
   };
 }
 
 export function isCreatePullRequestEnabled(
   repoPath: string,
-  projects: ProjectTaskTrackerSettings[],
+  projects: ProjectSettings[],
 ): boolean {
   const normalizedRepo = path.resolve(expandHomePath(repoPath));
   for (const project of projects) {
@@ -360,7 +321,6 @@ export function isCreatePullRequestEnabled(
 export function persistProjectSettings(
   updates: {
     repo: string;
-    taskTracker?: string;
   }[],
   cfgDir = configDir(),
 ): boolean {
@@ -385,17 +345,7 @@ export function persistProjectSettings(
 
     const existing = projects.find((project) => project.repo === repo);
     if (!existing) {
-      projects.push({
-        repo,
-        taskTracker: update.taskTracker?.trim() || undefined,
-      });
-      changed = true;
-      continue;
-    }
-
-    const nextTracker = update.taskTracker?.trim() || undefined;
-    if (nextTracker && !existing.taskTracker) {
-      existing.taskTracker = nextTracker;
+      projects.push({ repo });
       changed = true;
     }
   }
@@ -501,65 +451,14 @@ export async function ensureAssistantCli(
 }
 
 /**
- * Ensure a default task tracker is configured. If not, prompt the user
- * to set one up and persist it.
+ * Check whether any project has a task tracker configured, or whether the
+ * WORKERS_TODO_REPO env var provides a fallback.
  */
-export async function ensureDefaultTaskTracker(
-  settings: WorkersSettings,
-  cfgDir = configDir(),
-): Promise<void> {
-  if (settings.defaultTaskTracker) {
-    return;
+export function hasTaskTracker(settings: WorkersSettings): boolean {
+  if (process.env.WORKERS_TODO_REPO?.trim()) {
+    return true;
   }
-
-  // Check if WORKERS_TODO_REPO provides a fallback
-  const todoRepo = process.env.WORKERS_TODO_REPO?.trim();
-  if (todoRepo) {
-    return;
-  }
-
-  if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    return;
-  }
-
-  const trackerType = await select({
-    message: "No default task tracker configured. Choose a type:",
-    choices: [
-      { name: "TODO.md in a Git repo", value: "git-todo" as const },
-      { name: "GitHub Issues", value: "github-issues" as const },
-    ],
-  });
-
-  const filePath = settingsPath(cfgDir);
-  if (!existsSync(filePath)) return;
-  const parsed = parseSettingsFile(filePath);
-
-  if (trackerType === "git-todo") {
-    const repo = await input({ message: "Path to TODO repo:", default: cfgDir });
-    if (!repo.trim()) return;
-    const resolvedRepo = path.resolve(expandHomePath(repo.trim()));
-
-    const trackers = (parsed.taskTrackers ?? {}) as Record<string, unknown>;
-    trackers.default = { repo: resolvedRepo };
-    parsed.taskTrackers = trackers;
-    parsed.defaultTaskTracker = "default";
-    writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
-    settings.defaultTaskTracker = "default";
-    settings.taskTrackers.default = { repo: resolvedRepo };
-    process.stdout.write(`Configured TODO repo to ${resolvedRepo}.\n`);
-  } else if (trackerType === "github-issues") {
-    const repository = await input({ message: "GitHub repository (owner/repo):" });
-    if (!repository.trim()) return;
-
-    const trackers = (parsed.taskTrackers ?? {}) as Record<string, unknown>;
-    trackers.default = { type: "github-issues", repository: repository.trim() };
-    parsed.taskTrackers = trackers;
-    parsed.defaultTaskTracker = "default";
-    writeFileSync(filePath, `${JSON.stringify(parsed, null, 2)}\n`, "utf8");
-    settings.defaultTaskTracker = "default";
-    settings.taskTrackers.default = { type: "github-issues", repository: repository.trim() };
-    process.stdout.write(`Configured GitHub Issues task tracker for ${repository.trim()}.\n`);
-  }
+  return settings.projects.some((project) => project.taskTracker !== undefined);
 }
 
 /**

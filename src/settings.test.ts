@@ -25,7 +25,7 @@ describe("settings bootstrap", () => {
     expect(settings.defaults.cli).toBeUndefined();
     expect(settings.defaults.model).toBe("gpt-5.4");
     expect(settings.assistant.defaults.cli).toBeUndefined();
-    expect(settings.taskTrackers).toEqual({});
+    expect(settings.projects).toEqual([]);
     expect(settings.projects).toEqual([]);
     expect(existsSync(settingsFilePath)).toBe(true);
   });
@@ -42,7 +42,7 @@ describe("settings bootstrap", () => {
 
     expect(settings.defaults.cli).toBe("gemini");
     expect(settings.defaults.model).toBe("gpt-5.3-codex");
-    expect(settings.taskTrackers).toEqual({});
+    expect(settings.projects).toEqual([]);
     expect(settings.projects).toEqual([]);
   });
 });

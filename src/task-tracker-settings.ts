@@ -1,12 +1,11 @@
 import path from "path";
-import { extractTodoField } from "./agent-prompt.js";
 import { expandHomePath } from "./path-utils.js";
 import { readEnv } from "./env-utils.js";
 import type {
   GitHubAppSettings,
-  ProjectTaskTrackerSettings,
   GitTodoTaskTrackerSettings,
   GitHubIssuesTaskTrackerSettings,
+  TaskTrackerSettings,
   WorkersSettings,
 } from "./settings.js";
 
@@ -37,7 +36,7 @@ export type ResolvedTaskTracker =
 
 export interface PollableTaskTracker {
   tracker: ResolvedTaskTracker;
-  source: "project" | "default";
+  source: "project" | "env";
 }
 
 function normalizeProjectKey(projectPath: string): string {
@@ -59,12 +58,13 @@ function resolveGitTodoTracker(
 function resolveGitHubIssuesTracker(
   name: string,
   tracker: GitHubIssuesTaskTrackerSettings,
+  projectRepo: string | undefined,
 ): ResolvedGitHubIssuesTaskTracker {
   return {
     name,
     kind: "github-issues",
     repository: tracker.repository.trim(),
-    defaultRepo: tracker.defaultRepo?.trim() || undefined,
+    defaultRepo: projectRepo,
     tokenCommand: tracker.tokenCommand?.trim() || undefined,
     githubApp: tracker.githubApp ?? undefined,
     labels: {
@@ -75,127 +75,113 @@ function resolveGitHubIssuesTracker(
   };
 }
 
+function resolveTracker(
+  name: string,
+  tracker: TaskTrackerSettings,
+  projectRepo: string | undefined,
+): ResolvedTaskTracker {
+  return tracker.type === "github-issues"
+    ? resolveGitHubIssuesTracker(name, tracker, projectRepo)
+    : resolveGitTodoTracker(name, tracker);
+}
+
+/**
+ * Build a flat record of all resolved trackers from the projects list
+ * and the WORKERS_TODO_REPO env var fallback.
+ */
 export function resolveTaskTrackers(
   settings: WorkersSettings,
   env: NodeJS.ProcessEnv = process.env,
 ): {
   trackers: Record<string, ResolvedTaskTracker>;
-  defaultTrackerName: string | undefined;
 } {
-  const trackers = Object.fromEntries(
-    Object.entries(settings.taskTrackers).map(([name, tracker]) => [
-      name,
-      tracker.type === "github-issues"
-        ? resolveGitHubIssuesTracker(name, tracker)
-        : resolveGitTodoTracker(name, tracker),
-    ]),
-  );
+  const trackers: Record<string, ResolvedTaskTracker> = {};
+
+  for (const project of settings.projects) {
+    if (!project.taskTracker) continue;
+    const name = project.repo;
+    trackers[name] = resolveTracker(name, project.taskTracker, normalizeProjectKey(project.repo));
+  }
 
   const envRepo = readEnv("WORKERS_TODO_REPO", env);
   if (envRepo) {
-    trackers.default = {
-      name: "default",
+    trackers["__env_default__"] = {
+      name: "__env_default__",
       kind: "git-todo",
       repo: normalizeProjectKey(envRepo),
       file: readEnv("WORKERS_TODO_FILE", env) ?? "TODO.md",
     };
   }
 
-  const defaultTrackerName = settings.defaultTaskTracker?.trim()
-    ? settings.defaultTaskTracker.trim()
-    : trackers.default
-      ? "default"
-      : undefined;
-
-  if (defaultTrackerName && !trackers[defaultTrackerName]) {
-    throw new Error(
-      `Unknown default task tracker "${defaultTrackerName}" in settings.json.`,
-    );
-  }
-
-  return {
-    trackers,
-    defaultTrackerName,
-  };
+  return { trackers };
 }
 
-function resolveProjectTaskTrackerName(
+/**
+ * Find the tracker configured for a given repo path, or fall back to
+ * the WORKERS_TODO_REPO env var tracker.
+ */
+export function resolveTaskTrackerForRepo(
   repoPath: string,
-  projects: ProjectTaskTrackerSettings[],
-): string | undefined {
-  const normalizedRepo = normalizeProjectKey(repoPath);
-
-  for (const project of projects) {
-    if (normalizeProjectKey(project.repo) === normalizedRepo) {
-      return project.taskTracker?.trim() || undefined;
-    }
-  }
-
-  return undefined;
-}
-
-export function resolveTaskTrackerForTodoText(
-  todoText: string,
   settings: WorkersSettings,
   env: NodeJS.ProcessEnv = process.env,
 ): ResolvedTaskTracker {
-  const { trackers, defaultTrackerName } = resolveTaskTrackers(settings, env);
-  const repoField = extractTodoField(todoText, "Repo");
+  const normalizedRepo = normalizeProjectKey(repoPath);
+  const { trackers } = resolveTaskTrackers(settings, env);
 
-  const trackerName =
-    repoField && repoField.toLowerCase() !== "none"
-      ? resolveProjectTaskTrackerName(repoField, settings.projects)
-      : undefined;
-  const selectedTrackerName = trackerName ?? defaultTrackerName;
+  // Direct match by project repo
+  const directTracker = trackers[normalizedRepo] ?? trackers[repoPath];
+  if (directTracker) return directTracker;
 
-  if (!selectedTrackerName) {
-    throw new Error(
-      "No task tracker is configured. Set defaultTaskTracker in settings.json or WORKERS_TODO_REPO in the environment.",
-    );
+  // Match by scanning projects
+  for (const project of settings.projects) {
+    if (normalizeProjectKey(project.repo) === normalizedRepo && project.taskTracker) {
+      return resolveTracker(project.repo, project.taskTracker, normalizedRepo);
+    }
   }
 
-  const tracker = trackers[selectedTrackerName];
-  if (!tracker) {
-    throw new Error(
-      `Task tracker "${selectedTrackerName}" is not configured.`,
-    );
-  }
+  // Fall back to env-based tracker
+  const envTracker = trackers["__env_default__"];
+  if (envTracker) return envTracker;
 
-  return tracker;
+  throw new Error(
+    "No task tracker is configured for this project. Add a taskTracker to the project in settings.json or set WORKERS_TODO_REPO.",
+  );
 }
 
+/**
+ * Return all pollable trackers from configured projects + env fallback.
+ */
 export function resolvePollingTaskTrackers(
   settings: WorkersSettings,
   env: NodeJS.ProcessEnv = process.env,
 ): PollableTaskTracker[] {
-  const { trackers, defaultTrackerName } = resolveTaskTrackers(settings, env);
   const ordered: PollableTaskTracker[] = [];
   const seen = new Set<string>();
 
   for (const project of settings.projects) {
-    const trackerName = project.taskTracker?.trim() || defaultTrackerName;
-    if (!trackerName) {
-      continue;
-    }
-
-    const tracker = trackers[trackerName];
-    if (!tracker || seen.has(tracker.name)) {
-      continue;
-    }
+    if (!project.taskTracker) continue;
+    const name = project.repo;
+    if (seen.has(name)) continue;
+    seen.add(name);
 
     ordered.push({
-      tracker,
+      tracker: resolveTracker(name, project.taskTracker, normalizeProjectKey(project.repo)),
       source: "project",
     });
-    seen.add(tracker.name);
   }
 
-  if (defaultTrackerName) {
-    const defaultTracker = trackers[defaultTrackerName];
-    if (defaultTracker && !seen.has(defaultTracker.name)) {
+  const envRepo = readEnv("WORKERS_TODO_REPO", env);
+  if (envRepo) {
+    const envKey = "__env_default__";
+    if (!seen.has(envKey)) {
       ordered.push({
-        tracker: defaultTracker,
-        source: "default",
+        tracker: {
+          name: envKey,
+          kind: "git-todo",
+          repo: normalizeProjectKey(envRepo),
+          file: readEnv("WORKERS_TODO_FILE", env) ?? "TODO.md",
+        },
+        source: "env",
       });
     }
   }

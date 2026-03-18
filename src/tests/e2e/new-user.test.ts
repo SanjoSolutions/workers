@@ -111,6 +111,21 @@ describe("new user E2E", () => {
     writeFileSync(path.join(todoRepoPath, "TODO.md"), templateContent, "utf8");
     await commitAll(todoRepoPath, "Initial TODO");
 
+    // Pre-configure settings with a project and task tracker
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      path.join(configDir, "settings.json"),
+      JSON.stringify({
+        projects: [
+          {
+            repo: targetProjectPath,
+            taskTracker: { repo: todoRepoPath, file: "TODO.md" },
+          },
+        ],
+      }, null, 2),
+      "utf8",
+    );
+
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       WORKERS_CONFIG_DIR: configDir,
@@ -118,15 +133,13 @@ describe("new user E2E", () => {
       PATH: `${binDir}:${process.env.PATH}`,
     };
 
-    // --- Step 1: Run `assistant` — prompts for CLI, task tracker type, and repo path ---
+    // --- Step 1: Run `assistant` — prompts for CLI selection ---
     const assistantResult = await runInteractive(
       "src/bin/assistant.ts",
       env,
       [],
       [
         { waitFor: "Choose the default assistant CLI", send: "\r" },       // Enter → select claude (first option)
-        { waitFor: "task tracker", send: "\r" },                           // Enter → select git-todo (first option)
-        { waitFor: "Path to TODO repo", send: `${todoRepoPath}\r` }, // Type path + Enter
       ],
     );
 
@@ -136,8 +149,6 @@ describe("new user E2E", () => {
     // Verify settings were persisted correctly
     const settings = JSON.parse(readFileSync(path.join(configDir, "settings.json"), "utf8"));
     expect(settings.assistant?.defaults?.cli).toBe("claude");
-    expect(settings.defaultTaskTracker).toBe("default");
-    expect(settings.taskTrackers?.default?.repo).toBe(todoRepoPath);
 
     // --- Step 2: Add a task to the shared TODO repo ---
     const taskLines = [
@@ -156,7 +167,7 @@ describe("new user E2E", () => {
     // --- Step 3: Run `worker` — prompts for CLI selection, then claims and runs ---
     const workerResult = await runInteractive(
       "src/bin/worker.ts",
-      { ...env, WORKERS_TODO_REPO: "" },
+      env,
       ["--worktree-dir", worktreeDir],
       [
         { waitFor: "Choose the default worker CLI", send: "\r" },           // Enter → select claude (first option)
