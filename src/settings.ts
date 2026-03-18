@@ -42,6 +42,7 @@ export interface GitHubIssueLabelsSettings {
 export interface GitHubIssuesTaskTrackerSettings {
   type: "github-issues";
   repository: string;
+  tokenCommand?: string;
   labels?: GitHubIssueLabelsSettings;
 }
 

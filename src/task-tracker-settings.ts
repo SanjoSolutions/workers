@@ -20,6 +20,7 @@ export interface ResolvedGitHubIssuesTaskTracker {
   name: string;
   kind: "github-issues";
   repository: string;
+  tokenCommand: string | undefined;
   labels: {
     planned: string;
     ready: string;
@@ -60,6 +61,7 @@ function resolveGitHubIssuesTracker(
     name,
     kind: "github-issues",
     repository: tracker.repository.trim(),
+    tokenCommand: tracker.tokenCommand?.trim() || undefined,
     labels: {
       planned: tracker.labels?.planned?.trim() || "workers:planned",
       ready: tracker.labels?.ready?.trim() || "workers:ready-to-be-picked-up",
@@ -194,4 +196,26 @@ export function resolvePollingTaskTrackers(
   }
 
   return ordered;
+}
+
+/**
+ * Run the tokenCommand from the first GitHub Issues tracker that has one
+ * configured, and set GH_TOKEN in process.env with the result. When
+ * GH_TOKEN is already set and no tracker has a tokenCommand, it is left
+ * unchanged. Call this before any `gh` CLI invocations — safe to call
+ * repeatedly (e.g. in a polling loop) to refresh expiring tokens.
+ */
+export async function applyGitHubToken(
+  trackers: Record<string, ResolvedTaskTracker>,
+): Promise<void> {
+  for (const tracker of Object.values(trackers)) {
+    if (tracker.kind === "github-issues" && tracker.tokenCommand) {
+      const { execSync } = await import("child_process");
+      const token = execSync(tracker.tokenCommand, { encoding: "utf8" }).trim();
+      if (token) {
+        process.env.GH_TOKEN = token;
+      }
+      return;
+    }
+  }
 }

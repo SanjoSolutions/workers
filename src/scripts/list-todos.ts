@@ -5,6 +5,7 @@ import path from "path";
 import { $ } from "zx";
 import { loadSettings } from "../settings.js";
 import {
+  applyGitHubToken,
   resolveTaskTrackers,
   type ResolvedGitHubIssuesTaskTracker,
   type ResolvedGitTodoTaskTracker,
@@ -501,6 +502,7 @@ async function main(): Promise<void> {
   const args = parseArgs(process.argv);
   const settings = await loadSettings();
   const { trackers } = resolveTaskTrackers(settings);
+  await applyGitHubToken(trackers);
 
   if (args.mode === "branches") {
     const projectRepos = settings.projects.map((project) => path.resolve(project.repo));
