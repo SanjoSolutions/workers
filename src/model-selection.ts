@@ -48,8 +48,6 @@ export async function evaluateClaudeModel(todoItem: string): Promise<string> {
       "high",
       "-p",
       prompt,
-      "--output-format",
-      "json",
       "--json-schema",
       MODEL_SCHEMA,
       "--dangerously-skip-permissions",

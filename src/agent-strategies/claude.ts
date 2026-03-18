@@ -4,6 +4,11 @@ import { evaluateClaudeModel } from "../model-selection.js";
 import { determinePackageRoot } from "../settings.js";
 import type { AgentStrategy } from "./types.js";
 import { spawnAgentProcess } from "./process.js";
+import {
+  setupManagedInteractiveSession,
+  spawnManagedInteractiveAgent,
+  type ManagedInteractiveSession,
+} from "./managed-interactive.js";
 
 const DEFAULT_CLAUDE_ALLOWED_TOOLS = [
   "Edit",
@@ -16,6 +21,27 @@ const DEFAULT_CLAUDE_ALLOWED_TOOLS = [
   "Task",
   "ToolSearch",
 ];
+
+export function setupManagedInteractiveClaudeSession(
+  worktreePath: string,
+  claimedTodoItem: string,
+  nextPrompt: string,
+  env: NodeJS.ProcessEnv,
+): ManagedInteractiveSession {
+  return setupManagedInteractiveSession(worktreePath, claimedTodoItem, nextPrompt, env, {
+    controlDirName: "workers-claude-interactive",
+    configDirName: ".claude",
+    configFileName: "settings.local.json",
+    hookEventName: "Stop",
+    hookScriptName: "claude-stop-hook.mjs",
+    hookEntry: (command) => ({
+      type: "command",
+      command,
+      timeout: 10,
+    }),
+    statusEnvVar: "WORKERS_CLAUDE_STATUS_FILE",
+  });
+}
 
 export class ClaudeAgentStrategy implements AgentStrategy {
   readonly cli = "claude" as const;
@@ -41,24 +67,43 @@ export class ClaudeAgentStrategy implements AgentStrategy {
       "--add-dir", agentDir,
     ];
 
-    let args: string[];
-    let captureOutput: boolean;
-
     if (context.noTodo) {
-      args = [...modelArgs, ...systemPromptArgs, "--allowedTools", claudeAllowedTools];
-      captureOutput = false;
-    } else if (context.options.interactive) {
-      args = [
-        ...modelArgs,
-        ...systemPromptArgs,
-        "--allowedTools",
-        claudeAllowedTools,
-        "--",
+      return spawnAgentProcess({
+        command: "claude",
+        args: [...modelArgs, ...systemPromptArgs, "--allowedTools", claudeAllowedTools],
+        cwd: context.worktreePath,
+        env: context.env,
+        captureOutput: false,
+      });
+    }
+
+    if (context.options.interactive) {
+      const managedSession = setupManagedInteractiveClaudeSession(
+        context.worktreePath,
+        context.claimedTodoItem,
         context.nextPrompt,
-      ];
-      captureOutput = false;
-    } else {
-      args = [
+        context.env,
+      );
+      return spawnManagedInteractiveAgent(
+        "claude",
+        [
+          ...modelArgs,
+          ...systemPromptArgs,
+          "--allowedTools",
+          claudeAllowedTools,
+          "--",
+          managedSession.nextPrompt,
+        ],
+        context.worktreePath,
+        managedSession.env,
+        managedSession.statusFile,
+        managedSession.cleanup,
+      );
+    }
+
+    return spawnAgentProcess({
+      command: "claude",
+      args: [
         ...modelArgs,
         ...systemPromptArgs,
         "-p",
@@ -66,16 +111,10 @@ export class ClaudeAgentStrategy implements AgentStrategy {
         "--dangerously-skip-permissions",
         "--allowedTools",
         claudeAllowedTools,
-      ];
-      captureOutput = true;
-    }
-
-    return spawnAgentProcess({
-      command: "claude",
-      args,
+      ],
       cwd: context.worktreePath,
       env: context.env,
-      captureOutput,
+      captureOutput: true,
     });
   }
 }

@@ -47,7 +47,6 @@ describe("evaluateClaudeModel", () => {
       expect.arrayContaining([
         "--model", "opus",
         "--effort", "high",
-        "--output-format", "json",
         "--json-schema",
         "-p",
       ]),
