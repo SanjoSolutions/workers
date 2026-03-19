@@ -32,7 +32,7 @@ describe("assistant clarification capability", () => {
     expect(existsSync(assistantSkillPath)).toBe(true);
     expect(existsSync(legacySkillPath)).toBe(false);
     expect(readFileSync(assistantSystemPath, "utf8")).toContain(
-      "You are an assistant.",
+      "Plan behavior depends on the capabilities available in the current environment:",
     );
     expect(readFileSync(assistantSystemPath, "utf8")).toContain(
       "{{#cli codex}}",

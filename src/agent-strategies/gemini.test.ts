@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, writeFileSync } from "fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
 import { beforeEach, describe, expect, test, vi } from "vitest";
@@ -62,6 +62,8 @@ describe("GeminiAgentStrategy", () => {
     }));
     expect(renderedPromptPath).not.toBe(path.join(packageRoot, "agents", "assistant", "SYSTEM.md"));
     expect(renderedPromptPath).toContain("workers-assistant-system-prompt-cache");
+    expect(readFileSync(renderedPromptPath, "utf8")).toContain("`write_todos`");
+    expect(readFileSync(renderedPromptPath, "utf8")).toContain("Do not rely on plan mode.");
   });
 
   test("sets GEMINI_SYSTEM_MD for interactive worker", async () => {
