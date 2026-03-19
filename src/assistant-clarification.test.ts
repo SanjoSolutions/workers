@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "fs";
+import { existsSync, lstatSync, readFileSync } from "fs";
 import path from "path";
 import { describe, expect, test } from "vitest";
 import { determinePackageRoot } from "./settings.js";
@@ -15,6 +15,23 @@ describe("assistant clarification capability", () => {
       "clarification",
       "SKILL.md",
     );
+    const assistantClaudeSkillPath = path.join(
+      packageRoot,
+      "agents",
+      "assistant",
+      ".claude",
+      "skills",
+      "clarification",
+      "SKILL.md",
+    );
+    const assistantClaudeSkillLink = path.join(
+      packageRoot,
+      "agents",
+      "assistant",
+      ".claude",
+      "skills",
+      "clarification",
+    );
     const legacySkillPath = path.join(
       packageRoot,
       ".agents",
@@ -30,6 +47,8 @@ describe("assistant clarification capability", () => {
     );
 
     expect(existsSync(assistantSkillPath)).toBe(true);
+    expect(existsSync(assistantClaudeSkillPath)).toBe(true);
+    expect(lstatSync(assistantClaudeSkillLink).isSymbolicLink()).toBe(true);
     expect(existsSync(legacySkillPath)).toBe(false);
     expect(readFileSync(assistantSystemPath, "utf8")).toContain(
       "{{include ../SYSTEM_BASE.md}}",
