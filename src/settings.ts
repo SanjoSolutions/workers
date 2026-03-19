@@ -83,6 +83,7 @@ interface EnsureCliOptions {
   promptForCli?: (choices: CliName[]) => Promise<CliName>;
   onNonTtyFailure?: () => void;
   preferredCli?: CliName;
+  platform?: NodeJS.Platform;
 }
 
 export function determinePackageRoot(): string {
@@ -286,19 +287,44 @@ function normalizeProjectEntries(
 }
 
 
-function detectInstalledClis(env: NodeJS.ProcessEnv): CliName[] {
-  const pathValue = env.PATH ?? process.env.PATH ?? "";
+function resolveExecutableCandidates(
+  cli: CliName,
+  env: NodeJS.ProcessEnv,
+  platform = process.platform,
+): string[] {
+  if (platform !== "win32") {
+    return [cli];
+  }
+
+  const pathExtValue = env.PATHEXT ?? process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD";
+  const extensions = pathExtValue
+    .split(";")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean)
+    .map((value) => (value.startsWith(".") ? value : `.${value}`));
+
+  return [cli, ...extensions.map((extension) => `${cli}${extension}`)];
+}
+
+function detectInstalledClis(
+  env: NodeJS.ProcessEnv,
+  platform = process.platform,
+): CliName[] {
+  const pathValue = env.PATH ?? env.Path ?? process.env.PATH ?? process.env.Path ?? "";
   const pathEntries = pathValue.split(path.delimiter).filter(Boolean);
+  const accessMode = platform === "win32" ? constants.F_OK : constants.X_OK;
 
   return VALID_CLIS.filter((cli) => {
     return pathEntries.some((entry) => {
-      const candidate = path.join(entry, cli);
-      try {
-        accessSync(candidate, constants.X_OK);
-        return true;
-      } catch {
-        return false;
-      }
+      return resolveExecutableCandidates(cli, env, platform).some((candidateName) => {
+        const candidate = path.join(entry, candidateName);
+        try {
+          accessSync(candidate, accessMode);
+          return true;
+        } catch {
+          return false;
+        }
+      });
     });
   });
 }
@@ -478,7 +504,10 @@ async function ensureCli(
     return options.preferredCli;
   }
 
-  const installed = detectInstalledClis(options?.env ?? process.env);
+  const installed = detectInstalledClis(
+    options?.env ?? process.env,
+    options?.platform ?? process.platform,
+  );
   if (installed.length === 0) {
     throw new Error(
       [

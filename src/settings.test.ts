@@ -12,6 +12,12 @@ async function createFakeCli(binDir: string, name: string): Promise<void> {
   await chmod(filePath, 0o755);
 }
 
+async function createFakeWindowsCli(binDir: string, name: string): Promise<void> {
+  const { mkdir, writeFile } = await import("fs/promises");
+  await mkdir(binDir, { recursive: true });
+  await writeFile(path.join(binDir, `${name}.cmd`), "@echo off\r\nexit /b 0\r\n", "utf8");
+}
+
 describe("settings bootstrap", () => {
   test("creates settings.json from template", async () => {
     const cfgDir = mkdtempSync(path.join(tmpdir(), "workers-settings-"));
@@ -268,6 +274,29 @@ describe("ensureWorkerCli", () => {
     expect(settings.defaults.cli).toBe("codex");
     expect(JSON.parse(readFileSync(settingsFilePath, "utf8"))).toMatchObject({
       worker: { defaults: { cli: "codex" } },
+    });
+  });
+
+  test("auto-selects a Windows .cmd CLI from PATHEXT and persists", async () => {
+    const cfgDir = mkdtempSync(path.join(tmpdir(), "workers-ensure-win-"));
+    const settingsFilePath = path.join(cfgDir, "settings.json");
+    const binDir = path.join(cfgDir, "bin");
+
+    writeFileSync(settingsFilePath, '{ "worker": { "defaults": { "model": "gpt-5.4" } } }\n', "utf8");
+    await createFakeWindowsCli(binDir, "claude");
+
+    const settings = await loadSettings(undefined, { configDir: cfgDir });
+    expect(settings.defaults.cli).toBeUndefined();
+
+    const cli = await ensureWorkerCli(settings, cfgDir, {
+      env: { ...process.env, PATH: binDir, PATHEXT: ".COM;.EXE;.BAT;.CMD" },
+      platform: "win32",
+    });
+
+    expect(cli).toBe("claude");
+    expect(settings.defaults.cli).toBe("claude");
+    expect(JSON.parse(readFileSync(settingsFilePath, "utf8"))).toMatchObject({
+      worker: { defaults: { cli: "claude" } },
     });
   });
 
