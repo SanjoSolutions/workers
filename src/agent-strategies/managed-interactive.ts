@@ -273,6 +273,7 @@ export async function spawnManagedInteractiveAgent(
     const child = spawn(command, args, {
       cwd,
       env,
+      shell: process.platform === "win32",
       stdio: ["inherit", "inherit", "inherit"],
     });
     writeInteractiveStatus(statusFile, {

@@ -18,6 +18,7 @@ export async function spawnAgentProcess(
     const child = spawn(options.command, options.args, {
       cwd: options.cwd,
       env: options.env,
+      shell: process.platform === "win32",
       stdio: options.captureOutput
         ? ["inherit", "pipe", "pipe"]
         : ["inherit", "inherit", "inherit"],
