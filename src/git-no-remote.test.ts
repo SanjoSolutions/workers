@@ -203,6 +203,49 @@ describe("git flow with a tracked non-origin remote", () => {
     ).toThrow();
   });
 
+  test("reused worker runs skip dirty worktrees with untracked files", async () => {
+    const { repoRoot } = makeRepoWithBareRemote();
+    const projectWorktreeDir = path.join(repoRoot, ".worktrees", "test-project");
+    const worktreeLockRoot = path.join(repoRoot, ".git", "worktree-active-locks");
+    mkdirSync(worktreeLockRoot, {
+      recursive: true,
+    });
+
+    const branchTarget = await resolveBranchTarget(repoRoot);
+    const workerOptions: CliOptions = {
+      ...options,
+      noTodo: false,
+      reuseWorktree: true,
+    };
+
+    const first = await selectWorktree(
+      repoRoot,
+      workerOptions,
+      "codex-200",
+      worktreeLockRoot,
+      config,
+      branchTarget,
+      projectWorktreeDir,
+    );
+
+    writeFileSync(path.join(first.worktree.path, "leftover.txt"), "stale file\n", "utf8");
+    releaseWorktreeLock(first.lockDir);
+
+    const second = await selectWorktree(
+      repoRoot,
+      workerOptions,
+      "codex-201",
+      worktreeLockRoot,
+      config,
+      branchTarget,
+      projectWorktreeDir,
+    );
+
+    expect(second.worktree.reuseMode).toBe("new");
+    expect(second.worktree.path).not.toBe(first.worktree.path);
+    expect(second.worktree.branchName).toBe("work/codex-201");
+  });
+
   test("project repos without an upstream remote still expose a usable local branch target", async () => {
     const repoRoot = makeRepo();
     const projectWorktreeDir = path.join(repoRoot, ".worktrees", "test-project");

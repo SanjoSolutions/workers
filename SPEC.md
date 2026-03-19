@@ -11,7 +11,42 @@ This document captures the high-level requirements for the workers tool. Update 
 
 ## 1. Core Purpose
 
-Workers orchestrates isolated development work for AI coding agents across multiple project repositories.
+An optimized process for humans that supports spontaneity, multiple projects and one communication partner.
+
+## OS Support
+
+This project supports Linux, Windows, and Mac OS.
+
+## Agents
+
+### Assistant
+
+The assistant is the communication partner to the human and handles handling the requests of the human efficiently.
+This includes delegating bigger work tasks to workers.
+
+### Worker
+
+A worker fulfills one specified task at a time.
+Multiple workers can run at the same time.
+
+## Projects
+
+The tool support multiple projects. Projects can have their own task tracker.
+
+## TODO.md repo
+
+- The shared TODO repo is configured via environment variable, not via project config.
+- `WORKERS_TODO_REPO` points to the git repository that owns the authoritative `TODO.md`.
+- `WORKERS_TODO_FILE` optionally overrides the relative path to the TODO file inside that repo. Default: `TODO.md`.
+- `WORKERS_LOCAL_TODO_PATH` optionally overrides the local worktree path for the mirrored TODO file. Default: `TODO.md`.
+- Claiming a TODO must update, commit, and push the authoritative TODO file in the shared TODO repo.
+- Completing a TODO must update, commit, and push the authoritative TODO file in the shared TODO repo when the agent removes the claimed item from the local copy.
+
+## SPEC.md
+
+SPEC.md captures the high-level requirements for a project.
+
+---
 
 ## 2. Multi-Project Workflow
 
@@ -23,19 +58,12 @@ Workers orchestrates isolated development work for AI coding agents across multi
   target project directory, initialize a git repository there, and then continue in a worker
   worktree for that new project repo.
 
-## 3. Shared TODO Repository
-
-- The shared TODO repo is configured via environment variable, not via project config.
-- `WORKERS_TODO_REPO` points to the git repository that owns the authoritative `TODO.md`.
-- `WORKERS_TODO_FILE` optionally overrides the relative path to the TODO file inside that repo. Default: `TODO.md`.
-- `WORKERS_LOCAL_TODO_PATH` optionally overrides the local worktree path for the mirrored TODO file. Default: `TODO.md`.
-- Claiming a TODO must update, commit, and push the authoritative TODO file in the shared TODO repo.
-- Completing a TODO must update, commit, and push the authoritative TODO file in the shared TODO repo when the agent removes the claimed item from the local copy.
-
 ## 3.1 Task Tracker Abstraction
 
 - Workers must keep task-tracker operations behind an adapter boundary instead of hard-coding the
   runtime directly to the Git-backed `TODO.md` implementation.
+- Under `src/task-trackers`, each concrete task tracker implementation must live in its own
+  subdirectory.
 - The current shared `TODO.md` git repo is the first backend implementation.
 - Future backends such as GitHub Issues or Jira must be addable without rewriting the worker
   orchestration flow.
@@ -60,8 +88,8 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - This intake command is intended for a direct user-facing Codex session that captures bigger tasks instead of attempting them immediately.
 - The intake command must use the shared TODO repo configured via environment variable.
 - Workers must also provide a shared intake skill for the direct user-facing Codex session so this behavior can be applied by default.
-- After larger work is queued, the clarification skill remains responsible for refining it into an autonomous task that can move toward `## Ready to be picked up`.
-- When the coordinator skill invokes clarification, clarification acts as a temporary nested step and control returns to coordinator afterward.
+- After larger work is queued, the assistant-local clarification capability under `agents/assistant` remains responsible for refining it into an autonomous task that can move toward `## Ready to be picked up`.
+- When the assistant invokes clarification, clarification acts as a temporary nested step and control returns to the assistant afterward.
 - Package installation must expose `assistant` and `worker` as Node bin commands.
 - Ready-to-pick-up tasks must record their target repo in structured task metadata.
 - Tasks that are not for any repo must record that explicitly as `Repo: none`.
@@ -93,7 +121,7 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - Claim selection must avoid tasks blocked by dependencies or active conflict-risk annotations.
 - Workers must leave completed work on the worker branch/worktree by default.
 - Workers must not automatically merge or push worker output back to the tracked branch; the
-  coordinator is responsible for landing completed work.
+  assistant is responsible for landing completed work.
 - When a project has `createPullRequest: true` in its settings, workers must push the completed
   branch and create a GitHub PR after task completion.
 - The PR title must be derived from the TODO item summary.
@@ -105,6 +133,7 @@ Workers orchestrates isolated development work for AI coding agents across multi
 
 - Workers supports Claude Code CLI, Codex CLI, and Gemini CLI.
 - Shared skills can live under `.agents/skills`.
+- Clarification must remain an assistant-only capability under `agents/assistant/.agents/skills/clarification`.
 - `.claude/skills` may point to the shared skills location.
 - Agent instructions must make clear when TODO synchronization is handled by the workers runtime rather than by the project repo commit.
 - When no explicit model is specified (via TODO metadata, CLI flag, or project config), the Claude
@@ -119,6 +148,15 @@ Workers orchestrates isolated development work for AI coding agents across multi
   CLI flag, or project config), the strategy must auto-evaluate the best reasoning effort when
   `worker.defaults.autoReasoningEffort` is enabled. The evaluation must fall back to `high` on
   failure.
+- When the worker CLI is Codex, workers must load the selected worker system prompt through Codex
+  `model_instructions_file` instead of inlining that prompt into the user task prompt.
+- Workers must provide one worker system prompt template at `agents/worker/SYSTEM.md`.
+- Agent system prompt templates must support including other Markdown files with paths resolved
+  relative to the including file.
+- Agent system prompt templates must remain task-tracker-neutral and must not assume the claimed
+  task came from one specific task tracker backend.
+- The Codex worker system prompt must instruct the worker to operate as autonomously as possible
+  while still allowing user input requests when the worker is genuinely blocked.
 
 ## 8. Runtime Hooks
 
@@ -150,11 +188,17 @@ Workers orchestrates isolated development work for AI coding agents across multi
   candidate models to consider.
 - Codex auto reasoning effort selection must be configurable through this settings file.
 - The default task tracker must be configurable through this settings file.
+- Workers settings must support one shared `githubApp` configuration with `appId` and
+  `privateKeyPath`.
+- When configured, the shared `githubApp` must provide GitHub authentication for both task tracker
+  operations and launched agent sessions.
+- Invalid shared `githubApp` configuration in settings must fail with a clear error instead of being
+  ignored silently.
 - Settings must support named task trackers and project-to-task-tracker assignments.
 - Project registrations in settings must be stored as an ordered array, and worker polling must
   follow that order from first project to last.
 - Projects must be added to settings automatically when they are first mentioned or bootstrapped.
-- The coordinator intake flow must route queued work to the configured task tracker for the target
+- The assistant intake flow must route queued work to the configured task tracker for the target
   project, falling back to the default task tracker when the project has no explicit assignment.
 - Workers must not persist a default Codex reasoning level value in settings; TODO metadata may
   specify `Reasoning`, auto reasoning effort may be enabled in settings, and the runtime fallback
@@ -177,6 +221,15 @@ Workers orchestrates isolated development work for AI coding agents across multi
   only when correcting a recent unresponded worker comment.
 - When a GitHub Issues-backed task is closed through workers, workers must remove its queue labels
   before closing the issue.
+- In GitHub Issues trackers, unlabeled open issues must be treated as planned or backlog work, and
+  only `workers:ready-to-be-picked-up` and `workers:in-progress` remain operational workflow labels.
+- In GitHub Issues trackers, claiming a ready issue must add a worker-authored claim comment that
+  begins with a human-readable message and also includes structured claim metadata for machine
+  parsing.
+- The human-readable GitHub issue claim comment message must be configurable per tracker, with a
+  sensible default.
+- Concurrent GitHub issue claim attempts must resolve deterministically so only one worker keeps the
+  claim and losing workers continue polling without crashing.
 - Tracker selection and worker polling must no longer be hard-coded to a single repository.
 
 ## 8.3 Assistant Command
@@ -186,6 +239,19 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - The assistant command must use the workers repo's `AGENTS.md` and related configuration.
 - The assistant CLI is configurable via `assistant.defaults.cli` in settings, falling back to
   `worker.defaults.cli`.
+- The shared assistant system prompt used across supported assistant CLIs must be
+  `agents/assistant/SYSTEM.md`.
+- `agents/assistant/SYSTEM.md` must be treated as a template source and preprocessed before it is
+  passed to an assistant CLI.
+- The assistant system prompt template must support CLI-specific conditional blocks so each
+  supported assistant CLI receives only the instructions that apply to it.
+- The assistant system prompt template must support including other Markdown files with paths
+  resolved relative to the including file.
+- `agents/assistant/SYSTEM.md` must use the upstream Codex base instructions from
+  `codex-rs/protocol/src/prompts/base_instructions/default.md` as its foundation.
+- `agents/assistant/SYSTEM.md` may add assistant-specific workers coordination instructions in the
+  same file, including startup branch checks, larger-task queueing, clarification, and task-status
+  handling behavior.
 
 ## 8.4 Branch Status Reporting
 
@@ -196,16 +262,16 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - A branch is **in-progress** when its local `TODO.md` in-progress item still exists in the
   tracker's current in-progress section.
 - A branch is **unknown** when no local `TODO.md` is found in its worktree.
-- The coordinator must run `list-todos --branches` at the start of every new conversation and
+- The assistant must run `list-todos --branches` at the start of every new conversation and
   proactively present any finished branches to the user with a merge suggestion.
-
-## 9. Platform Support
-
-- Workers must support Linux, Windows, and macOS.
 
 ## 10. Verification
 
 - TypeScript changes must typecheck with `npx tsc --noEmit`.
+- Workers must provide a separate on-demand CLI feature test suite that verifies the exact CLI
+  features and invocation patterns used by workers for each supported agent CLI.
+- The on-demand CLI feature test suite is intended to be run when installing or updating an agent
+  CLI and must not be part of the default automated test run.
 - Publishable/runtime entrypoints must be compiled JavaScript under `build/` rather than relying on
   `tsx` at runtime.
 - Repo-facing POSIX shell compatibility wrappers must pass `sh -n`.

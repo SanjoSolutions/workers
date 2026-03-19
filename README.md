@@ -4,14 +4,21 @@ A human-first process that supports spontaneity.
 
 ## Features
 
-* SPEC.md: A standard for a high-level project spec.
 * Assistant - Workers architecture
   * One assistant which is the direct communication partner for the human.
-    It delegates bigger tasks to workers for higher throughput.
+    It delegates bigger tasks to workers for high throughput.
   * Each worker works on one task at a time.
 * Multi-project support.
-* TODO.md: A lightweight task management system.
-* Supports codex, claude and gemini CLIs.
+* Supports codex, claude, gemini and pi CLIs.
+* Supported task trackers (can be extended):
+  * GitHub Issues
+  * TODO.md: A lightweight task management system.
+* SPEC.md: A standard for a high-level project spec.
+
+## Testing
+
+* `pnpm test`: The default automated test run.
+* `pnpm test:cli-features`: On-demand checks for the exact CLI feature usage patterns used by workers. Run these when installing or updating an agent CLI.
 
 ## How to
 

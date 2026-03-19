@@ -6,7 +6,8 @@ import type {
   PollableTaskTracker,
   ResolvedGitHubIssuesTaskTracker,
 } from "./task-tracker-settings.js";
-import type { ClaimedTask } from "./task-trackers.js";
+import type { ClaimedTask, GitHubIssue } from "./task-trackers.js";
+import type { GitHubIssueComment } from "./task-trackers/github-issues/index.js";
 
 const ghCommands: string[] = [];
 const ghResults: Array<{ exitCode: number; stdout: string }> = [];
@@ -37,8 +38,40 @@ vi.mock("zx", () => ({
 const {
   claimTaskFromTracker,
   createGitHubIssueTask,
+  getGitHubIssueSection,
+  partitionGitHubIssuesBySection,
   syncCompletedTask,
 } = await import("./task-trackers.js");
+const {
+  parseGitHubIssueClaimComment,
+  renderGitHubIssueClaimComment,
+  selectWinningGitHubIssueClaimComment,
+} = await import("./task-trackers/github-issues/index.js");
+
+function createTracker(): ResolvedGitHubIssuesTaskTracker {
+  return {
+    name: "demo",
+    kind: "github-issues",
+    repository: "acme/widgets",
+    defaultRepo: "/tmp/widgets",
+    tokenCommand: undefined,
+    githubApp: undefined,
+    labels: {
+      ready: "workers:ready-to-be-picked-up",
+      inProgress: "workers:in-progress",
+    },
+    claimComment: {
+      message: "I will work on this.",
+    },
+  };
+}
+
+function createPollableTracker(): PollableTaskTracker {
+  return {
+    tracker: createTracker(),
+    source: "project",
+  };
+}
 
 function renderWorkerTaskSpecComment(item: string): string {
   return [
@@ -54,28 +87,21 @@ function normalizeCommand(command: string): string {
   return command.replace(/\s+/g, " ").trim();
 }
 
-function createTracker(): ResolvedGitHubIssuesTaskTracker {
-  return {
-    name: "demo",
-    kind: "github-issues",
-    repository: "acme/widgets",
-    defaultRepo: "/tmp/widgets",
-    tokenCommand: undefined,
-    githubApp: undefined,
-    labels: {
-      planned: "workers:planned",
-      ready: "workers:ready-to-be-picked-up",
-      inProgress: "workers:in-progress",
-    },
-  };
-}
-
-function createPollableTracker(): PollableTaskTracker {
-  return {
-    tracker: createTracker(),
-    source: "project",
-  };
-}
+const TRACKER: ResolvedGitHubIssuesTaskTracker = {
+  name: "workers",
+  kind: "github-issues",
+  repository: "SanjoSolutions/workers",
+  defaultRepo: "/home/jonas/workers",
+  tokenCommand: undefined,
+  githubApp: undefined,
+  labels: {
+    ready: "workers:ready-to-be-picked-up",
+    inProgress: "workers:in-progress",
+  },
+  claimComment: {
+    message: "I will work on this.",
+  },
+};
 
 describe("syncCompletedTask", () => {
   let tempDir: string;
@@ -108,7 +134,6 @@ describe("syncCompletedTask", () => {
         repository: "acme/widgets",
         issueNumber: 42,
         labels: {
-          planned: "workers:planned",
           ready: "workers:ready-to-be-picked-up",
           inProgress: "workers:in-progress",
         },
@@ -152,7 +177,6 @@ describe("createGitHubIssueTask", () => {
     ghResults.push(
       { exitCode: 0, stdout: "" },
       { exitCode: 0, stdout: "" },
-      { exitCode: 0, stdout: "" },
       { exitCode: 0, stdout: "https://github.com/acme/widgets/issues/77\n" },
       { exitCode: 0, stdout: "" },
     );
@@ -166,22 +190,26 @@ describe("createGitHubIssueTask", () => {
 
     expect(issueUrl).toBe("https://github.com/acme/widgets/issues/77");
     expect(ghCommands).toEqual([
-      "gh label create workers:planned --repo acme/widgets --force --color D4C5F9 --description Workers planned queue",
       "gh label create workers:ready-to-be-picked-up --repo acme/widgets --force --color 0E8A16 --description Workers ready queue",
       "gh label create workers:in-progress --repo acme/widgets --force --color FBCA04 --description Workers in-progress queue",
       "gh issue create --repo acme/widgets --title Ship the change --body - Type: Development task - Context: Keep this detail --label workers:ready-to-be-picked-up",
       normalizeCommand(
-        `gh api repos/acme/widgets/issues/77/comments --method POST -f body=${renderWorkerTaskSpecComment("- Ship the change\n  - Type: Development task\n  - Repo: /tmp/widgets\n  - Context: Keep this detail")}`,
+        `gh api repos/acme/widgets/issues/77/comments --method POST --field body=${renderWorkerTaskSpecComment("- Ship the change\n  - Type: Development task\n  - Repo: /tmp/widgets\n  - Context: Keep this detail")}`,
       ),
     ]);
   });
 
   test("preserves an existing issue title and body and appends a structured worker comment", async () => {
     ghResults.push(
-      { exitCode: 0, stdout: "" },
-      { exitCode: 0, stdout: "" },
-      { exitCode: 0, stdout: "" },
-      { exitCode: 0, stdout: "" },
+      {
+        exitCode: 0,
+        stdout: JSON.stringify({
+          number: 77,
+          title: "Ship the change",
+          body: "Existing user-authored context.",
+          labels: [],
+        }),
+      },
       { exitCode: 0, stdout: "" },
     );
 
@@ -199,12 +227,9 @@ describe("createGitHubIssueTask", () => {
 
     expect(issueUrl).toBe("https://github.com/acme/widgets/issues/77");
     expect(ghCommands).toEqual([
-      "gh label create workers:planned --repo acme/widgets --force --color D4C5F9 --description Workers planned queue",
-      "gh label create workers:ready-to-be-picked-up --repo acme/widgets --force --color 0E8A16 --description Workers ready queue",
-      "gh label create workers:in-progress --repo acme/widgets --force --color FBCA04 --description Workers in-progress queue",
-      "gh issue edit 77 --repo acme/widgets --add-label workers:planned",
+      "gh issue view 77 --repo acme/widgets --json number,title,body,createdAt,labels",
       normalizeCommand(
-        `gh api repos/acme/widgets/issues/77/comments --method POST -f body=${renderWorkerTaskSpecComment("- Ship the change\n  - Type: Development task\n  - Repo: /tmp/widgets\n  - Context: Keep this detail")}`,
+        `gh api repos/acme/widgets/issues/77/comments --method POST --field body=${renderWorkerTaskSpecComment("- Ship the change\n  - Type: Development task\n  - Repo: /tmp/widgets\n  - Context: Keep this detail")}`,
       ),
     ]);
   });
@@ -213,10 +238,15 @@ describe("createGitHubIssueTask", () => {
     const recentTimestamp = new Date().toISOString();
 
     ghResults.push(
-      { exitCode: 0, stdout: "" },
-      { exitCode: 0, stdout: "" },
-      { exitCode: 0, stdout: "" },
-      { exitCode: 0, stdout: "" },
+      {
+        exitCode: 0,
+        stdout: JSON.stringify({
+          number: 77,
+          title: "Ship the change",
+          body: "Existing user-authored context.",
+          labels: [],
+        }),
+      },
       {
         exitCode: 0,
         stdout: JSON.stringify([
@@ -246,15 +276,69 @@ describe("createGitHubIssueTask", () => {
 
     expect(issueUrl).toBe("https://github.com/acme/widgets/issues/77");
     expect(ghCommands).toEqual([
-      "gh label create workers:planned --repo acme/widgets --force --color D4C5F9 --description Workers planned queue",
-      "gh label create workers:ready-to-be-picked-up --repo acme/widgets --force --color 0E8A16 --description Workers ready queue",
-      "gh label create workers:in-progress --repo acme/widgets --force --color FBCA04 --description Workers in-progress queue",
-      "gh issue edit 77 --repo acme/widgets --add-label workers:planned",
-      "gh api repos/acme/widgets/issues/77/comments",
+      "gh issue view 77 --repo acme/widgets --json number,title,body,createdAt,labels",
+      "gh api repos/acme/widgets/issues/77/comments?per_page=100",
       normalizeCommand(
-        `gh api repos/acme/widgets/issues/comments/501 --method PATCH -f body=${renderWorkerTaskSpecComment("- Ship the change\n  - Type: Development task\n  - Context: Corrected detail")}`,
+        `gh api repos/acme/widgets/issues/comments/501 --method PATCH --field body=${renderWorkerTaskSpecComment("- Ship the change\n  - Type: Development task\n  - Context: Corrected detail")}`,
       ),
     ]);
+  });
+
+  test("treats unlabeled open issues as planned work", () => {
+    const issue: GitHubIssue = {
+      number: 1,
+      title: "Unlabeled backlog item",
+      body: "",
+      labels: [],
+    };
+
+    expect(getGitHubIssueSection(issue, TRACKER)).toBe("planned");
+  });
+
+  test("prefers the in-progress label when multiple workflow labels are present", () => {
+    const issue: GitHubIssue = {
+      number: 2,
+      title: "Conflicting labels",
+      body: "",
+      labels: [
+        { name: TRACKER.labels.ready },
+        { name: TRACKER.labels.inProgress },
+      ],
+    };
+
+    expect(getGitHubIssueSection(issue, TRACKER)).toBe("in-progress");
+  });
+
+  test("partitions open issues into planned, ready, and in-progress sections", () => {
+    const issues: GitHubIssue[] = [
+      {
+        number: 3,
+        title: "Ready item",
+        body: "",
+        createdAt: "2026-03-19T09:00:00Z",
+        labels: [{ name: TRACKER.labels.ready }],
+      },
+      {
+        number: 4,
+        title: "Backlog item",
+        body: "",
+        createdAt: "2026-03-19T08:00:00Z",
+        labels: [],
+      },
+      {
+        number: 5,
+        title: "Claimed item",
+        body: "",
+        createdAt: "2026-03-19T10:00:00Z",
+        labels: [{ name: TRACKER.labels.inProgress }],
+      },
+    ];
+
+    const sections = partitionGitHubIssuesBySection(issues, TRACKER);
+
+    expect(sections.planned.map((issue) => issue.title)).toEqual(["Backlog item"]);
+    expect(sections.ready.map((issue) => issue.title)).toEqual(["Ready item"]);
+    expect(sections["in-progress"].map((issue) => issue.title)).toEqual(["Claimed item"]);
   });
 });
 
@@ -281,6 +365,7 @@ describe("claimTaskFromTracker", () => {
             title: "Original reporter title",
             body: "Original user-authored description.",
             createdAt: "2026-03-18T10:00:00Z",
+            labels: [{ name: "workers:ready-to-be-picked-up" }],
           },
         ]),
       },
@@ -310,8 +395,81 @@ describe("claimTaskFromTracker", () => {
           },
         ]),
       },
-      { exitCode: 0, stdout: JSON.stringify([]) },
       { exitCode: 0, stdout: "" },
+      { exitCode: 0, stdout: "" },
+      {
+        exitCode: 0,
+        stdout: JSON.stringify({
+          id: 99,
+          body: renderGitHubIssueClaimComment("I will work on this.", {
+            sessionId: "codex-session",
+            cli: "codex",
+            trackerName: "demo",
+            repository: "acme/widgets",
+            issueNumber: 42,
+            claimedAt: "2026-03-19T10:00:00.000Z",
+          }),
+          created_at: "2026-03-19T10:00:00.000Z",
+          updated_at: "2026-03-19T10:00:00.000Z",
+          user: { login: "codex" },
+        }),
+      },
+      {
+        exitCode: 0,
+        stdout: JSON.stringify([
+          {
+            id: 11,
+            body: "Can you clarify whether this should affect exports too?",
+            created_at: "2026-03-18T11:00:00Z",
+            updated_at: "2026-03-18T11:00:00Z",
+            user: { login: "teammate" },
+          },
+        ]),
+      },
+      { exitCode: 0, stdout: "" },
+      {
+        exitCode: 0,
+        stdout: JSON.stringify([
+          {
+            id: 11,
+            body: "Can you clarify whether this should affect exports too?",
+            created_at: "2026-03-18T11:00:00Z",
+            updated_at: "2026-03-18T11:00:00Z",
+            user: { login: "teammate" },
+          },
+        ]),
+      },
+      {
+        exitCode: 0,
+        stdout: JSON.stringify([
+          {
+            number: 42,
+            title: "Original reporter title",
+            body: "Original user-authored description.",
+            createdAt: "2026-03-18T10:00:00Z",
+            labels: [{ name: "workers:in-progress" }],
+          },
+        ]),
+      },
+      {
+        exitCode: 0,
+        stdout: JSON.stringify([
+          {
+            id: 11,
+            body: "Can you clarify whether this should affect exports too?",
+            created_at: "2026-03-18T11:00:00Z",
+            updated_at: "2026-03-18T11:00:00Z",
+            user: { login: "teammate" },
+          },
+          {
+            id: 13,
+            body: renderWorkerTaskSpecComment("- Latest worker spec\n  - Type: Development task\n  - Agent: codex"),
+            created_at: "2026-03-18T13:00:00Z",
+            updated_at: "2026-03-18T13:00:00Z",
+            user: { login: "codex" },
+          },
+        ]),
+      },
     );
 
     const result = await claimTaskFromTracker(
@@ -324,14 +482,93 @@ describe("claimTaskFromTracker", () => {
     expect(result.claimedTask?.summary).toBe("Latest worker spec");
     expect(result.claimedTask?.item).toBe("- Latest worker spec\n  - Type: Development task\n  - Agent: codex\n  - Repo: /tmp/widgets");
     expect(result.claimedTask?.localTodoContent).toContain("- Latest worker spec");
-    expect(ghCommands).toEqual([
-      "gh issue list --repo acme/widgets --state open --label workers:ready-to-be-picked-up --limit 100 --search sort:created-asc --json number,title,body,createdAt",
-      "gh api repos/acme/widgets/issues/42/comments",
-      "gh issue list --repo acme/widgets --state open --label workers:in-progress --limit 100 --search sort:created-asc --json number,title,body,createdAt",
-      "gh label create workers:planned --repo acme/widgets --force --color D4C5F9 --description Workers planned queue",
+    expect(ghCommands).toHaveLength(10);
+    expect(ghCommands.slice(0, 4)).toEqual([
+      "gh issue list --repo acme/widgets --state open --limit 100 --search sort:created-asc --json number,title,body,createdAt,labels",
+      "gh api repos/acme/widgets/issues/42/comments?per_page=100",
       "gh label create workers:ready-to-be-picked-up --repo acme/widgets --force --color 0E8A16 --description Workers ready queue",
       "gh label create workers:in-progress --repo acme/widgets --force --color FBCA04 --description Workers in-progress queue",
-      "gh issue edit 42 --repo acme/widgets --remove-label workers:ready-to-be-picked-up --add-label workers:in-progress",
     ]);
+    expect(ghCommands[4]).toMatch(
+      /^gh api repos\/acme\/widgets\/issues\/42\/comments --method POST --field body=/,
+    );
+    expect(ghCommands.slice(5)).toEqual([
+      "gh api repos/acme/widgets/issues/42/comments?per_page=100",
+      "gh issue edit 42 --repo acme/widgets --remove-label workers:ready-to-be-picked-up --add-label workers:in-progress",
+      "gh api repos/acme/widgets/issues/42/comments?per_page=100",
+      "gh issue list --repo acme/widgets --state open --limit 100 --search sort:created-asc --json number,title,body,createdAt,labels",
+      "gh api repos/acme/widgets/issues/42/comments?per_page=100",
+    ]);
+  });
+});
+
+describe("GitHub issue claim comments", () => {
+  test("renders a human-readable claim comment with structured metadata", () => {
+    const body = renderGitHubIssueClaimComment("I will work on this.", {
+      sessionId: "codex-claim-session",
+      cli: "codex",
+      trackerName: "workers",
+      repository: "SanjoSolutions/workers",
+      issueNumber: 42,
+      claimedAt: "2026-03-19T10:00:00.000Z",
+    });
+
+    expect(body.startsWith("I will work on this.")).toBe(true);
+    expect(body).toContain("```workers-issue-claim");
+
+    expect(parseGitHubIssueClaimComment(body)).toEqual({
+      message: "I will work on this.",
+      metadata: {
+        type: "workers-issue-claim",
+        version: 1,
+        sessionId: "codex-claim-session",
+        cli: "codex",
+        trackerName: "workers",
+        repository: "SanjoSolutions/workers",
+        issueNumber: 42,
+        claimedAt: "2026-03-19T10:00:00.000Z",
+      },
+    });
+  });
+
+  test("deterministically selects the earliest structured claim comment during a race", () => {
+    const comments: GitHubIssueComment[] = [
+      {
+        id: 18,
+        body: "Looks good to me.",
+        createdAt: "2026-03-19T10:00:02.000Z",
+      },
+      {
+        id: 21,
+        body: renderGitHubIssueClaimComment("I will work on this.", {
+          sessionId: "codex-session-two",
+          cli: "codex",
+          trackerName: "workers",
+          repository: "SanjoSolutions/workers",
+          issueNumber: 42,
+          claimedAt: "2026-03-19T10:00:04.000Z",
+        }),
+        createdAt: "2026-03-19T10:00:04.000Z",
+      },
+      {
+        id: 20,
+        body: renderGitHubIssueClaimComment("I will work on this.", {
+          sessionId: "codex-session-one",
+          cli: "codex",
+          trackerName: "workers",
+          repository: "SanjoSolutions/workers",
+          issueNumber: 42,
+          claimedAt: "2026-03-19T10:00:03.000Z",
+        }),
+        createdAt: "2026-03-19T10:00:03.000Z",
+      },
+    ];
+
+    expect(selectWinningGitHubIssueClaimComment(comments)).toMatchObject({
+      id: 20,
+      metadata: {
+        sessionId: "codex-session-one",
+      },
+    });
   });
 });

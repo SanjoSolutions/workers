@@ -3,6 +3,7 @@ import type { WorkersSettings } from "./settings.js";
 import {
   applyGitHubTokenForRepo,
   applyGitHubTokenToEnv,
+  resolveGitHubAuthentication,
   resolveTaskTrackerForRepo,
   resolveTaskTrackers,
 } from "./task-tracker-settings.js";
@@ -11,9 +12,9 @@ const BASE_SETTINGS: WorkersSettings = {
   defaults: {
     cli: "codex",
     model: "gpt-5.4",
-    autoModelSelection: false,
+    autoModelSelection: true,
     autoModelSelectionModels: ["gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex"],
-    autoReasoningEffort: false,
+    autoReasoningEffort: true,
   },
   assistant: { defaults: { cli: "codex" } },
   projects: [
@@ -101,6 +102,69 @@ describe("task tracker settings", () => {
     expect(env.GH_TOKEN).toBe("repo-token");
   });
 
+  test("defaults GitHub issue trackers to ready and in-progress labels only", () => {
+    const tracker = resolveTaskTrackerForRepo(
+      "/home/jonas/workers",
+      {
+        ...BASE_SETTINGS,
+        projects: [
+          {
+            repo: "/home/jonas/workers",
+            taskTracker: {
+              type: "github-issues",
+              repository: "SanjoSolutions/workers",
+            },
+          },
+        ],
+      },
+      {},
+    );
+
+    expect(tracker.kind).toBe("github-issues");
+    if (tracker.kind !== "github-issues") {
+      throw new Error("expected github-issues tracker");
+    }
+
+    expect(tracker.labels).toEqual({
+      ready: "workers:ready-to-be-picked-up",
+      inProgress: "workers:in-progress",
+    });
+    expect(tracker.claimComment).toEqual({
+      message: "I will work on this.",
+    });
+  });
+
+  test("resolves a configured GitHub issue claim comment message", () => {
+    const tracker = resolveTaskTrackerForRepo(
+      "/home/jonas/workers",
+      {
+        ...BASE_SETTINGS,
+        projects: [
+          {
+            repo: "/home/jonas/workers",
+            taskTracker: {
+              type: "github-issues",
+              repository: "SanjoSolutions/workers",
+              claimComment: {
+                message: "Starting this task now.",
+              },
+            },
+          },
+        ],
+      },
+      {},
+    );
+
+    expect(tracker.kind).toBe("github-issues");
+    if (tracker.kind !== "github-issues") {
+      throw new Error("expected github-issues tracker");
+    }
+
+    expect(tracker.claimComment).toEqual({
+      message: "Starting this task now.",
+    });
+  });
+
   test("leaves env untouched when the repo has no configured tracker", async () => {
     const env: NodeJS.ProcessEnv = { GH_TOKEN: "existing-token" };
 
@@ -127,9 +191,11 @@ describe("task tracker settings", () => {
         tokenCommand: `"${process.execPath}" -e "process.stdout.write('shared-token')"`,
         githubApp: undefined,
         labels: {
-          planned: "planned",
           ready: "ready",
           inProgress: "in-progress",
+        },
+        claimComment: {
+          message: "I will work on this.",
         },
       },
     };
@@ -139,5 +205,54 @@ describe("task tracker settings", () => {
 
     expect(env.GH_TOKEN).toBe("shared-token");
     expect(process.env.GH_TOKEN).toBeUndefined();
+  });
+
+  test("prefers the shared GitHub App configuration for authentication", () => {
+    const auth = resolveGitHubAuthentication({
+      ...BASE_SETTINGS,
+      githubApp: {
+        appId: "12345",
+        privateKeyPath: "~/.config/workers/github-app.pem",
+      },
+      projects: [
+        {
+          repo: "/home/jonas/openclaw",
+          taskTracker: {
+            type: "github-issues",
+            repository: "acme/openclaw",
+            tokenCommand: "gh auth token",
+          },
+        },
+      ],
+    });
+
+    expect(auth).toEqual({
+      githubApp: {
+        appId: "12345",
+        privateKeyPath: "~/.config/workers/github-app.pem",
+      },
+      tokenCommand: undefined,
+    });
+  });
+
+  test("falls back to tracker authentication when no shared GitHub App is configured", () => {
+    const auth = resolveGitHubAuthentication({
+      ...BASE_SETTINGS,
+      projects: [
+        {
+          repo: "/home/jonas/openclaw",
+          taskTracker: {
+            type: "github-issues",
+            repository: "acme/openclaw",
+            tokenCommand: "gh auth token",
+          },
+        },
+      ],
+    });
+
+    expect(auth).toEqual({
+      githubApp: undefined,
+      tokenCommand: "gh auth token",
+    });
   });
 });

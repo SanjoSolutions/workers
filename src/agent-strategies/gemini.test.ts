@@ -1,7 +1,7 @@
-import { mkdtempSync, mkdirSync, writeFileSync } from "fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
-import { describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 import { GeminiAgentStrategy } from "./gemini.js";
 import { spawnAgentProcess } from "./process.js";
 import { determinePackageRoot } from "../settings.js";
@@ -35,25 +35,38 @@ describe("GeminiAgentStrategy", () => {
     noTodo: false,
   };
 
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   test("sets GEMINI_SYSTEM_MD for non-interactive worker", async () => {
     await strategy.launch(baseContext as any);
 
+    const call = vi.mocked(spawnAgentProcess).mock.calls[0]?.[0];
+    const renderedPromptPath = call?.env.GEMINI_SYSTEM_MD as string;
     expect(spawnAgentProcess).toHaveBeenCalledWith(expect.objectContaining({
       env: expect.objectContaining({
-        GEMINI_SYSTEM_MD: path.join(packageRoot, "agents", "worker", "SYSTEM.md"),
+        GEMINI_SYSTEM_MD: expect.any(String),
         ORIGINAL_ENV: "true",
       }),
     }));
+    expect(renderedPromptPath).toContain("workers-system-prompt-cache");
   });
 
   test("sets GEMINI_SYSTEM_MD for noTodo (assistant)", async () => {
     await strategy.launch({ ...baseContext, noTodo: true } as any);
 
+    const call = vi.mocked(spawnAgentProcess).mock.calls[0]?.[0];
+    const renderedPromptPath = call?.env.GEMINI_SYSTEM_MD as string;
     expect(spawnAgentProcess).toHaveBeenCalledWith(expect.objectContaining({
       env: expect.objectContaining({
-        GEMINI_SYSTEM_MD: path.join(packageRoot, "agents", "assistant", "SYSTEM.md"),
+        GEMINI_SYSTEM_MD: expect.any(String),
       }),
     }));
+    expect(renderedPromptPath).not.toBe(path.join(packageRoot, "agents", "assistant", "SYSTEM.md"));
+    expect(renderedPromptPath).toContain("workers-system-prompt-cache");
+    expect(readFileSync(renderedPromptPath, "utf8")).toContain("`write_todos`");
+    expect(readFileSync(renderedPromptPath, "utf8")).toContain("Do not rely on plan mode.");
   });
 
   test("sets GEMINI_SYSTEM_MD for interactive worker", async () => {
@@ -74,7 +87,7 @@ describe("GeminiAgentStrategy", () => {
       expect.any(Array),
       worktree,
       expect.objectContaining({
-        GEMINI_SYSTEM_MD: path.join(packageRoot, "agents", "worker", "SYSTEM.md"),
+        GEMINI_SYSTEM_MD: expect.stringContaining("workers-system-prompt-cache"),
         WORKERS_GEMINI_STATUS_FILE: expect.any(String),
         WORKERS_GEMINI_HOOK_SCRIPT: expect.any(String),
       }),

@@ -29,6 +29,7 @@ export interface AssistantDefaults {
 export interface WorkersSettings {
   defaults: WorkerDefaults;
   assistant: { defaults: AssistantDefaults };
+  githubApp?: GitHubAppSettings;
   projects: ProjectSettings[];
 }
 
@@ -39,9 +40,12 @@ export interface GitTodoTaskTrackerSettings {
 }
 
 export interface GitHubIssueLabelsSettings {
-  planned?: string;
   ready?: string;
   inProgress?: string;
+}
+
+export interface GitHubIssueClaimCommentSettings {
+  message?: string;
 }
 
 export interface GitHubAppSettings {
@@ -55,6 +59,7 @@ export interface GitHubIssuesTaskTrackerSettings {
   tokenCommand?: string;
   githubApp?: GitHubAppSettings;
   labels?: GitHubIssueLabelsSettings;
+  claimComment?: GitHubIssueClaimCommentSettings;
 }
 
 export type TaskTrackerSettings =
@@ -140,6 +145,37 @@ function normalizeStringArray(raw: unknown, fallback: string[]): string[] {
   return [...new Set(values)];
 }
 
+function normalizeGitHubApp(
+  raw: unknown,
+  location: string,
+): GitHubAppSettings | undefined {
+  if (raw == null) {
+    return undefined;
+  }
+
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error(
+      `Invalid ${location}: expected an object with non-empty string fields "appId" and "privateKeyPath".`,
+    );
+  }
+
+  const obj = raw as Record<string, unknown>;
+  const appId = typeof obj.appId === "string" ? obj.appId.trim() : "";
+  const privateKeyPath =
+    typeof obj.privateKeyPath === "string" ? obj.privateKeyPath.trim() : "";
+
+  if (!appId || !privateKeyPath) {
+    throw new Error(
+      `Invalid ${location}: expected non-empty string fields "appId" and "privateKeyPath".`,
+    );
+  }
+
+  return {
+    appId,
+    privateKeyPath,
+  };
+}
+
 function normalizeInlineTracker(
   raw: unknown,
 ): TaskTrackerSettings | undefined {
@@ -157,11 +193,6 @@ function normalizeInlineTracker(
     const labels =
       rawLabels && typeof rawLabels === "object" && !Array.isArray(rawLabels)
         ? {
-            planned:
-              typeof (rawLabels as Record<string, unknown>).planned === "string"
-              && ((rawLabels as Record<string, string>).planned).trim()
-                ? ((rawLabels as Record<string, string>).planned).trim()
-                : undefined,
             ready:
               typeof (rawLabels as Record<string, unknown>).ready === "string"
               && ((rawLabels as Record<string, string>).ready).trim()
@@ -179,6 +210,18 @@ function normalizeInlineTracker(
     const tokenCommand =
       typeof rawTokenCommand === "string" && rawTokenCommand.trim()
         ? rawTokenCommand.trim()
+        : undefined;
+
+    const rawClaimComment = obj.claimComment;
+    const claimComment =
+      rawClaimComment &&
+      typeof rawClaimComment === "object" &&
+      !Array.isArray(rawClaimComment) &&
+      typeof (rawClaimComment as Record<string, unknown>).message === "string" &&
+      ((rawClaimComment as Record<string, string>).message).trim()
+        ? {
+            message: ((rawClaimComment as Record<string, string>).message).trim(),
+          }
         : undefined;
 
     const rawGitHubApp = obj.githubApp;
@@ -200,6 +243,7 @@ function normalizeInlineTracker(
       tokenCommand,
       githubApp,
       labels,
+      claimComment,
     };
   }
 
@@ -321,6 +365,7 @@ export async function loadSettings(
     typeof assistantDefaults.cli === "string" && VALID_CLI_SET.has(assistantDefaults.cli as CliName)
       ? (assistantDefaults.cli as CliName)
       : undefined;
+  const githubApp = normalizeGitHubApp(parsed.githubApp, `githubApp in ${filePath}`);
 
   return {
     defaults: {
@@ -347,6 +392,7 @@ export async function loadSettings(
         cli: assistantCli,
       },
     },
+    githubApp,
     projects: normalizeProjectEntries(parsed),
   };
 }

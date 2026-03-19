@@ -1,13 +1,15 @@
 ---
 name: clarification
-description: "Clarify TODO.md work so planned items become autonomous worker tasks. Supports both Codex CLI and Claude Code CLI."
+description: "Clarify queued work into autonomous worker tasks for the assistant. Supports both Codex CLI and Claude Code CLI."
 ---
 
 # Clarification Skill
 
 Clarify tasks from `TODO.md` -> `## Planned`, then move fully clarified items to `## Ready to be picked up` so the workers workflow can execute them without follow-up questions.
 
-This skill is intended for a shared workers repo that may track work across multiple projects. For each TODO, inspect the relevant project repo or repos before asking questions.
+This assistant-local capability is intended for a shared workers repo that may track work across
+multiple projects. For each TODO, inspect the relevant project repo or repos before asking
+questions.
 
 ## Scope
 

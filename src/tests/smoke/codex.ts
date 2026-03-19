@@ -1,24 +1,23 @@
 /**
- * Smoke test: verify the worker skill is picked up by Codex CLI.
+ * Smoke test: verify the worker system prompt is picked up by Codex CLI.
  *
  * Requires a real `codex` binary authenticated via OPENAI_API_KEY.
  *
- * Codex picks up instructions from AGENTS.md in the working directory.
- * We copy the worker SYSTEM.md content into an AGENTS.md so Codex loads it,
- * then send a simple prompt and verify the output contains evidence that the
- * system instructions were followed.
+ * Workers passes the worker SYSTEM.md through Codex `model_instructions_file`.
+ * This test points Codex at that file directly, then sends a simple prompt and
+ * verifies the output contains evidence that the model instructions were
+ * followed.
  */
 
 import { spawnSync } from "child_process";
 import {
   mkdirSync,
   mkdtempSync,
-  readFileSync,
-  writeFileSync,
 } from "fs";
 import { tmpdir } from "os";
 import path from "path";
 import { $ } from "zx";
+import { prepareSystemPrompt } from "../../assistant-system-prompt.js";
 
 async function setupProject(root: string, name: string): Promise<string> {
   const projectPath = path.join(root, name);
@@ -27,13 +26,6 @@ async function setupProject(root: string, name: string): Promise<string> {
   await $`git -C ${projectPath} init -b main`.quiet();
   await $`git -C ${projectPath} config user.name Test`.quiet();
   await $`git -C ${projectPath} config user.email test@test`.quiet();
-
-  // Codex reads AGENTS.md from the working directory for system instructions.
-  // Copy the worker SYSTEM.md content into AGENTS.md.
-  const workersRoot = process.cwd();
-  const workerSystemPath = path.join(workersRoot, "agents", "worker", "SYSTEM.md");
-  const systemContent = readFileSync(workerSystemPath, "utf8");
-  writeFileSync(path.join(projectPath, "AGENTS.md"), systemContent);
 
   await $`git -C ${projectPath} add -A`.quiet();
   await $`git -C ${projectPath} commit -m "initialize repository"`.quiet();
@@ -49,6 +41,11 @@ const EXPECTED = "SYSTEM_INSTRUCTIONS_LOADED";
 async function main(): Promise<void> {
   const root = mkdtempSync(path.join(tmpdir(), "smoke-codex-"));
   const projectPath = await setupProject(root, "codex-test");
+  const workersRoot = process.cwd();
+  const preparedSystemPrompt = prepareSystemPrompt(
+    path.join(workersRoot, "agents", "worker", "SYSTEM.md"),
+    "codex",
+  );
 
   console.log(`Project: ${projectPath}\n`);
   console.log("Launching Codex with a simple verification prompt...\n");
@@ -60,6 +57,8 @@ async function main(): Promise<void> {
       "--full-auto",
       "--config",
       "approval_policy=never",
+      "--config",
+      `model_instructions_file=${JSON.stringify(preparedSystemPrompt.filePath)}`,
       PROMPT,
     ],
     {

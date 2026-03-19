@@ -80,13 +80,13 @@ export async function selectWorktree(
       }
 
       if (!options.noTodo) {
-        const diffResult =
-          await $`git -C ${entry.path} diff --quiet`.quiet().nothrow();
-        const diffCachedResult =
-          await $`git -C ${entry.path} diff --cached --quiet`.quiet().nothrow();
-        if (diffResult.exitCode !== 0 || diffCachedResult.exitCode !== 0) {
+        const statusResult =
+          await $`git -C ${entry.path} status --porcelain --untracked-files=all`
+            .quiet()
+            .nothrow();
+        if (statusResult.exitCode !== 0 || statusResult.stdout.trim() !== "") {
           log.info(
-            `Skipping reused worktree ${entry.path}: local changes prevent switching to ${desiredBranchName}.`,
+            `Skipping reused worktree ${entry.path}: local changes or untracked files prevent switching to ${desiredBranchName}.`,
           );
           releaseWorktreeLock(lockDir);
           continue;

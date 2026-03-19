@@ -4,7 +4,10 @@ import { Command } from "commander";
 import { VALID_CLI_SET, ensureAssistantCli, loadSettings, determinePackageRoot } from "../settings.js";
 import { getAgentStrategy } from "../agent-strategies/index.js";
 import { findGitRepoRoot } from "../git-utils.js";
-import { applyGitHubTokenForRepo } from "../task-tracker-settings.js";
+import {
+  applyGitHubTokenForRepo,
+  applyGitHubTokenFromSettings,
+} from "../task-tracker-settings.js";
 import type { CliName, CliOptions } from "../types.js";
 
 async function main(): Promise<void> {
@@ -19,6 +22,7 @@ async function main(): Promise<void> {
 
   const packageRoot = determinePackageRoot();
   const settings = await loadSettings(packageRoot);
+  await applyGitHubTokenFromSettings(settings);
 
   let cli: CliName;
   if (opts.cli) {

@@ -1,4 +1,5 @@
 import { describe, expect, test, vi, beforeEach } from "vitest";
+import path from "path";
 import { CodexAgentStrategy } from "./codex.js";
 import { spawnAgentProcess } from "./process.js";
 import { evaluateCodexSelection } from "../model-selection.js";
@@ -66,8 +67,13 @@ describe("CodexAgentStrategy", () => {
     }));
 
     const call = vi.mocked(spawnAgentProcess).mock.calls[0]?.[0];
-    expect(call?.args.at(-1)).toContain("# Worker System Prompt");
-    expect(call?.args.at(-1)).toContain("Implement it");
+    expect(call?.args).toContain("Implement it");
+    expect(call?.args).toContainEqual(expect.stringContaining("model_instructions_file="));
+    const promptArg = call?.args.find((arg) => arg.startsWith("model_instructions_file="));
+    const renderedPromptPath = promptArg
+      ? JSON.parse(promptArg.slice("model_instructions_file=".length))
+      : "";
+    expect(renderedPromptPath).toContain("workers-system-prompt-cache");
   });
 
   test("skips auto-selection when explicit model and reasoning effort are provided", async () => {
@@ -101,7 +107,28 @@ describe("CodexAgentStrategy", () => {
     } as any);
 
     const call = vi.mocked(spawnAgentProcess).mock.calls[0]?.[0];
-    expect(call?.args.at(-1)).toContain("# Assistant System Prompt");
+    const promptArg = call?.args.find((arg) => arg.startsWith("model_instructions_file="));
+    const renderedPromptPath = promptArg
+      ? JSON.parse(promptArg.slice("model_instructions_file=".length))
+      : "";
+    expect(call?.args).toContainEqual(expect.stringContaining("model_instructions_file="));
+    expect(renderedPromptPath).toBeTruthy();
+    expect(renderedPromptPath).not.toBe(path.join("agents", "assistant", "SYSTEM.md"));
+    expect(renderedPromptPath).toContain("workers-system-prompt-cache");
+    expect(call?.args).not.toContain("");
     expect(call?.env.GH_TOKEN).toBe("shared-token");
+  });
+
+  test("passes the rendered worker system prompt in worker mode", async () => {
+    await strategy.launch({
+      ...baseContext,
+    } as any);
+
+    const call = vi.mocked(spawnAgentProcess).mock.calls[0]?.[0];
+    const promptArg = call?.args.find((arg) => arg.startsWith("model_instructions_file="));
+    const renderedPromptPath = promptArg
+      ? JSON.parse(promptArg.slice("model_instructions_file=".length))
+      : "";
+    expect(renderedPromptPath).toContain("workers-system-prompt-cache");
   });
 });
