@@ -278,8 +278,6 @@ SPEC.md captures the high-level requirements for a project.
 
 ## 11. License Compliance
 
-- README.md must stay minimal and focused on new users; testing guidance and other contributor or
-  operational details must live in separate docs.
 - When repository guidance or documentation copies or adapts substantive text from another project,
   workers must retain clear provenance in the edited file or adjacent docs.
 - Workers must include the applicable third-party notice and required license text in the repo when
