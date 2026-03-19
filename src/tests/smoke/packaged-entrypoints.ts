@@ -42,6 +42,9 @@ function runCommandOrThrow(
 ): string {
   const result = spawnSync(command, args, {
     encoding: "utf8",
+    shell:
+      options.shell
+      ?? (process.platform === "win32" && command.toLowerCase().endsWith(".cmd")),
     ...options,
   });
 
