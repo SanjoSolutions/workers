@@ -516,6 +516,7 @@ async function ensureCli(
         "  Codex CLI    https://github.com/openai/codex",
         "  Claude Code  https://docs.anthropic.com/en/docs/claude-code/getting-started",
         "  Gemini CLI   https://github.com/google-gemini/gemini-cli",
+        "  Pi CLI",
       ].join("\n"),
     );
   }

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
+import { pathToFileURL } from "url";
 import { VALID_CLI_SET, ensureAssistantCli, loadSettings, determinePackageRoot } from "../settings.js";
 import { getAgentStrategy } from "../agent-strategies/index.js";
 import { findGitRepoRoot } from "../git-utils.js";
@@ -10,14 +11,14 @@ import {
 } from "../task-tracker-settings.js";
 import type { CliName, CliOptions } from "../types.js";
 
-async function main(): Promise<void> {
+export async function runAssistantCli(argv = process.argv): Promise<void> {
   const program = new Command();
   program
     .name("assistant")
     .description("Launch an interactive assistant agent session")
-    .option("--cli <name>", "CLI to use (claude, codex, or gemini)");
+    .option("--cli <name>", "CLI to use (claude, codex, gemini, or pi)");
 
-  program.parse(process.argv);
+  program.parse(argv);
   const opts = program.opts();
 
   const packageRoot = determinePackageRoot();
@@ -27,7 +28,7 @@ async function main(): Promise<void> {
   let cli: CliName;
   if (opts.cli) {
     if (!VALID_CLI_SET.has(opts.cli as CliName)) {
-      throw new Error(`Unsupported CLI: ${opts.cli} (expected: claude, codex, gemini)`);
+      throw new Error(`Unsupported CLI: ${opts.cli} (expected: claude, codex, gemini, pi)`);
     }
     await ensureAssistantCli(settings, undefined, { preferredCli: opts.cli as CliName });
     cli = opts.cli as CliName;
@@ -71,7 +72,10 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
-  console.error(err instanceof Error ? err.message : String(err));
-  process.exit(1);
-});
+const invokedPath = process.argv[1] ? pathToFileURL(process.argv[1]).href : "";
+if (import.meta.url === invokedPath) {
+  runAssistantCli().catch((err) => {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  });
+}

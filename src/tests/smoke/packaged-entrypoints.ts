@@ -11,7 +11,7 @@ import {
 } from "fs";
 import os from "os";
 import path from "path";
-import { fileURLToPath, pathToFileURL } from "url";
+import { fileURLToPath } from "url";
 
 interface FakeCliInvocation {
   argv: string[];
@@ -206,13 +206,14 @@ async function main(): Promise<void> {
   });
 
   const installedPackageRoot = path.join(installDir, "node_modules", "@sanjo", "workers");
+  const orchestrateEntrypoint = path.join(installedPackageRoot, "build", "bin", "o.js");
   const assistantEntrypoint = path.join(installedPackageRoot, "build", "bin", "assistant.js");
   const workerEntrypoint = path.join(installedPackageRoot, "build", "bin", "worker.js");
   const settingsTemplatePath = path.join(installedPackageRoot, "settings.template.json");
   const todoTemplatePath = path.join(installedPackageRoot, "todos-repo-template", "TODO.md");
 
-  if (!existsSync(assistantEntrypoint) || !existsSync(workerEntrypoint)) {
-    throw new Error("Installed package is missing the packaged assistant or worker entrypoint.");
+  if (!existsSync(orchestrateEntrypoint) || !existsSync(assistantEntrypoint) || !existsSync(workerEntrypoint)) {
+    throw new Error("Installed package is missing the packaged o, assistant, or worker entrypoint.");
   }
   if (!existsSync(settingsTemplatePath)) {
     throw new Error("Installed package is missing settings.template.json.");
@@ -221,15 +222,19 @@ async function main(): Promise<void> {
     throw new Error("Installed package is missing todos-repo-template/TODO.md.");
   }
 
-  const { initGitTodoRepo } = await import(
-    pathToFileURL(path.join(installedPackageRoot, "build", "init-task-tracker.js")).href
-  );
-  await initGitTodoRepo(todoRepo);
+  const shellConfigPath = path.join(tempRoot, ".bashrc");
+  runCommandOrThrow(process.execPath, [orchestrateEntrypoint, "init", todoRepo, "--shell-config", shellConfigPath], {
+    cwd: installDir,
+  });
 
   const initializedTodo = readFileSync(path.join(todoRepo, "TODO.md"), "utf8");
   const packagedTodoTemplate = readFileSync(todoTemplatePath, "utf8");
   if (initializedTodo !== packagedTodoTemplate) {
     throw new Error("Installed package did not initialize TODO.md from the packaged TODO repo template.");
+  }
+  const shellConfigContent = readFileSync(shellConfigPath, "utf8");
+  if (!shellConfigContent.includes(`export WORKERS_TODO_REPO=${todoRepo}`)) {
+    throw new Error("Packaged o init command did not update the shell config.");
   }
 
   const {
@@ -244,13 +249,36 @@ async function main(): Promise<void> {
     PATH: resolveSmokeTestPath(baseEnv, fakeBinDir),
     WORKERS_CONFIG_DIR: configDir,
     WORKERS_FAKE_CLI_LOG_DIR: fakeLogDir,
+    WORKERS_TODO_REPO: todoRepo,
   };
 
-  runCommandOrThrow(process.execPath, [assistantEntrypoint], {
+  const taskText = [
+    "- Package smoke task",
+    `  - Repo: ${workerRepo}`,
+  ].join("\n");
+
+  runCommandOrThrow(process.execPath, [orchestrateEntrypoint, "add", "--ready", taskText], {
+    cwd: workerRepo,
+    env: sharedEnv,
+  });
+  const todoAfterAdd = readFileSync(path.join(todoRepo, "TODO.md"), "utf8");
+  if (!todoAfterAdd.includes("Package smoke task")) {
+    throw new Error("Packaged o add command did not add the task to TODO.md.");
+  }
+
+  const statusOutput = runCommandOrThrow(process.execPath, [orchestrateEntrypoint, "status", "--ready"], {
+    cwd: workerRepo,
+    env: sharedEnv,
+  });
+  if (!statusOutput.includes("Package smoke task")) {
+    throw new Error("Packaged o status command did not report the added task.");
+  }
+
+  runCommandOrThrow(process.execPath, [orchestrateEntrypoint, "assistant"], {
     cwd: assistantRepo,
     env: sharedEnv,
   });
-  runCommandOrThrow(process.execPath, [workerEntrypoint, "--no-todo", "--cleanup", "--worktree-dir", worktreeDir], {
+  runCommandOrThrow(process.execPath, [orchestrateEntrypoint, "worker", "--no-todo", "--cleanup", "--worktree-dir", worktreeDir], {
     cwd: workerRepo,
     env: sharedEnv,
   });
@@ -292,7 +320,7 @@ async function main(): Promise<void> {
     throw new Error("Packaged worker entrypoint did not pass a system prompt file.");
   }
 
-  console.log("Packaged assistant and worker smoke test passed.");
+  console.log("Packaged orchestration smoke test passed.");
 }
 
 main().catch((error) => {

@@ -2,6 +2,7 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
+import { pathToFileURL } from "url";
 import { parseCliOptions } from "../cli.js";
 import { loadConfig } from "../config.js";
 import { selectWorktree } from "../worktree.js";
@@ -278,8 +279,8 @@ async function runNoTodoMode(
   }
 }
 
-async function main(): Promise<void> {
-  const options = await parseCliOptions(process.argv);
+export async function runWorkerCli(argv = process.argv): Promise<void> {
+  const options = await parseCliOptions(argv);
   const invocationPath = process.cwd();
   const invocationRepoRoot = await findGitRepoRoot(invocationPath);
 
@@ -433,9 +434,12 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
-  log.error(
-    `Unhandled error: ${err instanceof Error ? err.message : String(err)}`,
-  );
-  process.exit(1);
-});
+const invokedPath = process.argv[1] ? pathToFileURL(process.argv[1]).href : "";
+if (import.meta.url === invokedPath) {
+  runWorkerCli().catch((err) => {
+    log.error(
+      `Unhandled error: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    process.exit(1);
+  });
+}

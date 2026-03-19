@@ -75,9 +75,8 @@ SPEC.md captures the high-level requirements for a project.
 
 ## 4. TODO Repo Initialization
 
-- Workers must provide a command to initialize a shared TODO repo from the checked-in template.
-- The init command must ask where to initialize the repo.
-- The suggested default location is the current working directory.
+- Workers must provide an `o init` command to initialize a shared TODO repo from the checked-in template.
+- The init command must default to the current working directory and also allow an explicit target path.
 - If the target directory is not yet a git repo, the command must initialize one.
 - If `TODO.md` does not exist, the command must create it from `todos-repo-template/TODO.md`.
 - The init command should create an initial commit when it creates the first `TODO.md`.
@@ -85,7 +84,7 @@ SPEC.md captures the high-level requirements for a project.
 
 ## 4.1 TODO Intake
 
-- Workers must provide a command to append new queued work to `## Planned` in the shared TODO repo.
+- Workers must provide an `o add` command to append new queued work to `## Planned` in the shared TODO repo.
 - The TODO intake command must also support explicitly placing already-autonomous tasks into
   `## Ready to be picked up`.
 - This intake command is intended for a direct user-facing Codex session that captures bigger tasks instead of attempting them immediately.
@@ -93,7 +92,7 @@ SPEC.md captures the high-level requirements for a project.
 - Workers must also provide a shared intake skill for the direct user-facing Codex session so this behavior can be applied by default.
 - After larger work is queued, the assistant-local clarification capability under `agents/assistant` remains responsible for refining it into an autonomous task that can move toward `## Ready to be picked up`.
 - When the assistant invokes clarification, clarification acts as a temporary nested step and control returns to the assistant afterward.
-- Package installation must expose `assistant` and `worker` as Node bin commands.
+- Package installation must expose `o` as the main Node bin command and keep `assistant` and `worker` available as compatibility entrypoints.
 - Ready-to-pick-up tasks must record their target repo in structured task metadata.
 - Tasks that are not for any repo must record that explicitly as `Repo: none`.
 - New-project tasks must record the target repo path in structured task metadata.
@@ -134,7 +133,7 @@ SPEC.md captures the high-level requirements for a project.
 
 ## 7. Agent Support
 
-- Workers supports Claude Code CLI, Codex CLI, and Gemini CLI.
+- Workers supports Claude Code CLI, Codex CLI, Gemini CLI, and Pi CLI.
 - Shared skills can live under `.agents/skills`.
 - Clarification must remain an assistant-only capability under `agents/assistant/.agents/skills/clarification`.
 - `.claude/skills` may point to the shared skills location.
@@ -244,6 +243,7 @@ SPEC.md captures the high-level requirements for a project.
 
 - Workers must provide an `assistant` command that launches an interactive agent session in the
   workers repo directory.
+- Workers must also provide an `o assistant` command that launches the same interactive agent session.
 - The assistant command must use the workers repo's `AGENTS.md` and related configuration.
 - The assistant CLI is configurable via `assistant.defaults.cli` in settings, falling back to
   `worker.defaults.cli`.
@@ -282,6 +282,7 @@ SPEC.md captures the high-level requirements for a project.
   CLI and must not be part of the default automated test run.
 - Publishable/runtime entrypoints must be compiled JavaScript under `build/` rather than relying on
   `tsx` at runtime.
+- The installed `o` command must provide subcommands for assistant launch, worker launch, tracker initialization, task intake, and tracker status.
 - Repo-facing POSIX shell compatibility wrappers must pass `sh -n`.
 
 ## 11. License Compliance

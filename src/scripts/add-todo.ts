@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { readFileSync, writeFileSync } from "fs";
 import readline from "readline/promises";
+import { pathToFileURL } from "url";
 import { SECTION_HEADERS, type TodoSection } from "../add-todo.js";
 import { addTodoToConfiguredTracker } from "../add-todo-command.js";
 
@@ -111,8 +111,8 @@ async function readTodoText(argText: string): Promise<string> {
   }
 }
 
-async function main(): Promise<void> {
-  const args = parseArgs(process.argv);
+export async function runAddTodoCli(argv = process.argv): Promise<void> {
+  const args = parseArgs(argv);
   const todoText = await readTodoText(args.text);
   const message = await addTodoToConfiguredTracker({
     section: args.section,
@@ -123,7 +123,10 @@ async function main(): Promise<void> {
   console.log(message);
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
-});
+const invokedPath = process.argv[1] ? pathToFileURL(process.argv[1]).href : "";
+if (import.meta.url === invokedPath) {
+  runAddTodoCli().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  });
+}

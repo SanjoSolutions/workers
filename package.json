@@ -5,11 +5,12 @@
   "license": "MIT",
   "type": "module",
   "bin": {
+    "o": "build/bin/o.js",
     "assistant": "build/bin/assistant.js",
     "worker": "build/bin/worker.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && chmod +x build/bin/assistant.js build/bin/worker.js",
+    "build": "tsc -p tsconfig.build.json && chmod +x build/bin/o.js build/bin/assistant.js build/bin/worker.js",
     "prepare": "npm run build",
     "prepack": "npm run build",
     "test": "vitest run --exclude 'src/tests/e2e/**'",

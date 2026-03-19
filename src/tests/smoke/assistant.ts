@@ -11,6 +11,7 @@
 
 import { spawn } from "child_process";
 import {
+  chmodSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -37,33 +38,45 @@ async function setupProject(root: string, name: string): Promise<string> {
   // TODO.md from template
   writeFileSync(path.join(projectPath, "TODO.md"), TODO_TEMPLATE);
 
-  // Provide add-todo.js at build/scripts/add-todo.js — matching the path
-  // referenced in the assistant instructions — so Claude can queue tasks.
-  const addTodoDir = path.join(projectPath, "build", "scripts");
-  mkdirSync(addTodoDir, { recursive: true });
+  // Provide a fake `o` command matching the assistant instructions so Claude
+  // can queue tasks in the local TODO file during the smoke test.
+  const fakeBinDir = path.join(projectPath, "bin");
+  mkdirSync(fakeBinDir, { recursive: true });
   writeFileSync(
-    path.join(addTodoDir, "add-todo.js"),
+    path.join(fakeBinDir, "o"),
     [
+      "#!/usr/bin/env node",
       'const { readFileSync, writeFileSync } = require("fs");',
       'const path = require("path");',
       "",
       "const args = process.argv.slice(2);",
-      'const section = args.includes("--ready") ? "## Ready to be picked up" : "## Planned";',
-      'const todoFile = path.join(__dirname, "..", "..", "TODO.md");',
+      'const command = args[0];',
+      'const todoFile = path.join(process.cwd(), "TODO.md");',
       "",
+      'if (command === "status") {',
+      '  console.log(readFileSync(todoFile, "utf8"));',
+      "  process.exit(0);",
+      "}",
+      "",
+      'if (command !== "add") {',
+      '  console.error(`Unsupported command: ${command}`);',
+      "  process.exit(1);",
+      "}",
+      "",
+      'const section = args.includes("--ready") ? "## Ready to be picked up" : "## Planned";',
       "const chunks = [];",
       'process.stdin.on("data", (chunk) => chunks.push(chunk));',
       'process.stdin.on("end", () => {',
-      '  const input = Buffer.concat(chunks).toString().trim();',
-      "  if (!input) { process.exit(1); }",
+      '  const input = Buffer.concat(chunks).toString().trim() || args[args.length - 1]?.trim();',
+      "  if (!input || input === command || input === '--ready') { process.exit(1); }",
       '  const content = readFileSync(todoFile, "utf8");',
       "  const updated = content.replace(section, section + \"\\n\\n\" + input);",
       '  writeFileSync(todoFile, updated, "utf8");',
       "  console.log(`Added item to ${section} in ${todoFile}`);",
       "});",
-      "",
     ].join("\n"),
   );
+  chmodSync(path.join(fakeBinDir, "o"), 0o755);
 
   // Initial commit
   await $`git -C ${projectPath} add -A`.quiet();
@@ -113,7 +126,10 @@ async function main(): Promise<void> {
     {
       cwd: projectPath,
       stdio: "inherit",
-      env: process.env,
+      env: {
+        ...process.env,
+        PATH: `${fakeBinDir}:${process.env.PATH ?? ""}`,
+      },
     },
   );
 

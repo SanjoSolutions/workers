@@ -2,6 +2,7 @@
 
 import { existsSync, readFileSync } from "fs";
 import path from "path";
+import { pathToFileURL } from "url";
 import { $ } from "zx";
 import { loadSettings } from "../settings.js";
 import {
@@ -514,8 +515,8 @@ async function listBranches(
   }
 }
 
-async function main(): Promise<void> {
-  const args = parseArgs(process.argv);
+export async function runListTodosCli(argv = process.argv): Promise<void> {
+  const args = parseArgs(argv);
   const settings = await loadSettings();
   await applyGitHubTokenFromSettings(settings);
   const { trackers } = resolveTaskTrackers(settings);
@@ -543,7 +544,10 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
-});
+const invokedPath = process.argv[1] ? pathToFileURL(process.argv[1]).href : "";
+if (import.meta.url === invokedPath) {
+  runListTodosCli().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  });
+}
