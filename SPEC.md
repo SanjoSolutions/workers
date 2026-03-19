@@ -13,6 +13,10 @@ This document captures the high-level requirements for the workers tool. Update 
 
 An optimized process for humans that supports spontaneity, multiple projects and one communication partner.
 
+## OS Support
+
+This project supports Linux, Windows, and Mac OS.
+
 ## Agents
 
 ### Assistant
@@ -25,6 +29,25 @@ This includes delegating bigger work tasks to workers.
 A worker fulfills one specified task at a time.
 Multiple workers can run at the same time.
 
+## Projects
+
+The tool support multiple projects. Projects can have their own task tracker.
+
+## TODO.md repo
+
+- The shared TODO repo is configured via environment variable, not via project config.
+- `WORKERS_TODO_REPO` points to the git repository that owns the authoritative `TODO.md`.
+- `WORKERS_TODO_FILE` optionally overrides the relative path to the TODO file inside that repo. Default: `TODO.md`.
+- `WORKERS_LOCAL_TODO_PATH` optionally overrides the local worktree path for the mirrored TODO file. Default: `TODO.md`.
+- Claiming a TODO must update, commit, and push the authoritative TODO file in the shared TODO repo.
+- Completing a TODO must update, commit, and push the authoritative TODO file in the shared TODO repo when the agent removes the claimed item from the local copy.
+
+## SPEC.md
+
+SPEC.md captures the high-level requirements for a project.
+
+---
+
 ## 2. Multi-Project Workflow
 
 - Workers must be reusable across different project repositories.
@@ -34,15 +57,6 @@ Multiple workers can run at the same time.
 - Workers must also support bootstrap tasks that begin from the shared TODO repo, create a brand new
   target project directory, initialize a git repository there, and then continue in a worker
   worktree for that new project repo.
-
-## 3. Shared TODO Repository
-
-- The shared TODO repo is configured via environment variable, not via project config.
-- `WORKERS_TODO_REPO` points to the git repository that owns the authoritative `TODO.md`.
-- `WORKERS_TODO_FILE` optionally overrides the relative path to the TODO file inside that repo. Default: `TODO.md`.
-- `WORKERS_LOCAL_TODO_PATH` optionally overrides the local worktree path for the mirrored TODO file. Default: `TODO.md`.
-- Claiming a TODO must update, commit, and push the authoritative TODO file in the shared TODO repo.
-- Completing a TODO must update, commit, and push the authoritative TODO file in the shared TODO repo when the agent removes the claimed item from the local copy.
 
 ## 3.1 Task Tracker Abstraction
 
@@ -169,6 +183,7 @@ Multiple workers can run at the same time.
 - Codex auto model selection must be configurable through this settings file, including the list of
   candidate models to consider.
 - Codex auto reasoning effort selection must be configurable through this settings file.
+- Codex worker system prompt variant selection must be configurable through this settings file.
 - The default task tracker must be configurable through this settings file.
 - Workers settings must support one shared `githubApp` configuration with `appId` and
   `privateKeyPath`.
@@ -238,10 +253,6 @@ Multiple workers can run at the same time.
 - A branch is **unknown** when no local `TODO.md` is found in its worktree.
 - The assistant must run `list-todos --branches` at the start of every new conversation and
   proactively present any finished branches to the user with a merge suggestion.
-
-## 9. Platform Support
-
-- This project supports Linux, Windows, and Mac OS.
 
 ## 10. Verification
 
