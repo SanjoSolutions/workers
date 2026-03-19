@@ -1,5 +1,4 @@
 export type CliName = "claude" | "codex" | "gemini" | "pi";
-export type CodexSystemPromptVariant = "full" | "minimal";
 
 export interface CliOptions {
   cli: CliName;
@@ -15,7 +14,6 @@ export interface CliOptions {
   autoModelSelection?: boolean;
   autoModelSelectionModels?: string[];
   autoReasoningEffort?: boolean;
-  codexSystemPromptVariant?: CodexSystemPromptVariant;
 }
 
 export interface WorktreeInfo {
@@ -57,8 +55,6 @@ export interface WorkConfig {
     codexDefaultReasoning?: string;
     /** Codex --add-dir paths. */
     codexWritableDirs?: string[];
-    /** Codex worker system prompt variant. */
-    codexSystemPromptVariant?: CodexSystemPromptVariant;
     /** Default pi model. */
     piDefaultModel?: string;
     /** Pi --tools list (default: read,bash,edit,write). */

@@ -11,6 +11,7 @@ import { mkdirSync, mkdtempSync, readFileSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
 import { $ } from "zx";
+import { prepareSystemPrompt } from "../../assistant-system-prompt.js";
 
 async function setupProject(root: string, name: string): Promise<string> {
   const projectPath = path.join(root, name);
@@ -38,8 +39,11 @@ async function main(): Promise<void> {
   console.log("Launching Pi with a simple verification prompt...\n");
 
   const workersRoot = process.cwd();
-  const workerSystemPath = path.join(workersRoot, "agents", "worker", "SYSTEM.md");
-  const systemPromptContent = readFileSync(workerSystemPath, "utf8");
+  const preparedSystemPrompt = prepareSystemPrompt(
+    path.join(workersRoot, "agents", "worker", "SYSTEM.md"),
+    "pi",
+  );
+  const systemPromptContent = preparedSystemPrompt.content;
 
   const result = spawnSync(
     "pi",

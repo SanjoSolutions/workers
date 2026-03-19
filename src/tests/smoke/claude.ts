@@ -16,6 +16,7 @@ import {
 import { tmpdir } from "os";
 import path from "path";
 import { $ } from "zx";
+import { prepareSystemPrompt } from "../../assistant-system-prompt.js";
 
 async function setupProject(root: string, name: string): Promise<string> {
   const projectPath = path.join(root, name);
@@ -44,14 +45,17 @@ async function main(): Promise<void> {
 
   const workersRoot = process.cwd();
   const workerAgentDir = path.join(workersRoot, "agents", "worker");
-  const workerSystemPath = path.join(workerAgentDir, "SYSTEM.md");
+  const preparedSystemPrompt = prepareSystemPrompt(
+    path.join(workerAgentDir, "SYSTEM.md"),
+    "claude",
+  );
 
   const result = spawnSync(
     "claude",
     [
       "--dangerously-skip-permissions",
       "--append-system-prompt-file",
-      workerSystemPath,
+      preparedSystemPrompt.filePath,
       "--add-dir",
       workerAgentDir,
       "-p",

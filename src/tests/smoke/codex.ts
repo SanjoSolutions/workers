@@ -17,6 +17,7 @@ import {
 import { tmpdir } from "os";
 import path from "path";
 import { $ } from "zx";
+import { prepareSystemPrompt } from "../../assistant-system-prompt.js";
 
 async function setupProject(root: string, name: string): Promise<string> {
   const projectPath = path.join(root, name);
@@ -41,7 +42,10 @@ async function main(): Promise<void> {
   const root = mkdtempSync(path.join(tmpdir(), "smoke-codex-"));
   const projectPath = await setupProject(root, "codex-test");
   const workersRoot = process.cwd();
-  const workerSystemPath = path.join(workersRoot, "agents", "worker", "SYSTEM.md");
+  const preparedSystemPrompt = prepareSystemPrompt(
+    path.join(workersRoot, "agents", "worker", "SYSTEM.md"),
+    "codex",
+  );
 
   console.log(`Project: ${projectPath}\n`);
   console.log("Launching Codex with a simple verification prompt...\n");
@@ -54,7 +58,7 @@ async function main(): Promise<void> {
       "--config",
       "approval_policy=never",
       "--config",
-      `model_instructions_file=${JSON.stringify(workerSystemPath)}`,
+      `model_instructions_file=${JSON.stringify(preparedSystemPrompt.filePath)}`,
       PROMPT,
     ],
     {

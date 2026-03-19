@@ -59,6 +59,5 @@ export async function parseCliOptions(argv: string[]): Promise<CliOptions> {
     autoModelSelection: settings.defaults.autoModelSelection,
     autoModelSelectionModels: settings.defaults.autoModelSelectionModels,
     autoReasoningEffort: settings.defaults.autoReasoningEffort,
-    codexSystemPromptVariant: settings.defaults.codexSystemPromptVariant,
   };
 }

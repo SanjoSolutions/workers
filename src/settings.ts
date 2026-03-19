@@ -4,14 +4,10 @@ import os from "os"
 import path from "path"
 import { fileURLToPath } from "url"
 import { expandHomePath } from "./path-utils.js"
-import type { CliName, CodexSystemPromptVariant } from "./types.js"
+import type { CliName } from "./types.js"
 
 export const VALID_CLIS: CliName[] = ["claude", "codex", "gemini", "pi"];
 export const VALID_CLI_SET = new Set<CliName>(VALID_CLIS);
-export const VALID_CODEX_SYSTEM_PROMPT_VARIANTS: CodexSystemPromptVariant[] = ["full", "minimal"];
-export const VALID_CODEX_SYSTEM_PROMPT_VARIANT_SET = new Set<CodexSystemPromptVariant>(
-  VALID_CODEX_SYSTEM_PROMPT_VARIANTS,
-);
 export const DEFAULT_CODEX_AUTO_MODEL_SELECTION_MODELS = [
   "gpt-5.4",
   "gpt-5.4-mini",
@@ -24,7 +20,6 @@ export interface WorkerDefaults {
   autoModelSelection: boolean;
   autoModelSelectionModels: string[];
   autoReasoningEffort: boolean;
-  codexSystemPromptVariant: CodexSystemPromptVariant;
 }
 
 export interface AssistantDefaults {
@@ -36,14 +31,6 @@ export interface WorkersSettings {
   assistant: { defaults: AssistantDefaults };
   githubApp?: GitHubAppSettings;
   projects: ProjectSettings[];
-}
-
-function normalizeCodexSystemPromptVariant(raw: unknown): CodexSystemPromptVariant {
-  if (typeof raw === "string" && VALID_CODEX_SYSTEM_PROMPT_VARIANT_SET.has(raw as CodexSystemPromptVariant)) {
-    return raw as CodexSystemPromptVariant;
-  }
-
-  return "full";
 }
 
 export interface GitTodoTaskTrackerSettings {
@@ -399,9 +386,6 @@ export async function loadSettings(
         typeof defaults.autoReasoningEffort === "boolean"
           ? defaults.autoReasoningEffort
           : true,
-      codexSystemPromptVariant: normalizeCodexSystemPromptVariant(
-        defaults.codexSystemPromptVariant,
-      ),
     },
     assistant: {
       defaults: {

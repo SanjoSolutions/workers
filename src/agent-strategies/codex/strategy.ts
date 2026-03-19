@@ -1,24 +1,12 @@
 import path from "path";
 import { extractTodoField } from "../../agent-prompt.js";
-import { prepareAssistantSystemPrompt } from "../../assistant-system-prompt.js";
+import { prepareSystemPrompt } from "../../assistant-system-prompt.js";
 import { evaluateCodexSelection } from "../../model-selection.js";
 import { determinePackageRoot } from "../../settings.js";
 import { spawnManagedInteractiveAgent } from "../managed-interactive.js";
 import { spawnAgentProcess } from "../process.js";
 import type { AgentStrategy } from "../types.js";
 import { setupManagedInteractiveCodexSession } from "./interactive.js";
-
-function resolveWorkerSystemPromptFile(
-  packageRoot: string,
-  variant: "full" | "minimal",
-): string {
-  return path.join(
-    packageRoot,
-    "agents",
-    "worker",
-    variant === "minimal" ? "SYSTEM_MINIMAL.md" : "SYSTEM.md",
-  );
-}
 
 export class CodexAgentStrategy implements AgentStrategy {
   readonly cli = "codex" as const;
@@ -60,17 +48,9 @@ export class CodexAgentStrategy implements AgentStrategy {
 
     const packageRoot = determinePackageRoot();
     const agentType = context.noTodo ? "assistant" : "worker";
-    const codexSystemPromptVariant =
-      context.config?.agent?.codexSystemPromptVariant
-      || context.options.codexSystemPromptVariant
-      || "full";
-    const sourceSystemPromptFile = agentType === "worker"
-      ? resolveWorkerSystemPromptFile(packageRoot, codexSystemPromptVariant)
-      : path.join(packageRoot, "agents", agentType, "SYSTEM.md");
-    const preparedAssistantSystemPrompt = context.noTodo
-      ? prepareAssistantSystemPrompt(sourceSystemPromptFile, this.cli)
-      : null;
-    const systemPromptFile = preparedAssistantSystemPrompt?.filePath ?? sourceSystemPromptFile;
+    const sourceSystemPromptFile = path.join(packageRoot, "agents", agentType, "SYSTEM.md");
+    const preparedSystemPrompt = prepareSystemPrompt(sourceSystemPromptFile, this.cli);
+    const systemPromptFile = preparedSystemPrompt.filePath;
 
     const codexArgs = [
       ...(codexModel ? ["--model", codexModel] : []),
@@ -95,7 +75,7 @@ export class CodexAgentStrategy implements AgentStrategy {
         env: context.env,
         captureOutput: false,
       });
-      preparedAssistantSystemPrompt?.cleanup();
+      preparedSystemPrompt.cleanup();
       return result;
     }
 
@@ -114,7 +94,7 @@ export class CodexAgentStrategy implements AgentStrategy {
         managedSession.env,
         managedSession.statusFile,
         () => {
-          preparedAssistantSystemPrompt?.cleanup();
+          preparedSystemPrompt.cleanup();
           managedSession.cleanup();
         },
       );

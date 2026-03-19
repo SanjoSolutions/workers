@@ -33,7 +33,6 @@ describe("parseCliOptions", () => {
     const options = await parseCliOptions(["node", "worker", "--cli", "codex"]);
 
     expect(options.cli).toBe("codex");
-    expect(options.codexSystemPromptVariant).toBe("full");
     expect(JSON.parse(readFileSync(settingsFilePath, "utf8"))).toMatchObject({
       worker: { defaults: { cli: "codex" } },
     });

@@ -30,7 +30,6 @@ describe("CodexAgentStrategy", () => {
       autoModelSelection: true,
       autoModelSelectionModels: ["gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex"],
       autoReasoningEffort: true,
-      codexSystemPromptVariant: "full",
     },
     noTodo: false,
     config: undefined,
@@ -70,7 +69,11 @@ describe("CodexAgentStrategy", () => {
     const call = vi.mocked(spawnAgentProcess).mock.calls[0]?.[0];
     expect(call?.args).toContain("Implement it");
     expect(call?.args).toContainEqual(expect.stringContaining("model_instructions_file="));
-    expect(call?.args).toContainEqual(expect.stringContaining("SYSTEM.md"));
+    const promptArg = call?.args.find((arg) => arg.startsWith("model_instructions_file="));
+    const renderedPromptPath = promptArg
+      ? JSON.parse(promptArg.slice("model_instructions_file=".length))
+      : "";
+    expect(renderedPromptPath).toContain("workers-system-prompt-cache");
   });
 
   test("skips auto-selection when explicit model and reasoning effort are provided", async () => {
@@ -111,21 +114,21 @@ describe("CodexAgentStrategy", () => {
     expect(call?.args).toContainEqual(expect.stringContaining("model_instructions_file="));
     expect(renderedPromptPath).toBeTruthy();
     expect(renderedPromptPath).not.toBe(path.join("agents", "assistant", "SYSTEM.md"));
-    expect(renderedPromptPath).toContain("workers-assistant-system-prompt-cache");
+    expect(renderedPromptPath).toContain("workers-system-prompt-cache");
     expect(call?.args).not.toContain("");
     expect(call?.env.GH_TOKEN).toBe("shared-token");
   });
 
-  test("uses the minimal worker system prompt variant when configured", async () => {
+  test("passes the rendered worker system prompt in worker mode", async () => {
     await strategy.launch({
       ...baseContext,
-      options: {
-        ...baseContext.options,
-        codexSystemPromptVariant: "minimal",
-      },
     } as any);
 
     const call = vi.mocked(spawnAgentProcess).mock.calls[0]?.[0];
-    expect(call?.args).toContainEqual(expect.stringContaining("SYSTEM_MINIMAL.md"));
+    const promptArg = call?.args.find((arg) => arg.startsWith("model_instructions_file="));
+    const renderedPromptPath = promptArg
+      ? JSON.parse(promptArg.slice("model_instructions_file=".length))
+      : "";
+    expect(renderedPromptPath).toContain("workers-system-prompt-cache");
   });
 });

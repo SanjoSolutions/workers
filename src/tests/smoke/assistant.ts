@@ -19,7 +19,7 @@ import {
 import { tmpdir } from "os";
 import path from "path";
 import { $ } from "zx";
-import { prepareAssistantSystemPrompt } from "../../assistant-system-prompt.js";
+import { prepareSystemPrompt } from "../../assistant-system-prompt.js";
 
 const TODO_TEMPLATE = readFileSync(
   path.join(process.cwd(), "TODO.template.md"),
@@ -94,7 +94,7 @@ async function main(): Promise<void> {
 
   const workersRoot = process.cwd();
   const assistantAgentDir = path.join(workersRoot, "agents", "assistant");
-  const preparedAssistantSystemPrompt = prepareAssistantSystemPrompt(
+  const preparedAssistantSystemPrompt = prepareSystemPrompt(
     path.join(assistantAgentDir, "SYSTEM.md"),
     "claude",
   );

@@ -42,12 +42,15 @@ describe("GeminiAgentStrategy", () => {
   test("sets GEMINI_SYSTEM_MD for non-interactive worker", async () => {
     await strategy.launch(baseContext as any);
 
+    const call = vi.mocked(spawnAgentProcess).mock.calls[0]?.[0];
+    const renderedPromptPath = call?.env.GEMINI_SYSTEM_MD as string;
     expect(spawnAgentProcess).toHaveBeenCalledWith(expect.objectContaining({
       env: expect.objectContaining({
-        GEMINI_SYSTEM_MD: path.join(packageRoot, "agents", "worker", "SYSTEM.md"),
+        GEMINI_SYSTEM_MD: expect.any(String),
         ORIGINAL_ENV: "true",
       }),
     }));
+    expect(renderedPromptPath).toContain("workers-system-prompt-cache");
   });
 
   test("sets GEMINI_SYSTEM_MD for noTodo (assistant)", async () => {
@@ -61,7 +64,7 @@ describe("GeminiAgentStrategy", () => {
       }),
     }));
     expect(renderedPromptPath).not.toBe(path.join(packageRoot, "agents", "assistant", "SYSTEM.md"));
-    expect(renderedPromptPath).toContain("workers-assistant-system-prompt-cache");
+    expect(renderedPromptPath).toContain("workers-system-prompt-cache");
     expect(readFileSync(renderedPromptPath, "utf8")).toContain("`write_todos`");
     expect(readFileSync(renderedPromptPath, "utf8")).toContain("Do not rely on plan mode.");
   });
@@ -84,7 +87,7 @@ describe("GeminiAgentStrategy", () => {
       expect.any(Array),
       worktree,
       expect.objectContaining({
-        GEMINI_SYSTEM_MD: path.join(packageRoot, "agents", "worker", "SYSTEM.md"),
+        GEMINI_SYSTEM_MD: expect.stringContaining("workers-system-prompt-cache"),
         WORKERS_GEMINI_STATUS_FILE: expect.any(String),
         WORKERS_GEMINI_HOOK_SCRIPT: expect.any(String),
       }),

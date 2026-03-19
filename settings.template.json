@@ -8,8 +8,7 @@
         "gpt-5.4-mini",
         "gpt-5.3-codex"
       ],
-      "autoReasoningEffort": true,
-      "codexSystemPromptVariant": "full"
+      "autoReasoningEffort": true
     }
   },
   "githubApp": null

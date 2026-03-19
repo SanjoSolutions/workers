@@ -17,6 +17,7 @@ import {
 import { tmpdir } from "os";
 import path from "path";
 import { $ } from "zx";
+import { prepareSystemPrompt } from "../../assistant-system-prompt.js";
 
 async function setupProject(root: string, name: string): Promise<string> {
   const projectPath = path.join(root, name);
@@ -44,7 +45,10 @@ async function main(): Promise<void> {
   console.log("Launching Gemini with a simple verification prompt...\n");
 
   const workersRoot = process.cwd();
-  const workerSystemPath = path.join(workersRoot, "agents", "worker", "SYSTEM.md");
+  const preparedSystemPrompt = prepareSystemPrompt(
+    path.join(workersRoot, "agents", "worker", "SYSTEM.md"),
+    "gemini",
+  );
 
   const result = spawnSync(
     "gemini",
@@ -58,7 +62,7 @@ async function main(): Promise<void> {
       encoding: "utf8",
       env: {
         ...process.env,
-        GEMINI_SYSTEM_MD: workerSystemPath,
+        GEMINI_SYSTEM_MD: preparedSystemPrompt.filePath,
       },
       timeout: 120_000,
     },

@@ -11,7 +11,10 @@ This document captures the high-level requirements for the workers tool. Update 
 
 ## 1. Core Purpose
 
-Workers orchestrates isolated development work for AI coding agents across multiple project repositories.
+An optimized process for humans that supports spontaneity, multiple projects and one communication partner.
+
+The assistant is the communication partner to the human and handles handling the requests of the human efficiently.
+This includes delegating bigger work tasks to workers.
 
 ## 2. Multi-Project Workflow
 
@@ -120,10 +123,11 @@ Workers orchestrates isolated development work for AI coding agents across multi
   failure.
 - When the worker CLI is Codex, workers must load the selected worker system prompt through Codex
   `model_instructions_file` instead of inlining that prompt into the user task prompt.
-- Workers must provide two Codex worker system prompt variants, `SYSTEM.md` and
-  `SYSTEM_MINIMAL.md`.
-- Both Codex worker system prompt variants must be task-tracker-neutral and must not assume the
-  claimed task came from one specific task tracker backend.
+- Workers must provide one worker system prompt template at `agents/worker/SYSTEM.md`.
+- Agent system prompt templates must support including other Markdown files with paths resolved
+  relative to the including file.
+- Agent system prompt templates must remain task-tracker-neutral and must not assume the claimed
+  task came from one specific task tracker backend.
 - The Codex worker system prompt must instruct the worker to operate as autonomously as possible
   while still allowing user input requests when the worker is genuinely blocked.
 
@@ -207,6 +211,8 @@ Workers orchestrates isolated development work for AI coding agents across multi
   passed to an assistant CLI.
 - The assistant system prompt template must support CLI-specific conditional blocks so each
   supported assistant CLI receives only the instructions that apply to it.
+- The assistant system prompt template must support including other Markdown files with paths
+  resolved relative to the including file.
 - `agents/assistant/SYSTEM.md` must use the upstream Codex base instructions from
   `codex-rs/protocol/src/prompts/base_instructions/default.md` as its foundation.
 - `agents/assistant/SYSTEM.md` may add assistant-specific workers coordination instructions in the
@@ -227,7 +233,7 @@ Workers orchestrates isolated development work for AI coding agents across multi
 
 ## 9. Platform Support
 
-- Workers must support Linux, Windows, and macOS.
+- This project supports Linux, Windows, and Mac OS.
 
 ## 10. Verification
 

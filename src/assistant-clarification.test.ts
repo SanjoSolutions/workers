@@ -32,10 +32,10 @@ describe("assistant clarification capability", () => {
     expect(existsSync(assistantSkillPath)).toBe(true);
     expect(existsSync(legacySkillPath)).toBe(false);
     expect(readFileSync(assistantSystemPath, "utf8")).toContain(
-      "Plan behavior depends on the capabilities available in the current environment:",
+      "{{include ../SYSTEM_BASE.md}}",
     );
     expect(readFileSync(assistantSystemPath, "utf8")).toContain(
-      "{{#cli codex}}",
+      "# Workflow",
     );
     expect(readFileSync(assistantSystemPath, "utf8")).not.toContain(
       "assistant-local clarification capability",
