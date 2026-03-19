@@ -9,6 +9,21 @@ import path from "path";
 import { spawn } from "child_process";
 import { determinePackageRoot } from "../settings.js";
 import type { AgentResult } from "./types.js";
+import {
+  determineTerminalInteractiveStatus,
+  isInteractiveStatusStale,
+  normalizeInteractiveStatus,
+  readInteractiveStatus,
+  writeInteractiveStatus,
+} from "./interactive-status.js";
+
+export {
+  determineTerminalInteractiveStatus,
+  isInteractiveStatusStale,
+  normalizeInteractiveStatus,
+  readInteractiveStatus,
+  writeInteractiveStatus,
+};
 
 export function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
@@ -73,10 +88,15 @@ export function setupManagedInteractiveSession(
   mkdirSync(controlDir, { recursive: true });
 
   const statusFile = path.join(controlDir, "status.json");
-  writeFileSync(
+  writeInteractiveStatus(
     statusFile,
-    `${JSON.stringify({ status: "running", source: "workers" })}\n`,
-    "utf8",
+    {
+      status: "running",
+      source: "workers",
+      launcherPid: process.pid,
+      startedAt: new Date().toISOString(),
+    },
+    { mergeExisting: false },
   );
 
   const configDir = path.join(worktreePath, config.configDirName);
@@ -155,6 +175,16 @@ export async function spawnManagedInteractiveAgent(
       stdio: ["inherit", "inherit", "inherit"],
     });
 
+    if (typeof child.pid === "number") {
+      writeInteractiveStatus(statusFile, {
+        status: "running",
+        source: "workers",
+        childPid: child.pid,
+      });
+    }
+
+    normalizeInteractiveStatus(statusFile);
+
     const watchTimer = setInterval(() => {
       if (!existsSync(statusFile)) {
         return;
@@ -204,7 +234,12 @@ export async function spawnManagedInteractiveAgent(
       resolve(result);
     };
 
-    child.on("close", (code) => {
+    child.on("close", (code, signal) => {
+      const currentStatus = normalizeInteractiveStatus(statusFile);
+      const terminalStatus = determineTerminalInteractiveStatus(currentStatus, code, signal);
+      if (terminalStatus) {
+        writeInteractiveStatus(statusFile, terminalStatus);
+      }
       finish({
         exitCode: managedDone ? 0 : code ?? 1,
         output: "",
@@ -212,6 +247,14 @@ export async function spawnManagedInteractiveAgent(
     });
 
     child.on("error", (error) => {
+      const currentStatus = normalizeInteractiveStatus(statusFile);
+      if (currentStatus && currentStatus.status !== "done" && currentStatus.status !== "needs_user") {
+        writeInteractiveStatus(statusFile, {
+          ...currentStatus,
+          status: "error",
+          error: error.message,
+        });
+      }
       finish({
         exitCode: 1,
         output: error.message,

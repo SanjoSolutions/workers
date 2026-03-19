@@ -3,7 +3,8 @@
  * Listens to agent_end events and updates the workers status file.
  */
 
-import { existsSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
+import { writeStatus } from "./hook-utils.mjs";
 
 export default function (pi) {
   pi.on("agent_end", async (event) => {
@@ -34,11 +35,7 @@ export default function (pi) {
       process.env.WORKERS_TODO_SUMMARY,
     );
 
-    writeFileSync(
-      statusFile,
-      `${JSON.stringify({ status, updatedAt: new Date().toISOString() })}\n`,
-      "utf8",
-    );
+    writeStatus(statusFile, { status });
   });
 }
 
