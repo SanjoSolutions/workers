@@ -344,6 +344,11 @@ async function ensureGitHubLabels(
       color: "FBCA04",
       description: "Workers in-progress queue",
     },
+    {
+      name: tracker.labels.prReady,
+      color: "5319E7",
+      description: "Workers pull request ready queue",
+    },
   ];
 
   for (const label of labelMetadata) {
@@ -735,22 +740,6 @@ export async function syncCompletedGitHubIssueTask(
   const syncState = claimedTask.syncState;
   if (syncState.kind !== "github-issues") {
     throw new Error(`Expected github-issues sync state for ${claimedTask.summary}.`);
-  }
-
-  await removeGitHubIssueLabelsIfPresent(
-    syncState.repository,
-    syncState.issueNumber,
-    [syncState.labels.ready, syncState.labels.inProgress],
-  );
-
-  const closeResult =
-    await $`gh issue close ${String(syncState.issueNumber)} --repo ${syncState.repository} --reason completed`
-      .quiet()
-      .nothrow();
-  if (closeResult.exitCode !== 0) {
-    throw new Error(
-      `Failed to close GitHub issue #${syncState.issueNumber} in ${syncState.repository}.`,
-    );
   }
 
   return {

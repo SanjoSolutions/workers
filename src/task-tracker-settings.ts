@@ -29,6 +29,7 @@ export interface ResolvedGitHubIssuesTaskTracker {
   labels: {
     ready: string;
     inProgress: string;
+    prReady: string;
   };
   claimComment: Required<GitHubIssueClaimCommentSettings>;
 }
@@ -78,6 +79,7 @@ function resolveGitHubIssuesTracker(
     labels: {
       ready: tracker.labels?.ready?.trim() || "workers:ready-to-be-picked-up",
       inProgress: tracker.labels?.inProgress?.trim() || "workers:in-progress",
+      prReady: tracker.labels?.prReady?.trim() || "workers:pr-ready",
     },
     claimComment: {
       message:

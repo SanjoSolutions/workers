@@ -222,10 +222,15 @@ SPEC.md captures the high-level requirements for a project.
 - GitHub Issues claim, listing, and execution flows must derive worker metadata from the latest
   structured worker task-spec comment, defaulting to new comments for updates and allowing edits
   only when correcting a recent unresponded worker comment.
-- When a GitHub Issues-backed task is closed through workers, workers must remove its queue labels
-  before closing the issue.
+- When a GitHub Issues-backed task finishes in a worker, workers must leave the issue open so the
+  merged pull request can close it through the repository's auto-close flow.
+- When workers create a pull request for a GitHub Issues-backed task, they must move the issue out
+  of `workers:in-progress` and into `workers:pr-ready`.
+- When a GitHub Issues-backed task is closed by merge or otherwise closed, workers or repository
+  automation must remove workflow labels from the issue.
 - In GitHub Issues trackers, unlabeled open issues must be treated as planned or backlog work, and
-  only `workers:ready-to-be-picked-up` and `workers:in-progress` remain operational workflow labels.
+  `workers:ready-to-be-picked-up`, `workers:in-progress`, and `workers:pr-ready` are the
+  operational workflow labels.
 - In GitHub Issues trackers, claiming a ready issue must add a worker-authored claim comment that
   begins with a human-readable message and also includes structured claim metadata for machine
   parsing.

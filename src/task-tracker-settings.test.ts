@@ -102,7 +102,7 @@ describe("task tracker settings", () => {
     expect(env.GH_TOKEN).toBe("repo-token");
   });
 
-  test("defaults GitHub issue trackers to ready and in-progress labels only", () => {
+  test("defaults GitHub issue trackers to ready, in-progress, and pr-ready labels", () => {
     const tracker = resolveTaskTrackerForRepo(
       "/home/jonas/workers",
       {
@@ -128,6 +128,7 @@ describe("task tracker settings", () => {
     expect(tracker.labels).toEqual({
       ready: "workers:ready-to-be-picked-up",
       inProgress: "workers:in-progress",
+      prReady: "workers:pr-ready",
     });
     expect(tracker.claimComment).toEqual({
       message: "I will work on this.",
