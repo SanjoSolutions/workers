@@ -63,6 +63,14 @@ interface GitHubIssue {
   createdAt?: string;
 }
 
+interface GitHubIssueLabel {
+  name: string;
+}
+
+interface GitHubIssueDetails {
+  labels: GitHubIssueLabel[];
+}
+
 function trimTrailingEmptyLines(lines: string[]): string[] {
   let end = lines.length;
   while (end > 0 && lines[end - 1] === "") {
@@ -226,6 +234,41 @@ async function listGitHubIssues(
   return parsed.sort((left, right) => {
     return (left.createdAt ?? "").localeCompare(right.createdAt ?? "");
   });
+}
+
+async function removeGitHubIssueLabelsIfPresent(
+  repository: string,
+  issueNumber: number,
+  labels: string[],
+): Promise<void> {
+  const issueResult =
+    await $`gh issue view ${String(issueNumber)} --repo ${repository} --json labels`
+      .quiet()
+      .nothrow();
+  if (issueResult.exitCode !== 0) {
+    throw new Error(
+      `Failed to inspect GitHub issue #${issueNumber} in ${repository}.`,
+    );
+  }
+
+  const issue = JSON.parse(issueResult.stdout) as GitHubIssueDetails;
+  const existingLabels = new Set(issue.labels.map((label) => label.name));
+
+  for (const label of labels) {
+    if (!existingLabels.has(label)) {
+      continue;
+    }
+
+    const editResult =
+      await $`gh issue edit ${String(issueNumber)} --repo ${repository} --remove-label ${label}`
+        .quiet()
+        .nothrow();
+    if (editResult.exitCode !== 0) {
+      throw new Error(
+        `Failed to remove label "${label}" from GitHub issue #${issueNumber} in ${repository}.`,
+      );
+    }
+  }
 }
 
 async function claimTaskFromGitTodoTracker(
@@ -429,6 +472,12 @@ export async function syncCompletedTask(
       status: "synced",
     };
   }
+
+  await removeGitHubIssueLabelsIfPresent(
+    syncState.repository,
+    syncState.issueNumber,
+    [syncState.labels.ready, syncState.labels.inProgress],
+  );
 
   const closeResult =
     await $`gh issue close ${String(syncState.issueNumber)} --repo ${syncState.repository} --reason completed`

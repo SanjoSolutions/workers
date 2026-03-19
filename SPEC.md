@@ -152,6 +152,8 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - Tasks with `Repo: none` or tasks for unmapped projects must use the default task tracker.
 - Workers must support both the Git-backed `TODO.md` tracker and GitHub Issues as concrete task
   tracker backends.
+- When a GitHub Issues-backed task is closed through workers, workers must remove its queue labels
+  before closing the issue.
 - Tracker selection and worker polling must no longer be hard-coded to a single repository.
 
 ## 8.3 Assistant Command
