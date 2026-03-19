@@ -11,6 +11,10 @@ import {
   type ResolvedGitTodoTaskTracker,
   type ResolvedTaskTracker,
 } from "../task-tracker-settings.js";
+import {
+  listOpenGitHubIssues,
+  partitionGitHubIssuesBySection,
+} from "../task-trackers.js";
 
 type SectionFilter = "in-progress" | "ready" | "planned" | "all";
 type Mode = "list" | "branches";
@@ -221,29 +225,19 @@ async function listGitHubIssuesTracker(
   completed: boolean,
   since: string,
 ): Promise<void> {
-  const labelMap: Record<string, string> = {
-    "in-progress": tracker.labels.inProgress,
-    ready: tracker.labels.ready,
-    planned: tracker.labels.planned,
-  };
-
   const sections =
     section === "all"
       ? (["in-progress", "ready", "planned"] as const)
       : [section];
 
-  const openIssuesBySection: Record<string, { number: number; title: string; body: string }[]> = {};
-  for (const sectionName of sections) {
-    const label = labelMap[sectionName];
-    const result =
-      await $`gh issue list --repo ${tracker.repository} --state open --label ${label} --limit 100 --json number,title,body`
-        .quiet()
-        .nothrow();
-    if (result.exitCode !== 0) {
-      openIssuesBySection[sectionName] = [];
-    } else {
-      openIssuesBySection[sectionName] = JSON.parse(result.stdout) as { number: number; title: string; body: string }[];
-    }
+  let openIssuesBySection: Record<string, { number: number; title: string; body: string }[]> = {};
+  try {
+    openIssuesBySection = partitionGitHubIssuesBySection(
+      await listOpenGitHubIssues(tracker),
+      tracker,
+    );
+  } catch {
+    openIssuesBySection = {};
   }
 
   const activeTitles = new Set<string>();

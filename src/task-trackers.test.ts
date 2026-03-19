@@ -3,7 +3,7 @@ import os from "os";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { ResolvedGitHubIssuesTaskTracker } from "./task-tracker-settings.js";
-import type { ClaimedTask } from "./task-trackers.js";
+import type { ClaimedTask, GitHubIssue } from "./task-trackers.js";
 
 const ghCommands: string[] = [];
 const ghResults: Array<{ exitCode: number; stdout: string }> = [];
@@ -31,7 +31,12 @@ vi.mock("zx", () => ({
   },
 }));
 
-const { createGitHubIssueTask, syncCompletedTask } = await import("./task-trackers.js");
+const {
+  createGitHubIssueTask,
+  getGitHubIssueSection,
+  partitionGitHubIssuesBySection,
+  syncCompletedTask,
+} = await import("./task-trackers.js");
 
 function createTracker(): ResolvedGitHubIssuesTaskTracker {
   return {
@@ -42,12 +47,24 @@ function createTracker(): ResolvedGitHubIssuesTaskTracker {
     tokenCommand: undefined,
     githubApp: undefined,
     labels: {
-      planned: "workers:planned",
       ready: "workers:ready-to-be-picked-up",
       inProgress: "workers:in-progress",
     },
   };
 }
+
+const TRACKER: ResolvedGitHubIssuesTaskTracker = {
+  name: "workers",
+  kind: "github-issues",
+  repository: "SanjoSolutions/workers",
+  defaultRepo: "/home/jonas/workers",
+  tokenCommand: undefined,
+  githubApp: undefined,
+  labels: {
+    ready: "workers:ready-to-be-picked-up",
+    inProgress: "workers:in-progress",
+  },
+};
 
 describe("syncCompletedTask", () => {
   let tempDir: string;
@@ -80,7 +97,6 @@ describe("syncCompletedTask", () => {
         repository: "acme/widgets",
         issueNumber: 42,
         labels: {
-          planned: "workers:planned",
           ready: "workers:ready-to-be-picked-up",
           inProgress: "workers:in-progress",
         },
@@ -124,7 +140,6 @@ describe("createGitHubIssueTask", () => {
     ghResults.push(
       { exitCode: 0, stdout: "" },
       { exitCode: 0, stdout: "" },
-      { exitCode: 0, stdout: "" },
       { exitCode: 0, stdout: "https://github.com/acme/widgets/issues/77\n" },
     );
 
@@ -137,7 +152,6 @@ describe("createGitHubIssueTask", () => {
 
     expect(issueUrl).toBe("https://github.com/acme/widgets/issues/77");
     expect(ghCommands).toEqual([
-      "gh label create workers:planned --repo acme/widgets --force --color D4C5F9 --description Workers planned queue",
       "gh label create workers:ready-to-be-picked-up --repo acme/widgets --force --color 0E8A16 --description Workers ready queue",
       "gh label create workers:in-progress --repo acme/widgets --force --color FBCA04 --description Workers in-progress queue",
       "gh issue create --repo acme/widgets --title Ship the change --body - Type: Development task - Context: Keep this detail --label workers:ready-to-be-picked-up",
@@ -146,9 +160,15 @@ describe("createGitHubIssueTask", () => {
 
   test("omits the Repo field from the updated issue body", async () => {
     ghResults.push(
-      { exitCode: 0, stdout: "" },
-      { exitCode: 0, stdout: "" },
-      { exitCode: 0, stdout: "" },
+      {
+        exitCode: 0,
+        stdout: JSON.stringify({
+          number: 77,
+          title: "Ship the change",
+          body: "",
+          labels: [],
+        }),
+      },
       { exitCode: 0, stdout: "" },
     );
 
@@ -166,10 +186,65 @@ describe("createGitHubIssueTask", () => {
 
     expect(issueUrl).toBe("https://github.com/acme/widgets/issues/77");
     expect(ghCommands).toEqual([
-      "gh label create workers:planned --repo acme/widgets --force --color D4C5F9 --description Workers planned queue",
-      "gh label create workers:ready-to-be-picked-up --repo acme/widgets --force --color 0E8A16 --description Workers ready queue",
-      "gh label create workers:in-progress --repo acme/widgets --force --color FBCA04 --description Workers in-progress queue",
-      "gh issue edit 77 --repo acme/widgets --title Ship the change --body - Type: Development task - Context: Keep this detail --add-label workers:planned",
+      "gh issue view 77 --repo acme/widgets --json number,title,body,createdAt,labels",
+      "gh issue edit 77 --repo acme/widgets --title Ship the change --body - Type: Development task - Context: Keep this detail",
     ]);
+  });
+
+  test("treats unlabeled open issues as planned work", () => {
+    const issue: GitHubIssue = {
+      number: 1,
+      title: "Unlabeled backlog item",
+      body: "",
+      labels: [],
+    };
+
+    expect(getGitHubIssueSection(issue, TRACKER)).toBe("planned");
+  });
+
+  test("prefers the in-progress label when multiple workflow labels are present", () => {
+    const issue: GitHubIssue = {
+      number: 2,
+      title: "Conflicting labels",
+      body: "",
+      labels: [
+        { name: TRACKER.labels.ready },
+        { name: TRACKER.labels.inProgress },
+      ],
+    };
+
+    expect(getGitHubIssueSection(issue, TRACKER)).toBe("in-progress");
+  });
+
+  test("partitions open issues into planned, ready, and in-progress sections", () => {
+    const issues: GitHubIssue[] = [
+      {
+        number: 3,
+        title: "Ready item",
+        body: "",
+        createdAt: "2026-03-19T09:00:00Z",
+        labels: [{ name: TRACKER.labels.ready }],
+      },
+      {
+        number: 4,
+        title: "Backlog item",
+        body: "",
+        createdAt: "2026-03-19T08:00:00Z",
+        labels: [],
+      },
+      {
+        number: 5,
+        title: "Claimed item",
+        body: "",
+        createdAt: "2026-03-19T10:00:00Z",
+        labels: [{ name: TRACKER.labels.inProgress }],
+      },
+    ];
+
+    const sections = partitionGitHubIssuesBySection(issues, TRACKER);
+
+    expect(sections.planned.map((issue) => issue.title)).toEqual(["Backlog item"]);
+    expect(sections.ready.map((issue) => issue.title)).toEqual(["Ready item"]);
+    expect(sections["in-progress"].map((issue) => issue.title)).toEqual(["Claimed item"]);
   });
 });

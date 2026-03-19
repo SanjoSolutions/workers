@@ -173,6 +173,8 @@ Workers orchestrates isolated development work for AI coding agents across multi
   tracker backends.
 - When a GitHub Issues-backed task is closed through workers, workers must remove its queue labels
   before closing the issue.
+- In GitHub Issues trackers, unlabeled open issues must be treated as planned or backlog work, and
+  only `workers:ready-to-be-picked-up` and `workers:in-progress` remain operational workflow labels.
 - Tracker selection and worker polling must no longer be hard-coded to a single repository.
 
 ## 8.3 Assistant Command

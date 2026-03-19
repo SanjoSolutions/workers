@@ -24,7 +24,6 @@ export interface ResolvedGitHubIssuesTaskTracker {
   tokenCommand: string | undefined;
   githubApp: GitHubAppSettings | undefined;
   labels: {
-    planned: string;
     ready: string;
     inProgress: string;
   };
@@ -73,7 +72,6 @@ function resolveGitHubIssuesTracker(
     tokenCommand: tracker.tokenCommand?.trim() || undefined,
     githubApp: tracker.githubApp ?? undefined,
     labels: {
-      planned: tracker.labels?.planned?.trim() || "workers:planned",
       ready: tracker.labels?.ready?.trim() || "workers:ready-to-be-picked-up",
       inProgress: tracker.labels?.inProgress?.trim() || "workers:in-progress",
     },

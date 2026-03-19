@@ -40,7 +40,6 @@ export interface GitTodoTaskTrackerSettings {
 }
 
 export interface GitHubIssueLabelsSettings {
-  planned?: string;
   ready?: string;
   inProgress?: string;
 }
@@ -189,11 +188,6 @@ function normalizeInlineTracker(
     const labels =
       rawLabels && typeof rawLabels === "object" && !Array.isArray(rawLabels)
         ? {
-            planned:
-              typeof (rawLabels as Record<string, unknown>).planned === "string"
-              && ((rawLabels as Record<string, string>).planned).trim()
-                ? ((rawLabels as Record<string, string>).planned).trim()
-                : undefined,
             ready:
               typeof (rawLabels as Record<string, unknown>).ready === "string"
               && ((rawLabels as Record<string, string>).ready).trim()
