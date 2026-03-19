@@ -4,15 +4,15 @@ import {
   claimFromTodoText,
   removeInProgressItemBySummary,
   withTodoLock,
-} from "../claim-todo.js";
-import { resolveGitRepoRoot } from "../git-utils.js";
-import type { ResolvedGitTodoTaskTracker } from "../task-tracker-settings.js";
+} from "../../claim-todo.js";
+import { resolveGitRepoRoot } from "../../git-utils.js";
+import type { ResolvedGitTodoTaskTracker } from "../../task-tracker-settings.js";
 import { commitAndPushTodoRepo, fastForwardRepo } from "./git-sync.js";
 import type {
   ClaimTaskResult,
   ClaimedTask,
   CompletionSyncResult,
-} from "./types.js";
+} from "../types.js";
 
 export async function claimTaskFromGitTodoTracker(
   tracker: ResolvedGitTodoTaskTracker,

@@ -1,10 +1,10 @@
 import { $ } from "zx";
 import { randomUUID } from "crypto";
-import { claimFromTodoText } from "../claim-todo.js";
+import { claimFromTodoText } from "../../claim-todo.js";
 import type {
   PollableTaskTracker,
   ResolvedGitHubIssuesTaskTracker,
-} from "../task-tracker-settings.js";
+} from "../../task-tracker-settings.js";
 import type {
   ClaimTaskResult,
   ClaimedTask,
@@ -14,11 +14,11 @@ import type {
   GitHubIssueComment,
   GitHubIssueSection,
   ParsedGitHubIssueClaimComment,
-} from "./types.js";
+} from "../types.js";
 export type {
   GitHubIssue,
   GitHubIssueComment,
-} from "./types.js";
+} from "../types.js";
 
 const GITHUB_ISSUE_CLAIM_COMMENT_TYPE = "workers-issue-claim";
 const GITHUB_ISSUE_CLAIM_COMMENT_VERSION = 1;

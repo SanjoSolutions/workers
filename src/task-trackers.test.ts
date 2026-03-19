@@ -4,7 +4,7 @@ import path from "path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { ResolvedGitHubIssuesTaskTracker } from "./task-tracker-settings.js";
 import type { ClaimedTask, GitHubIssue } from "./task-trackers.js";
-import type { GitHubIssueComment } from "./task-trackers/github-issues.js";
+import type { GitHubIssueComment } from "./task-trackers/github-issues/index.js";
 
 const ghCommands: string[] = [];
 const ghResults: Array<{ exitCode: number; stdout: string }> = [];
@@ -42,7 +42,7 @@ const {
   parseGitHubIssueClaimComment,
   renderGitHubIssueClaimComment,
   selectWinningGitHubIssueClaimComment,
-} = await import("./task-trackers/github-issues.js");
+} = await import("./task-trackers/github-issues/index.js");
 
 function createTracker(): ResolvedGitHubIssuesTaskTracker {
   return {

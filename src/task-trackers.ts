@@ -11,15 +11,15 @@ import {
   listOpenGitHubIssues,
   partitionGitHubIssuesBySection,
   syncCompletedGitHubIssueTask,
-} from "./task-trackers/github-issues.js";
+} from "./task-trackers/github-issues/index.js";
 import {
   commitAndPushTodoRepo,
   fastForwardRepo,
-} from "./task-trackers/git-sync.js";
+} from "./task-trackers/git-todo/git-sync.js";
 import {
   claimTaskFromGitTodoTracker,
   syncCompletedGitTodoTask,
-} from "./task-trackers/git-todo.js";
+} from "./task-trackers/git-todo/index.js";
 export type {
   ClaimTaskResult,
   ClaimedTask,

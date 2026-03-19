@@ -62,6 +62,8 @@ SPEC.md captures the high-level requirements for a project.
 
 - Workers must keep task-tracker operations behind an adapter boundary instead of hard-coding the
   runtime directly to the Git-backed `TODO.md` implementation.
+- Under `src/task-trackers`, each concrete task tracker implementation must live in its own
+  subdirectory.
 - The current shared `TODO.md` git repo is the first backend implementation.
 - Future backends such as GitHub Issues or Jira must be addable without rewriting the worker
   orchestration flow.
@@ -183,7 +185,6 @@ SPEC.md captures the high-level requirements for a project.
 - Codex auto model selection must be configurable through this settings file, including the list of
   candidate models to consider.
 - Codex auto reasoning effort selection must be configurable through this settings file.
-- Codex worker system prompt variant selection must be configurable through this settings file.
 - The default task tracker must be configurable through this settings file.
 - Workers settings must support one shared `githubApp` configuration with `appId` and
   `privateKeyPath`.
@@ -257,6 +258,10 @@ SPEC.md captures the high-level requirements for a project.
 ## 10. Verification
 
 - TypeScript changes must typecheck with `npx tsc --noEmit`.
+- Workers must provide a separate on-demand CLI feature test suite that verifies the exact CLI
+  features and invocation patterns used by workers for each supported agent CLI.
+- The on-demand CLI feature test suite is intended to be run when installing or updating an agent
+  CLI and must not be part of the default automated test run.
 - Publishable/runtime entrypoints must be compiled JavaScript under `build/` rather than relying on
   `tsx` at runtime.
 - Repo-facing POSIX shell compatibility wrappers must pass `sh -n`.

@@ -1,5 +1,5 @@
 import { $ } from "zx";
-import { fetchBranchTarget, resolveBranchTarget } from "../git-target.js";
+import { fetchBranchTarget, resolveBranchTarget } from "../../git-target.js";
 
 export async function fastForwardRepo(repoRoot: string): Promise<boolean> {
   const branchTarget = await resolveBranchTarget(repoRoot);
