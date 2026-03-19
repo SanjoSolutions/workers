@@ -1,3 +1,6 @@
+> [!NOTE]
+> This project is still in early development.
+
 # Workers
 
 A human-first process that supports spontaneity.
