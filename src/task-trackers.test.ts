@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import os from "os";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import type { ResolvedGitHubIssuesTaskTracker } from "./task-tracker-settings.js";
 import type { ClaimedTask } from "./task-trackers.js";
 
 const ghCommands: string[] = [];
@@ -30,7 +31,23 @@ vi.mock("zx", () => ({
   },
 }));
 
-const { syncCompletedTask } = await import("./task-trackers.js");
+const { createGitHubIssueTask, syncCompletedTask } = await import("./task-trackers.js");
+
+function createTracker(): ResolvedGitHubIssuesTaskTracker {
+  return {
+    name: "demo",
+    kind: "github-issues",
+    repository: "acme/widgets",
+    defaultRepo: "/tmp/widgets",
+    tokenCommand: undefined,
+    githubApp: undefined,
+    labels: {
+      planned: "workers:planned",
+      ready: "workers:ready-to-be-picked-up",
+      inProgress: "workers:in-progress",
+    },
+  };
+}
 
 describe("syncCompletedTask", () => {
   let tempDir: string;
@@ -93,6 +110,66 @@ describe("syncCompletedTask", () => {
       "gh issue edit 42 --repo acme/widgets --remove-label workers:ready-to-be-picked-up",
       "gh issue edit 42 --repo acme/widgets --remove-label workers:in-progress",
       "gh issue close 42 --repo acme/widgets --reason completed",
+    ]);
+  });
+});
+
+describe("createGitHubIssueTask", () => {
+  beforeEach(() => {
+    ghCommands.length = 0;
+    ghResults.length = 0;
+  });
+
+  test("omits the Repo field from the created issue body", async () => {
+    ghResults.push(
+      { exitCode: 0, stdout: "" },
+      { exitCode: 0, stdout: "" },
+      { exitCode: 0, stdout: "" },
+      { exitCode: 0, stdout: "https://github.com/acme/widgets/issues/77\n" },
+    );
+
+    const issueUrl = await createGitHubIssueTask(createTracker(), "ready", [
+      "- Ship the change",
+      "  - Type: Development task",
+      "  - Repo: /tmp/widgets",
+      "  - Context: Keep this detail",
+    ]);
+
+    expect(issueUrl).toBe("https://github.com/acme/widgets/issues/77");
+    expect(ghCommands).toEqual([
+      "gh label create workers:planned --repo acme/widgets --force --color D4C5F9 --description Workers planned queue",
+      "gh label create workers:ready-to-be-picked-up --repo acme/widgets --force --color 0E8A16 --description Workers ready queue",
+      "gh label create workers:in-progress --repo acme/widgets --force --color FBCA04 --description Workers in-progress queue",
+      "gh issue create --repo acme/widgets --title Ship the change --body - Type: Development task - Context: Keep this detail --label workers:ready-to-be-picked-up",
+    ]);
+  });
+
+  test("omits the Repo field from the updated issue body", async () => {
+    ghResults.push(
+      { exitCode: 0, stdout: "" },
+      { exitCode: 0, stdout: "" },
+      { exitCode: 0, stdout: "" },
+      { exitCode: 0, stdout: "" },
+    );
+
+    const issueUrl = await createGitHubIssueTask(
+      createTracker(),
+      "planned",
+      [
+        "- Ship the change",
+        "  - Type: Development task",
+        "  - Repo: /tmp/widgets",
+        "  - Context: Keep this detail",
+      ],
+      77,
+    );
+
+    expect(issueUrl).toBe("https://github.com/acme/widgets/issues/77");
+    expect(ghCommands).toEqual([
+      "gh label create workers:planned --repo acme/widgets --force --color D4C5F9 --description Workers planned queue",
+      "gh label create workers:ready-to-be-picked-up --repo acme/widgets --force --color 0E8A16 --description Workers ready queue",
+      "gh label create workers:in-progress --repo acme/widgets --force --color FBCA04 --description Workers in-progress queue",
+      "gh issue edit 77 --repo acme/widgets --title Ship the change --body - Type: Development task - Context: Keep this detail --add-label workers:planned",
     ]);
   });
 });

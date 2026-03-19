@@ -79,6 +79,10 @@ function trimTrailingEmptyLines(lines: string[]): string[] {
   return lines.slice(0, end);
 }
 
+function filterGitHubIssueBodyLines(lines: string[]): string[] {
+  return lines.filter((line) => !/^\s+- Repo:\s*.+$/i.test(line));
+}
+
 function renderIssueItem(issue: GitHubIssue): string {
   const bodyLines = trimTrailingEmptyLines(
     issue.body
@@ -503,7 +507,7 @@ export async function createGitHubIssueTask(
   await ensureGitHubLabels(tracker);
 
   const title = itemLines[0].replace(/^- /, "").trim();
-  const body = itemLines.slice(1).join("\n").trim();
+  const body = filterGitHubIssueBodyLines(itemLines.slice(1)).join("\n").trim();
   const label = section === "ready" ? tracker.labels.ready : tracker.labels.planned;
 
   if (issueNumber !== undefined) {
