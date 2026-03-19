@@ -16,6 +16,7 @@ jobs:
           script: |
             const labelNames = [
               'workers:in-progress',
+              'workers:pr-ready',
               'workers:ready-to-be-picked-up',
             ];
 

@@ -48,6 +48,10 @@ function normalizeGitHubIssueTaskItem(itemLines: string[]): string {
   return trimTrailingEmptyLines(itemLines.map((line) => line.replace(/\s+$/, ""))).join("\n");
 }
 
+function normalizeGitHubIssueTaskText(item: string): string {
+  return normalizeGitHubIssueTaskItem(item.split(/\r?\n/));
+}
+
 function renderGitHubIssueTaskSpecComment(item: string): string {
   return [
     WORKER_TASK_SPEC_COMMENT_START,
@@ -344,6 +348,11 @@ async function ensureGitHubLabels(
       color: "FBCA04",
       description: "Workers in-progress queue",
     },
+    {
+      name: tracker.labels.prReady,
+      color: "5319E7",
+      description: "Workers pull request ready queue",
+    },
   ];
 
   for (const label of labelMetadata) {
@@ -614,8 +623,11 @@ export async function claimTaskFromGitHubIssuesTracker(
     };
   }
 
-  const summary = selection.item.split("\n")[0].replace(/^- /, "");
-  const selectedIssue = readyIssues.find((issue) => renderIssueItem(issue) === selection.item);
+  const normalizedSelectionItem = normalizeGitHubIssueTaskText(selection.item);
+  const summary = normalizedSelectionItem.split("\n")[0].replace(/^- /, "");
+  const selectedIssue = readyIssues.find((issue) => (
+    normalizeGitHubIssueTaskText(renderIssueItem(issue)) === normalizedSelectionItem
+  ));
   if (!selectedIssue) {
     throw new Error(
       `Failed to resolve claimed GitHub issue for "${summary}" in ${tracker.repository}.`,
@@ -735,22 +747,6 @@ export async function syncCompletedGitHubIssueTask(
   const syncState = claimedTask.syncState;
   if (syncState.kind !== "github-issues") {
     throw new Error(`Expected github-issues sync state for ${claimedTask.summary}.`);
-  }
-
-  await removeGitHubIssueLabelsIfPresent(
-    syncState.repository,
-    syncState.issueNumber,
-    [syncState.labels.ready, syncState.labels.inProgress],
-  );
-
-  const closeResult =
-    await $`gh issue close ${String(syncState.issueNumber)} --repo ${syncState.repository} --reason completed`
-      .quiet()
-      .nothrow();
-  if (closeResult.exitCode !== 0) {
-    throw new Error(
-      `Failed to close GitHub issue #${syncState.issueNumber} in ${syncState.repository}.`,
-    );
   }
 
   return {

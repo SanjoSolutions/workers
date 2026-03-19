@@ -14,6 +14,74 @@ export interface CreatePullRequestResult {
   reason?: string;
 }
 
+function stripRuntimeMetadata(item: string): string {
+  return item
+    .split(/\r?\n/)
+    .filter((line) => !/^\s+-\s*Repo:\s/i.test(line))
+    .join("\n");
+}
+
+async function ensurePullRequestReadyLabel(
+  repository: string,
+  labelName: string,
+): Promise<void> {
+  const result =
+    await $`gh label create ${labelName} --repo ${repository} --force --color ${"5319E7"} --description ${"Workers pull request ready queue"}`
+      .quiet()
+      .nothrow();
+  if (result.exitCode !== 0) {
+    throw new Error(`Failed to ensure GitHub label "${labelName}" in ${repository}.`);
+  }
+}
+
+async function moveGitHubIssueToPullRequestReady(claimedTask: ClaimedTask): Promise<void> {
+  if (claimedTask.syncState.kind !== "github-issues") {
+    return;
+  }
+
+  const { repository, issueNumber, labels } = claimedTask.syncState;
+  await ensurePullRequestReadyLabel(repository, labels.prReady);
+
+  const issueResult =
+    await $`gh issue view ${String(issueNumber)} --repo ${repository} --json labels`
+      .quiet()
+      .nothrow();
+  if (issueResult.exitCode !== 0) {
+    throw new Error(`Failed to inspect GitHub issue #${issueNumber} in ${repository}.`);
+  }
+
+  const issue = JSON.parse(issueResult.stdout) as { labels?: Array<{ name?: string }> };
+  const existingLabels = new Set((issue.labels ?? []).map((label) => label.name).filter(Boolean));
+
+  for (const label of [labels.ready, labels.inProgress]) {
+    if (!existingLabels.has(label)) {
+      continue;
+    }
+
+    const removeResult =
+      await $`gh issue edit ${String(issueNumber)} --repo ${repository} --remove-label ${label}`
+        .quiet()
+        .nothrow();
+    if (removeResult.exitCode !== 0) {
+      throw new Error(
+        `Failed to remove GitHub label "${label}" from issue #${issueNumber} in ${repository}.`,
+      );
+    }
+  }
+
+  if (!existingLabels.has(labels.prReady)) {
+    const addResult =
+      await $`gh issue edit ${String(issueNumber)} --repo ${repository} --add-label ${labels.prReady}`
+        .quiet()
+        .nothrow();
+    if (addResult.exitCode !== 0) {
+      throw new Error(
+        `Failed to add GitHub label "${labels.prReady}" to issue #${issueNumber} in ${repository}.`,
+      );
+    }
+  }
+}
+
 async function getGitHubRemoteRepository(repoRoot: string): Promise<string | null> {
   const result =
     await $`git -C ${repoRoot} remote get-url origin`.quiet().nothrow();
@@ -51,8 +119,9 @@ async function buildPrBody(repoRoot: string, branchName: string, claimedTask: Cl
       .nothrow();
 
   const commits = logResult.exitCode === 0 ? logResult.stdout.trim() : "";
+  const cleanedItem = stripRuntimeMetadata(claimedTask.item).trim();
 
-  let body = `## Summary\n\n${claimedTask.item.trim()}\n`;
+  let body = `## Summary\n\n${cleanedItem}\n`;
 
   if (commits) {
     body += `\n## Commits\n\n\`\`\`\n${commits}\n\`\`\`\n`;
@@ -125,6 +194,9 @@ export async function createWorkerPullRequest(
 
   const prUrl = prResult.stdout.trim();
   log.info(`Created GitHub PR: ${prUrl}`);
+
+  await moveGitHubIssueToPullRequestReady(claimedTask);
+
   return {
     status: "created",
     url: prUrl,

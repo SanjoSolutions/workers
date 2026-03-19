@@ -42,6 +42,7 @@ export interface GitTodoTaskTrackerSettings {
 export interface GitHubIssueLabelsSettings {
   ready?: string;
   inProgress?: string;
+  prReady?: string;
 }
 
 export interface GitHubIssueClaimCommentSettings {
