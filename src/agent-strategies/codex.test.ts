@@ -104,8 +104,14 @@ describe("CodexAgentStrategy", () => {
     } as any);
 
     const call = vi.mocked(spawnAgentProcess).mock.calls[0]?.[0];
+    const promptArg = call?.args.find((arg) => arg.startsWith("model_instructions_file="));
+    const renderedPromptPath = promptArg
+      ? JSON.parse(promptArg.slice("model_instructions_file=".length))
+      : "";
     expect(call?.args).toContainEqual(expect.stringContaining("model_instructions_file="));
-    expect(call?.args).toContainEqual(expect.stringContaining(path.join("agents", "assistant", "SYSTEM.md")));
+    expect(renderedPromptPath).toBeTruthy();
+    expect(renderedPromptPath).not.toBe(path.join("agents", "assistant", "SYSTEM.md"));
+    expect(renderedPromptPath).toContain("workers-assistant-system-prompt-cache");
     expect(call?.args).not.toContain("");
     expect(call?.env.GH_TOKEN).toBe("shared-token");
   });

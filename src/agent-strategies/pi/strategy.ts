@@ -1,6 +1,7 @@
 import { readFileSync } from "fs";
 import path from "path";
 import { extractTodoField } from "../../agent-prompt.js";
+import { prepareAssistantSystemPrompt } from "../../assistant-system-prompt.js";
 import { determinePackageRoot } from "../../settings.js";
 import { spawnManagedInteractiveAgent } from "../managed-interactive.js";
 import { spawnAgentProcess } from "../process.js";
@@ -26,7 +27,10 @@ export class PiAgentStrategy implements AgentStrategy {
     const packageRoot = determinePackageRoot();
     const agentType = context.noTodo ? "assistant" : "worker";
     const systemPromptFile = path.join(packageRoot, "agents", agentType, "SYSTEM.md");
-    const systemPromptContent = readFileSync(systemPromptFile, "utf8");
+    const preparedAssistantSystemPrompt = context.noTodo
+      ? prepareAssistantSystemPrompt(systemPromptFile, this.cli)
+      : null;
+    const systemPromptContent = preparedAssistantSystemPrompt?.content ?? readFileSync(systemPromptFile, "utf8");
 
     const baseArgs = [
       ...(piModel ? ["--model", piModel] : []),
@@ -35,13 +39,15 @@ export class PiAgentStrategy implements AgentStrategy {
     ];
 
     if (context.noTodo) {
-      return spawnAgentProcess({
+      const result = await spawnAgentProcess({
         command: "pi",
         args: baseArgs,
         cwd: context.worktreePath,
         env: context.env,
         captureOutput: false,
       });
+      preparedAssistantSystemPrompt?.cleanup();
+      return result;
     }
 
     const extensionPath = path.join(packageRoot, "src", "scripts", "pi-agent-end-extension.mjs");
@@ -59,7 +65,10 @@ export class PiAgentStrategy implements AgentStrategy {
         context.worktreePath,
         managedSession.env,
         managedSession.statusFile,
-        managedSession.cleanup,
+        () => {
+          preparedAssistantSystemPrompt?.cleanup();
+          managedSession.cleanup();
+        },
       );
     }
 

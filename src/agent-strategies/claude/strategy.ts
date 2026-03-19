@@ -1,5 +1,6 @@
 import path from "path";
 import { extractTodoField } from "../../agent-prompt.js";
+import { prepareAssistantSystemPrompt } from "../../assistant-system-prompt.js";
 import { evaluateClaudeModel } from "../../model-selection.js";
 import { determinePackageRoot } from "../../settings.js";
 import { spawnManagedInteractiveAgent } from "../managed-interactive.js";
@@ -28,20 +29,26 @@ export class ClaudeAgentStrategy implements AgentStrategy {
     const packageRoot = determinePackageRoot();
     const agentType = context.noTodo ? "assistant" : "worker";
     const agentDir = path.join(packageRoot, "agents", agentType);
-    const systemPromptFile = path.join(agentDir, "SYSTEM.md");
+    const sourceSystemPromptFile = path.join(agentDir, "SYSTEM.md");
+    const preparedAssistantSystemPrompt = context.noTodo
+      ? prepareAssistantSystemPrompt(sourceSystemPromptFile, this.cli)
+      : null;
+    const systemPromptFile = preparedAssistantSystemPrompt?.filePath ?? sourceSystemPromptFile;
     const systemPromptArgs = [
       "--append-system-prompt-file", systemPromptFile,
       "--add-dir", agentDir,
     ];
 
     if (context.noTodo) {
-      return spawnAgentProcess({
+      const result = await spawnAgentProcess({
         command: "claude",
         args: [...modelArgs, ...systemPromptArgs, "--allowedTools", claudeAllowedTools],
         cwd: context.worktreePath,
         env: context.env,
         captureOutput: false,
       });
+      preparedAssistantSystemPrompt?.cleanup();
+      return result;
     }
 
     if (context.options.interactive) {
@@ -64,7 +71,10 @@ export class ClaudeAgentStrategy implements AgentStrategy {
         context.worktreePath,
         managedSession.env,
         managedSession.statusFile,
-        managedSession.cleanup,
+        () => {
+          preparedAssistantSystemPrompt?.cleanup();
+          managedSession.cleanup();
+        },
       );
     }
 

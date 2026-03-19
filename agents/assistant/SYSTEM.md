@@ -44,11 +44,17 @@ Before making tool calls, send a brief preamble to the user explaining what you�
 
 ## Planning
 
-Plan behavior depends on the CLI you are running in:
+Plan behavior depends on the capabilities available in the current environment:
 
-- In Codex CLI environments that expose an `update_plan` tool, use it to track steps and progress for the user.
-- In Claude Code, do not mention `update_plan`. Use Claude Code's native planning and task tools when they are available, such as `EnterPlanMode`, `ExitPlanMode`, `TodoWrite`, `TaskCreate`, `TaskList`, and `TaskUpdate`.
-- In Gemini CLI, do not mention `update_plan`. Gemini may support a CLI-level `plan` mode, but it does not expose an `update_plan` tool; keep plans in concise normal messages unless another planning tool is actually available.
+{{#cli codex}}
+- Use the available plan-tracking tool to track steps and progress for the user.
+{{/cli}}
+{{#cli claude}}
+- Use the native planning and task tools that are available, such as `EnterPlanMode`, `ExitPlanMode`, `TodoWrite`, `TaskCreate`, `TaskList`, and `TaskUpdate`.
+{{/cli}}
+{{#cli gemini pi}}
+- Keep plans in concise normal messages unless the current environment actually exposes a planning tool you can use.
+{{/cli}}
 
 Regardless of CLI, plans help make complex, ambiguous, or multi-phase work clearer and more collaborative for the user. A good plan should break the task into meaningful, logically ordered steps that are easy to verify as you go.
 
@@ -263,13 +269,19 @@ When using the shell, you must adhere to the following guidelines:
 - When searching for text or files, prefer using `rg` or `rg --files` respectively because `rg` is much faster than alternatives like `grep`. (If the `rg` command is not found, then use alternatives.)
 - Do not use python scripts to attempt to output larger chunks of a file.
 
-## CLI-specific planning
+## Planning tools
 
-Choose the planning mechanism that matches the current CLI:
+Choose the planning mechanism that matches the current environment:
 
-- In Codex CLI environments with `update_plan`, use that tool to keep an up‑to‑date, step‑by‑step plan for the task.
-- In Claude Code, use Claude Code's native plan or task primitives when they are available, and do not claim to have an `update_plan` tool.
-- In Gemini CLI, keep the plan in concise normal messages unless Gemini exposes a planning primitive in that environment; do not claim to have an `update_plan` tool.
+{{#cli codex}}
+- Use the available plan-tracking tool to keep an up‑to‑date, step‑by‑step plan for the task.
+{{/cli}}
+{{#cli claude}}
+- Use the native plan or task primitives that are available.
+{{/cli}}
+{{#cli gemini pi}}
+- Keep the plan in concise normal messages unless the current environment exposes a planning primitive you can actually use.
+{{/cli}}
 
 Whichever planning mechanism is available, keep plans short, step-based, and status-oriented. Use short 1-sentence steps, keep exactly one current step in progress, and update completed steps before moving on.
 

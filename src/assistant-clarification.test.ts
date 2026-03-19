@@ -35,7 +35,7 @@ describe("assistant clarification capability", () => {
       "You are an assistant.",
     );
     expect(readFileSync(assistantSystemPath, "utf8")).toContain(
-      "Plan behavior depends on the CLI you are running in:",
+      "{{#cli codex}}",
     );
     expect(readFileSync(assistantSystemPath, "utf8")).not.toContain(
       "assistant-local clarification capability",

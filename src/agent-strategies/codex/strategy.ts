@@ -1,5 +1,6 @@
 import path from "path";
 import { extractTodoField } from "../../agent-prompt.js";
+import { prepareAssistantSystemPrompt } from "../../assistant-system-prompt.js";
 import { evaluateCodexSelection } from "../../model-selection.js";
 import { determinePackageRoot } from "../../settings.js";
 import { spawnManagedInteractiveAgent } from "../managed-interactive.js";
@@ -63,9 +64,13 @@ export class CodexAgentStrategy implements AgentStrategy {
       context.config?.agent?.codexSystemPromptVariant
       || context.options.codexSystemPromptVariant
       || "full";
-    const systemPromptFile = agentType === "worker"
+    const sourceSystemPromptFile = agentType === "worker"
       ? resolveWorkerSystemPromptFile(packageRoot, codexSystemPromptVariant)
       : path.join(packageRoot, "agents", agentType, "SYSTEM.md");
+    const preparedAssistantSystemPrompt = context.noTodo
+      ? prepareAssistantSystemPrompt(sourceSystemPromptFile, this.cli)
+      : null;
+    const systemPromptFile = preparedAssistantSystemPrompt?.filePath ?? sourceSystemPromptFile;
 
     const codexArgs = [
       ...(codexModel ? ["--model", codexModel] : []),
@@ -83,13 +88,15 @@ export class CodexAgentStrategy implements AgentStrategy {
     );
 
     if (context.noTodo) {
-      return spawnAgentProcess({
+      const result = await spawnAgentProcess({
         command: "codex",
         args: codexArgs,
         cwd: context.worktreePath,
         env: context.env,
         captureOutput: false,
       });
+      preparedAssistantSystemPrompt?.cleanup();
+      return result;
     }
 
     if (context.options.interactive) {
@@ -106,7 +113,10 @@ export class CodexAgentStrategy implements AgentStrategy {
         context.worktreePath,
         managedSession.env,
         managedSession.statusFile,
-        managedSession.cleanup,
+        () => {
+          preparedAssistantSystemPrompt?.cleanup();
+          managedSession.cleanup();
+        },
       );
     }
 

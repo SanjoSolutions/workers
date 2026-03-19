@@ -1,5 +1,6 @@
 import path from "path";
 import { extractTodoField } from "../../agent-prompt.js";
+import { prepareAssistantSystemPrompt } from "../../assistant-system-prompt.js";
 import { determinePackageRoot } from "../../settings.js";
 import { spawnManagedInteractiveAgent } from "../managed-interactive.js";
 import { spawnAgentProcess } from "../process.js";
@@ -24,17 +25,23 @@ export class GeminiAgentStrategy implements AgentStrategy {
 
     const packageRoot = determinePackageRoot();
     const agentType = context.noTodo ? "assistant" : "worker";
-    const systemPromptFile = path.join(packageRoot, "agents", agentType, "SYSTEM.md");
+    const sourceSystemPromptFile = path.join(packageRoot, "agents", agentType, "SYSTEM.md");
+    const preparedAssistantSystemPrompt = context.noTodo
+      ? prepareAssistantSystemPrompt(sourceSystemPromptFile, this.cli)
+      : null;
+    const systemPromptFile = preparedAssistantSystemPrompt?.filePath ?? sourceSystemPromptFile;
     const env = { ...context.env, GEMINI_SYSTEM_MD: systemPromptFile };
 
     if (context.noTodo) {
-      return spawnAgentProcess({
+      const result = await spawnAgentProcess({
         command: "gemini",
         args,
         cwd: context.worktreePath,
         env,
         captureOutput: false,
       });
+      preparedAssistantSystemPrompt?.cleanup();
+      return result;
     }
 
     if (context.options.interactive) {
@@ -50,7 +57,10 @@ export class GeminiAgentStrategy implements AgentStrategy {
         context.worktreePath,
         managedSession.env,
         managedSession.statusFile,
-        managedSession.cleanup,
+        () => {
+          preparedAssistantSystemPrompt?.cleanup();
+          managedSession.cleanup();
+        },
       );
     }
 

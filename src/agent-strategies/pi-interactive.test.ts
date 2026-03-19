@@ -298,11 +298,9 @@ describe("PiAgentStrategy", () => {
     const systemPromptIdx = call.args.indexOf("--system-prompt");
     expect(systemPromptIdx).toBeGreaterThan(-1);
     const systemPromptContent = call.args[systemPromptIdx + 1] as string;
-    const expectedContent = readFileSync(
-      path.join(packageRoot, "agents", "assistant", "SYSTEM.md"),
-      "utf8",
-    );
-    expect(systemPromptContent).toBe(expectedContent);
+    expect(systemPromptContent).toContain("You are an assistant.");
+    expect(systemPromptContent).not.toContain("EnterPlanMode");
+    expect(systemPromptContent).not.toContain("`update_plan`");
   });
 
   test("includes --extension flag and prompt in interactive mode", async () => {

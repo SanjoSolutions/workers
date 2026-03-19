@@ -19,6 +19,7 @@ import {
 import { tmpdir } from "os";
 import path from "path";
 import { $ } from "zx";
+import { prepareAssistantSystemPrompt } from "../../assistant-system-prompt.js";
 
 const TODO_TEMPLATE = readFileSync(
   path.join(process.cwd(), "TODO.template.md"),
@@ -93,14 +94,17 @@ async function main(): Promise<void> {
 
   const workersRoot = process.cwd();
   const assistantAgentDir = path.join(workersRoot, "agents", "assistant");
-  const assistantSystemPath = path.join(assistantAgentDir, "SYSTEM.md");
+  const preparedAssistantSystemPrompt = prepareAssistantSystemPrompt(
+    path.join(assistantAgentDir, "SYSTEM.md"),
+    "claude",
+  );
 
   const child = spawn(
     "claude",
     [
       "--dangerously-skip-permissions",
       "--append-system-prompt-file",
-      assistantSystemPath,
+      preparedAssistantSystemPrompt.filePath,
       "--add-dir",
       assistantAgentDir,
       "--",
@@ -122,6 +126,7 @@ async function main(): Promise<void> {
       resolve();
     });
   });
+  preparedAssistantSystemPrompt.cleanup();
 
   // Print TODO.md so you can check if it was modified
   const todoAfter = readFileSync(
