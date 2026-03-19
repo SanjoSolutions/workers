@@ -79,7 +79,6 @@ export async function claimTaskFromGitTodoTracker(
     status: "claimed",
     reason: "claimed",
     claimedItem,
-    claimedTask: claimedItem,
   };
 }
 

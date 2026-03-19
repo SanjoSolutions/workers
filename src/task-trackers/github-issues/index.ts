@@ -719,7 +719,6 @@ export async function claimTaskFromGitHubIssuesTracker(
     status: "claimed",
     reason: "claimed",
     claimedItem: claimedTrackerItem,
-    claimedTask: claimedTrackerItem,
   };
 }
 

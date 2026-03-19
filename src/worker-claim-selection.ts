@@ -58,5 +58,3 @@ export async function claimNextItemFromTrackers(
           : "no-claimable-trackers",
   };
 }
-
-export const claimNextTodoFromTrackers = claimNextItemFromTrackers;

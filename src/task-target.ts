@@ -210,6 +210,3 @@ export async function ensureTaskRepo(
     bootstrapped: true,
   };
 }
-
-export type ClaimedTaskTarget = ClaimedItemTarget;
-export const resolveClaimedTaskTarget = resolveClaimedItemTarget;

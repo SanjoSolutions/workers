@@ -6,7 +6,7 @@ import type {
   PollableTaskTracker,
   ResolvedGitHubIssuesTaskTracker,
 } from "./task-tracker-settings.js";
-import type { ClaimedTask, GitHubIssue } from "./task-trackers.js";
+import type { ClaimedItem, GitHubIssue } from "./task-trackers.js";
 import type { GitHubIssueComment } from "./task-trackers/github-issues/index.js";
 
 const ghCommands: string[] = [];
@@ -36,11 +36,11 @@ vi.mock("zx", () => ({
 }));
 
 const {
-  claimTaskFromTracker,
+  claimItemFromTracker,
   createGitHubIssueTask,
   getGitHubIssueSection,
   partitionGitHubIssuesBySection,
-  syncCompletedTask,
+  syncCompletedItem,
 } = await import("./task-trackers.js");
 const {
   parseGitHubIssueClaimComment,
@@ -105,7 +105,7 @@ const TRACKER: ResolvedGitHubIssuesTaskTracker = {
   },
 };
 
-describe("syncCompletedTask", () => {
+describe("syncCompletedItem", () => {
   let tempDir: string;
 
   beforeEach(() => {
@@ -118,11 +118,11 @@ describe("syncCompletedTask", () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  test("leaves GitHub issues open when a completed task syncs", async () => {
+  test("leaves GitHub issues open when a completed item syncs", async () => {
     const localTodoPath = path.join(tempDir, "TODO.md");
     writeFileSync(localTodoPath, "# TODOs\n\n## In progress\n\n## Ready to be picked up\n", "utf8");
 
-    const claimedTask: ClaimedTask = {
+    const claimedItem: ClaimedItem = {
       trackerName: "demo",
       trackerKind: "github-issues",
       trackerBasePath: tempDir,
@@ -143,7 +143,7 @@ describe("syncCompletedTask", () => {
       },
     };
 
-    const result = await syncCompletedTask(claimedTask, localTodoPath);
+    const result = await syncCompletedItem(claimedItem, localTodoPath);
 
     expect(result).toEqual({ status: "synced" });
     expect(ghCommands).toEqual([]);
@@ -327,7 +327,7 @@ describe("createGitHubIssueTask", () => {
   });
 });
 
-describe("claimTaskFromTracker", () => {
+describe("claimItemFromTracker", () => {
   let tempDir: string;
 
   beforeEach(() => {
@@ -434,16 +434,16 @@ describe("claimTaskFromTracker", () => {
       },
     );
 
-    const result = await claimTaskFromTracker(
+    const result = await claimItemFromTracker(
       createPollableTracker(),
       "codex",
       tempDir,
     );
 
     expect(result.status).toBe("claimed");
-    expect(result.claimedTask?.summary).toBe("Latest worker spec");
-    expect(result.claimedTask?.item).toBe("- Latest worker spec\n  - Type: Development task\n  - Agent: codex\n  - Repo: /tmp/widgets");
-    expect(result.claimedTask?.localTodoContent).toContain("- Latest worker spec");
+    expect(result.claimedItem?.summary).toBe("Latest worker spec");
+    expect(result.claimedItem?.item).toBe("- Latest worker spec\n  - Type: Development task\n  - Agent: codex\n  - Repo: /tmp/widgets");
+    expect(result.claimedItem?.localTodoContent).toContain("- Latest worker spec");
     expect(ghCommands).toHaveLength(9);
     expect(ghCommands.slice(0, 5)).toEqual([
       "gh issue list --repo acme/widgets --state open --limit 100 --search sort:created-asc --json number,title,body,createdAt,labels",
@@ -549,14 +549,14 @@ describe("claimTaskFromTracker", () => {
       },
     );
 
-    const result = await claimTaskFromTracker(
+    const result = await claimItemFromTracker(
       createPollableTracker(),
       "codex",
       tempDir,
     );
 
     expect(result.status).toBe("claimed");
-    expect(result.claimedTask?.summary).toBe("Move the TODO repo template into `todos-repo-template`");
+    expect(result.claimedItem?.summary).toBe("Move the TODO repo template into `todos-repo-template`");
   });
 
   test("matches a ready issue even when malformed task spec metadata uses a top-level bullet", async () => {
@@ -646,14 +646,14 @@ describe("claimTaskFromTracker", () => {
       },
     );
 
-    const result = await claimTaskFromTracker(
+    const result = await claimItemFromTracker(
       createPollableTracker(),
       "codex",
       tempDir,
     );
 
     expect(result.status).toBe("claimed");
-    expect(result.claimedTask?.summary).toBe("Move the TODO repo template into `todos-repo-template`");
+    expect(result.claimedItem?.summary).toBe("Move the TODO repo template into `todos-repo-template`");
   });
 
   test("treats the ready label as authoritative even when an old claim comment exists", async () => {
@@ -743,14 +743,14 @@ describe("claimTaskFromTracker", () => {
       },
     );
 
-    const result = await claimTaskFromTracker(
+    const result = await claimItemFromTracker(
       createPollableTracker(),
       "codex",
       tempDir,
     );
 
     expect(result.status).toBe("claimed");
-    expect(result.claimedTask?.summary).toBe("Rename tracker-agnostic TODO terminology");
+    expect(result.claimedItem?.summary).toBe("Rename tracker-agnostic TODO terminology");
     expect(ghCommands).toContain(
       "gh issue edit 27 --repo acme/widgets --remove-label workers:ready-to-be-picked-up --add-label workers:in-progress",
     );

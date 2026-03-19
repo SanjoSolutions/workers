@@ -20,9 +20,7 @@ import {
 } from "./task-trackers/git-todo/index.js";
 
 export type {
-  ClaimTaskResult,
   ClaimItemResult,
-  ClaimedTask,
   ClaimedItem,
   CompletionSyncResult,
   GitHubIssue,
@@ -72,7 +70,3 @@ export async function syncCompletedItem(
     ? syncCompletedGitTodoTask(claimedItem, localTodoPath)
     : syncCompletedGitHubIssueTask(claimedItem);
 }
-
-export const claimTaskFromTracker = claimItemFromTracker;
-export const syncClaimedTaskToLocal = syncClaimedItemToLocal;
-export const syncCompletedTask = syncCompletedItem;

@@ -32,11 +32,7 @@ export interface ClaimItemResult {
   status: "claimed" | "no-claim";
   reason: string;
   claimedItem?: ClaimedItem;
-  claimedTask?: ClaimedItem;
 }
-
-export type ClaimedTask = ClaimedItem;
-export type ClaimTaskResult = ClaimItemResult;
 
 export interface CompletionSyncResult {
   status: "synced" | "pending";
