@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  realpathSync,
   readdirSync,
   readFileSync,
   writeFileSync,
@@ -126,6 +127,14 @@ function resolveGitBinaryDir(): string {
   return path.dirname(gitPath);
 }
 
+function normalizeExistingPath(targetPath: string): string {
+  const resolvedPath = path.resolve(targetPath);
+  if (!existsSync(resolvedPath)) {
+    return resolvedPath;
+  }
+  return realpathSync.native(resolvedPath);
+}
+
 async function main(): Promise<void> {
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
   const tempRoot = mkdtempSync(path.join(os.tmpdir(), "workers-packaged-smoke-"));
@@ -234,10 +243,10 @@ async function main(): Promise<void> {
   if (!workerInvocation) {
     throw new Error("Packaged worker entrypoint did not launch the fake Claude CLI.");
   }
-  if (assistantInvocation.cwd !== assistantRepo) {
+  if (normalizeExistingPath(assistantInvocation.cwd) !== normalizeExistingPath(assistantRepo)) {
     throw new Error("Packaged assistant entrypoint did not launch from the project directory.");
   }
-  if (workerInvocation.cwd === workerRepo) {
+  if (normalizeExistingPath(workerInvocation.cwd) === normalizeExistingPath(workerRepo)) {
     throw new Error("Packaged worker entrypoint did not launch from its isolated worktree.");
   }
   if (!assistantInvocation.argv.includes("--append-system-prompt-file")) {
