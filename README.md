@@ -28,20 +28,12 @@ __Prerequisites:__
 npm install -g @sanjo/workers
 ```
 
-Use the orchestration command:
+Start the assistant:
 
 ```bash
-o assistant
+assistant
 ```
 
-Tell the assistant what you want built. When you mention a project path for the first time, workers will register it automatically from the queued task metadata.
+Tell the assistant what you want built.
 
-In different terminals, start workers with `o worker`. They will pick up tasks as they become available. You can also specify the agent CLI, for example `o worker --cli claude` or `o worker --cli pi`.
-
-Useful subcommands:
-
-* `o init [path]` initializes a shared TODO tracker repository.
-* `o add [text]` adds work to the configured tracker.
-* `o status` lists queued work, in-progress work, and worker branches.
-
-The legacy `assistant` and `worker` commands still work, but `o` is the main interface.
+In different terminals, start workers with `worker`. They will pick up tasks as they become available. You can also specify the agent CLI, for example `worker --cli claude`.
