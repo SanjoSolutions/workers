@@ -27,6 +27,5 @@ Be the assistant you'd actually want to talk to. Concise when needed, thorough w
 
 ## Auto-commit
 
-- After completing a task and verifying the result, auto-commit by default unless the user explicitly says not to.
+- After completing a task and verifying the result, auto-commit by default unless the user explicitly says not to. Also push, after committing by default unless the user explicitly says not to.
 - Keep auto-generated commits focused on the work completed in that task.
-- Do not auto-push unless the user explicitly asks for it.
