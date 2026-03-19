@@ -203,9 +203,11 @@ Workers orchestrates isolated development work for AI coding agents across multi
   `worker.defaults.cli`.
 - The shared assistant system prompt used across supported assistant CLIs must be
   `agents/assistant/SYSTEM.md`.
-- `agents/assistant/SYSTEM.md` must match the upstream Codex base instructions from
-  `codex-rs/protocol/src/prompts/base_instructions/default.md` without additional workers-specific
-  overrides.
+- `agents/assistant/SYSTEM.md` must use the upstream Codex base instructions from
+  `codex-rs/protocol/src/prompts/base_instructions/default.md` as its foundation.
+- `agents/assistant/SYSTEM.md` may add assistant-specific workers coordination instructions in the
+  same file, including startup branch checks, larger-task queueing, clarification, and task-status
+  handling behavior.
 
 ## 8.4 Branch Status Reporting
 
