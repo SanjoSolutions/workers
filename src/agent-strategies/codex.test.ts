@@ -2,10 +2,25 @@ import { describe, expect, test, vi, beforeEach } from "vitest";
 import path from "path";
 import { CodexAgentStrategy } from "./codex.js";
 import { spawnAgentProcess } from "./process.js";
+import { spawnManagedInteractiveAgent } from "./managed-interactive.js";
+import { setupManagedInteractiveCodexSession } from "./codex/interactive.js";
 import { evaluateCodexSelection } from "../model-selection.js";
 
 vi.mock("./process.js", () => ({
   spawnAgentProcess: vi.fn().mockResolvedValue({ exitCode: 0, output: "" }),
+}));
+
+vi.mock("./managed-interactive.js", () => ({
+  spawnManagedInteractiveAgent: vi.fn().mockResolvedValue({ exitCode: 0, output: "" }),
+}));
+
+vi.mock("./codex/interactive.js", () => ({
+  setupManagedInteractiveCodexSession: vi.fn().mockReturnValue({
+    env: { MANAGED_ENV: "true" },
+    nextPrompt: "Implement it\n\nWorkers session control...",
+    statusFile: "/tmp/codex-status.json",
+    cleanup: vi.fn(),
+  }),
 }));
 
 vi.mock("../model-selection.js", () => ({
@@ -130,5 +145,33 @@ describe("CodexAgentStrategy", () => {
       ? JSON.parse(promptArg.slice("model_instructions_file=".length))
       : "";
     expect(renderedPromptPath).toContain("workers-system-prompt-cache");
+  });
+
+  test("passes only the managed interactive prompt to Codex interactive mode", async () => {
+    await strategy.launch({
+      ...baseContext,
+      options: {
+        ...baseContext.options,
+        interactive: true,
+      },
+    } as any);
+
+    expect(setupManagedInteractiveCodexSession).toHaveBeenCalledWith(
+      "/worktree",
+      "- Build feature",
+      "Implement it",
+      expect.objectContaining({ ORIGINAL_ENV: "true" }),
+    );
+
+    const call = vi.mocked(spawnManagedInteractiveAgent).mock.calls[0];
+    expect(call?.[0]).toBe("codex");
+    expect(call?.[1]).toEqual(expect.arrayContaining([
+      "--enable",
+      "codex_hooks",
+      "--model",
+      "gpt-5.4-mini",
+      "Implement it\n\nWorkers session control...",
+    ]));
+    expect(call?.[1]).not.toContain("Implement it");
   });
 });

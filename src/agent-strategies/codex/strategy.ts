@@ -88,7 +88,7 @@ export class CodexAgentStrategy implements AgentStrategy {
       );
       return spawnManagedInteractiveAgent(
         "codex",
-        ["--enable", "codex_hooks", ...codexArgs, context.nextPrompt, managedSession.nextPrompt]
+        ["--enable", "codex_hooks", ...codexArgs, managedSession.nextPrompt]
           .filter((arg) => arg.trim().length > 0),
         context.worktreePath,
         managedSession.env,
