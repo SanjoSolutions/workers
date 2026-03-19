@@ -52,6 +52,10 @@ function normalizeGitHubIssueTaskText(item: string): string {
   return normalizeGitHubIssueTaskItem(item.split(/\r?\n/));
 }
 
+function extractGitHubIssueTaskSummary(item: string): string {
+  return normalizeGitHubIssueTaskText(item).split("\n")[0].replace(/^- /, "");
+}
+
 function renderGitHubIssueTaskSpecComment(item: string): string {
   return [
     WORKER_TASK_SPEC_COMMENT_START,
@@ -624,10 +628,15 @@ export async function claimTaskFromGitHubIssuesTracker(
   }
 
   const normalizedSelectionItem = normalizeGitHubIssueTaskText(selection.item);
-  const summary = normalizedSelectionItem.split("\n")[0].replace(/^- /, "");
+  const summary = extractGitHubIssueTaskSummary(selection.item);
   const selectedIssue = readyIssues.find((issue) => (
     normalizeGitHubIssueTaskText(renderIssueItem(issue)) === normalizedSelectionItem
-  ));
+  )) ?? (() => {
+    const matchingSummaryIssues = readyIssues.filter((issue) => (
+      extractGitHubIssueTaskSummary(renderIssueItem(issue)) === summary
+    ));
+    return matchingSummaryIssues.length === 1 ? matchingSummaryIssues[0] : undefined;
+  })();
   if (!selectedIssue) {
     throw new Error(
       `Failed to resolve claimed GitHub issue for "${summary}" in ${tracker.repository}.`,

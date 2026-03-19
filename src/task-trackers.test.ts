@@ -603,6 +603,122 @@ describe("claimTaskFromTracker", () => {
     expect(result.status).toBe("claimed");
     expect(result.claimedTask?.summary).toBe("Move the TODO repo template into `todos-repo-template`");
   });
+
+  test("matches a ready issue even when malformed task spec metadata uses a top-level bullet", async () => {
+    ghResults.push(
+      {
+        exitCode: 0,
+        stdout: JSON.stringify([
+          {
+            number: 29,
+            title: "Original reporter title",
+            body: "Original user-authored description.",
+            createdAt: "2026-03-18T10:00:00Z",
+            labels: [{ name: "workers:ready-to-be-picked-up" }],
+          },
+        ]),
+      },
+      {
+        exitCode: 0,
+        stdout: JSON.stringify([
+          {
+            id: 21,
+            body: renderWorkerTaskSpecComment("- Move the TODO repo template into `todos-repo-template`\n- Type: Development task"),
+            created_at: "2026-03-18T13:00:00Z",
+            updated_at: "2026-03-18T13:00:00Z",
+            user: { login: "codex" },
+          },
+        ]),
+      },
+      { exitCode: 0, stdout: "" },
+      { exitCode: 0, stdout: "" },
+      { exitCode: 0, stdout: "" },
+      {
+        exitCode: 0,
+        stdout: JSON.stringify({
+          id: 99,
+          body: renderGitHubIssueClaimComment("I will work on this.", {
+            sessionId: "codex-session",
+            cli: "codex",
+            trackerName: "demo",
+            repository: "acme/widgets",
+            issueNumber: 29,
+            claimedAt: "2026-03-19T10:00:00.000Z",
+          }),
+          created_at: "2026-03-19T10:00:00.000Z",
+          updated_at: "2026-03-19T10:00:00.000Z",
+          user: { login: "codex" },
+        }),
+      },
+      {
+        exitCode: 0,
+        stdout: JSON.stringify([
+          {
+            id: 99,
+            body: renderGitHubIssueClaimComment("I will work on this.", {
+              sessionId: "codex-session",
+              cli: "codex",
+              trackerName: "demo",
+              repository: "acme/widgets",
+              issueNumber: 29,
+              claimedAt: "2026-03-19T10:00:00.000Z",
+            }),
+            created_at: "2026-03-19T10:00:00.000Z",
+            updated_at: "2026-03-19T10:00:00.000Z",
+            user: { login: "codex" },
+          },
+        ]),
+      },
+      { exitCode: 0, stdout: "" },
+      {
+        exitCode: 0,
+        stdout: JSON.stringify([
+          {
+            number: 29,
+            title: "Original reporter title",
+            body: "Original user-authored description.",
+            createdAt: "2026-03-18T10:00:00Z",
+            labels: [{ name: "workers:in-progress" }],
+          },
+        ]),
+      },
+      {
+        exitCode: 0,
+        stdout: JSON.stringify([
+          {
+            id: 21,
+            body: renderWorkerTaskSpecComment("- Move the TODO repo template into `todos-repo-template`\n- Type: Development task"),
+            created_at: "2026-03-18T13:00:00Z",
+            updated_at: "2026-03-18T13:00:00Z",
+            user: { login: "codex" },
+          },
+          {
+            id: 99,
+            body: renderGitHubIssueClaimComment("I will work on this.", {
+              sessionId: "codex-session",
+              cli: "codex",
+              trackerName: "demo",
+              repository: "acme/widgets",
+              issueNumber: 29,
+              claimedAt: "2026-03-19T10:00:00.000Z",
+            }),
+            created_at: "2026-03-19T10:00:00.000Z",
+            updated_at: "2026-03-19T10:00:00.000Z",
+            user: { login: "codex" },
+          },
+        ]),
+      },
+    );
+
+    const result = await claimTaskFromTracker(
+      createPollableTracker(),
+      "codex",
+      tempDir,
+    );
+
+    expect(result.status).toBe("claimed");
+    expect(result.claimedTask?.summary).toBe("Move the TODO repo template into `todos-repo-template`");
+  });
 });
 
 describe("GitHub issue claim comments", () => {
