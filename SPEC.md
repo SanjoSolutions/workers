@@ -17,6 +17,9 @@ An optimized process for humans that supports spontaneity, multiple projects and
 
 This project supports Linux, Windows, and Mac OS.
 
+- Automated CI must validate the main test suite on all supported operating systems.
+- Packaged `assistant` and `worker` entrypoints must have automated smoke coverage that works without Docker on Mac OS and Windows.
+
 ## Agents
 
 ### Assistant

@@ -43,6 +43,7 @@ import {
 import { readEnv } from "../env-utils.js";
 import { findGitRepoRoot } from "../git-utils.js";
 import { createWorkerPullRequest } from "../github-pr.js";
+import { claimNextTodoFromTrackers } from "../worker-claim-selection.js";
 
 interface ActiveWorkspace {
   repoRoot: string;
@@ -228,43 +229,6 @@ async function finalizeWorkspace(
   );
 }
 
-async function claimNextTodo(
-  trackers: ReturnType<typeof resolvePollingTaskTrackers>,
-  cli: string,
-  invocationPath: string,
-): Promise<{ claimedTask: ClaimedTask } | { reason: string }> {
-  let sawMatchingIssue = false;
-  let sawBlockedIssue = false;
-  let sawReadyEmpty = false;
-
-  for (const tracker of trackers) {
-    const claimResult = await claimTaskFromTracker(tracker, cli, invocationPath);
-    if (claimResult.status === "claimed" && claimResult.claimedTask) {
-      return {
-        claimedTask: claimResult.claimedTask,
-      };
-    }
-
-    if (claimResult.reason === "all-blocked-by-conflict") {
-      sawBlockedIssue = true;
-    } else if (claimResult.reason === "no-matching-agent") {
-      sawMatchingIssue = true;
-    } else if (claimResult.reason === "ready-empty") {
-      sawReadyEmpty = true;
-    }
-  }
-
-  return {
-    reason: sawBlockedIssue
-      ? "all-blocked-by-conflict"
-      : sawMatchingIssue
-        ? "no-matching-agent"
-        : sawReadyEmpty
-          ? "ready-empty"
-          : "no-claimable-trackers",
-  };
-}
-
 async function runNoTodoMode(
   options: CliOptions,
   invocationRepoRoot: string | null,
@@ -356,7 +320,7 @@ async function main(): Promise<void> {
       );
     }
 
-    const claimAttempt = await claimNextTodo(
+    const claimAttempt = await claimNextTodoFromTrackers(
       pollableTrackers,
       options.cli,
       invocationPath,

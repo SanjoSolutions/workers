@@ -23,7 +23,8 @@
     "test:smoke:claude": "npx tsx src/tests/smoke/claude.ts",
     "test:smoke:codex": "npx tsx src/tests/smoke/codex.ts",
     "test:smoke:gemini": "npx tsx src/tests/smoke/gemini.ts",
-    "test:smoke:assistant": "scripts/smoke-test-assistant.sh"
+    "test:smoke:assistant": "scripts/smoke-test-assistant.sh",
+    "test:smoke:packaged": "npx tsx src/tests/smoke/packaged-entrypoints.ts"
   },
   "files": [
     "build/",
