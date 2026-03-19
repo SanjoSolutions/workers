@@ -61,6 +61,29 @@ describe("assistant system prompt templating", () => {
     expect(prepared.content).toContain("End");
   });
 
+  test("strips leading source-only HTML comments from the rendered prompt", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "workers-system-prompt-"));
+    writeFileSync(
+      path.join(root, "SYSTEM.md"),
+      [
+        "<!--",
+        "Source-only notice",
+        "-->",
+        "",
+        "Start",
+        "End",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const prepared = prepareAssistantSystemPrompt(path.join(root, "SYSTEM.md"), "codex");
+
+    expect(prepared.content).toContain("Start");
+    expect(prepared.content).toContain("End");
+    expect(prepared.content).not.toContain("Source-only notice");
+    expect(prepared.content.trimStart().startsWith("<!--")).toBe(false);
+  });
+
   test("does not resolve includes inside non-matching CLI blocks", () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "workers-system-prompt-"));
     writeFileSync(

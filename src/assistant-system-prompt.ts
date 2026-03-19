@@ -6,6 +6,7 @@ import type { CliName } from "./types.js";
 
 const CLI_BLOCK_PATTERN = /{{#cli\s+([^}]+)}}([\s\S]*?){{\/cli}}/g;
 const INCLUDE_PATTERN = /{{\s*include\s+([^}\s][^}]*)\s*}}/g;
+const LEADING_SOURCE_ONLY_COMMENT_PATTERN = /^(?:\s*<!--[\s\S]*?-->\s*)+/;
 
 export function renderAssistantSystemPromptTemplate(
   template: string,
@@ -60,11 +61,17 @@ function assistantSystemPromptCacheDir(): string {
   return cacheDir;
 }
 
+function stripLeadingSourceOnlyComments(content: string): string {
+  return content.replace(LEADING_SOURCE_ONLY_COMMENT_PATTERN, "");
+}
+
 export function prepareAssistantSystemPrompt(
   systemPromptTemplatePath: string,
   cli: CliName,
 ): PreparedAssistantSystemPrompt {
-  const rendered = renderAssistantSystemPromptFile(systemPromptTemplatePath, cli, []);
+  const rendered = stripLeadingSourceOnlyComments(
+    renderAssistantSystemPromptFile(systemPromptTemplatePath, cli, []),
+  );
   const extension = path.extname(systemPromptTemplatePath);
   const baseName = path.basename(systemPromptTemplatePath, extension);
   const cacheKey = createHash("sha256")

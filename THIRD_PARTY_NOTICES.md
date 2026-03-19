@@ -12,6 +12,20 @@ instructions:
 OpenAI Codex is licensed under the Apache License 2.0. The license text used
 for this adaptation is included in `LICENSES/Apache-2.0.txt`.
 
+Upstream OpenAI Codex NOTICE:
+
+```text
+OpenAI Codex
+Copyright 2025 OpenAI
+
+This project includes code derived from Ratatui, licensed under the MIT license.
+Copyright (c) 2016-2022 Florian Dehau
+Copyright (c) 2023-2025 The Ratatui Developers
+
+This project includes Meriyah parser assets from meriyah, licensed under the ISC license.
+Copyright (c) 2019 and later, KFlash and others.
+```
+
 ## OpenClaw AGENTS guidance
 
 Parts of [`AGENTS.md`](/home/jonas/workers/AGENTS.md) are adapted from
