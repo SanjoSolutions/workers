@@ -1,4 +1,4 @@
-import { $ } from "zx";
+import { runGit } from "./git-cli.js";
 
 export interface GitBranchTarget {
   branch: string;
@@ -10,8 +10,7 @@ export interface GitBranchTarget {
 }
 
 export async function getCurrentBranch(repoRoot: string): Promise<string> {
-  const result =
-    await $`git -C ${repoRoot} rev-parse --abbrev-ref HEAD`.quiet().nothrow();
+  const result = await runGit(["-C", repoRoot, "rev-parse", "--abbrev-ref", "HEAD"]);
   const branch = result.stdout.trim();
   if (result.exitCode !== 0 || !branch || branch === "HEAD") {
     throw new Error(`Cannot determine current branch for ${repoRoot}`);
@@ -23,14 +22,20 @@ export async function resolveBranchTarget(
   repoRoot: string,
 ): Promise<GitBranchTarget> {
   const branch = await getCurrentBranch(repoRoot);
-  const remoteResult =
-    await $`git -C ${repoRoot} config --get branch.${branch}.remote`
-      .quiet()
-      .nothrow();
-  const mergeResult =
-    await $`git -C ${repoRoot} config --get branch.${branch}.merge`
-      .quiet()
-      .nothrow();
+  const remoteResult = await runGit([
+    "-C",
+    repoRoot,
+    "config",
+    "--get",
+    `branch.${branch}.remote`,
+  ]);
+  const mergeResult = await runGit([
+    "-C",
+    repoRoot,
+    "config",
+    "--get",
+    `branch.${branch}.merge`,
+  ]);
 
   const remoteName = remoteResult.stdout.trim();
   const mergeRef = mergeResult.stdout.trim();
@@ -81,8 +86,7 @@ export async function fetchBranchTarget(
     return true;
   }
 
-  const result =
-    await $`git -C ${repoRoot} fetch ${target.remoteName}`.quiet().nothrow();
+  const result = await runGit(["-C", repoRoot, "fetch", target.remoteName]);
   return result.exitCode === 0;
 }
 

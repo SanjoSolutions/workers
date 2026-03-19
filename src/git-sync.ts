@@ -1,6 +1,6 @@
 import { readFileSync } from "fs";
-import { $ } from "zx";
 import type { WorkConfig } from "./types.js";
+import { runGit } from "./git-cli.js";
 import * as log from "./log.js";
 import {
   fetchBranchTarget,
@@ -43,11 +43,8 @@ export async function rebaseWorktreeOntoRoot(
   await fetchBranchTarget(repoRoot, branchTarget);
 
   const branchTargetResult =
-    await $`git -C ${repoRoot} rev-parse ${targetRef(branchTarget)}`
-      .quiet()
-      .nothrow();
-  const currentHeadResult =
-    await $`git -C ${worktreePath} rev-parse HEAD`.quiet().nothrow();
+    await runGit(["-C", repoRoot, "rev-parse", targetRef(branchTarget)]);
+  const currentHeadResult = await runGit(["-C", worktreePath, "rev-parse", "HEAD"]);
 
   const branchTargetHead = branchTargetResult.stdout.trim();
   const currentHead = currentHeadResult.stdout.trim();
@@ -64,9 +61,9 @@ export async function rebaseWorktreeOntoRoot(
   }
 
   const diffResult =
-    await $`git -C ${worktreePath} diff --quiet`.quiet().nothrow();
+    await runGit(["-C", worktreePath, "diff", "--quiet"]);
   const diffCachedResult =
-    await $`git -C ${worktreePath} diff --cached --quiet`.quiet().nothrow();
+    await runGit(["-C", worktreePath, "diff", "--cached", "--quiet"]);
 
   if (diffResult.exitCode !== 0 || diffCachedResult.exitCode !== 0) {
     log.error(
@@ -77,10 +74,10 @@ export async function rebaseWorktreeOntoRoot(
 
   log.info(`Rebasing worktree onto ${branchTarget.displayName} (${branchTargetHead}).`);
   const rebaseResult =
-    await $`git -C ${worktreePath} rebase ${branchTargetHead}`.quiet().nothrow();
+    await runGit(["-C", worktreePath, "rebase", branchTargetHead]);
   if (rebaseResult.exitCode !== 0) {
     log.error("Worktree rebase failed. Aborting rebase.");
-    await $`git -C ${worktreePath} rebase --abort`.quiet().nothrow();
+    await runGit(["-C", worktreePath, "rebase", "--abort"]);
     return false;
   }
 
@@ -100,21 +97,22 @@ export async function repairReusedWorktreeAfterRebaseFailure(
       `Worktree is detached; creating branch ${newBranch} at ${branchTarget.displayName}.`,
     );
     const createResult =
-      await $`git -C ${repoRoot} branch ${newBranch} ${targetRef(branchTarget)}`
-        .quiet()
-        .nothrow();
+      await runGit(["-C", repoRoot, "branch", newBranch, targetRef(branchTarget)]);
     if (createResult.exitCode !== 0) {
-      await $`git -C ${repoRoot} branch -f ${newBranch} ${targetRef(branchTarget)}`
-        .quiet()
-        .nothrow();
+      await runGit([
+        "-C",
+        repoRoot,
+        "branch",
+        "-f",
+        newBranch,
+        targetRef(branchTarget),
+      ]);
     }
-    await $`git -C ${worktreePath} checkout -- .`.quiet().nothrow();
-    await $`git -C ${worktreePath} clean -fd`.quiet().nothrow();
+    await runGit(["-C", worktreePath, "checkout", "--", "."]);
+    await runGit(["-C", worktreePath, "clean", "-fd"]);
 
     const checkoutResult =
-      await $`git -C ${worktreePath} checkout ${newBranch}`
-        .quiet()
-        .nothrow();
+      await runGit(["-C", worktreePath, "checkout", newBranch]);
     if (checkoutResult.exitCode !== 0) {
       log.error(
         `Cannot repair detached worktree: failed to checkout ${newBranch}.`,
@@ -125,8 +123,7 @@ export async function repairReusedWorktreeAfterRebaseFailure(
     return true;
   }
 
-  const currentHeadResult =
-    await $`git -C ${worktreePath} rev-parse HEAD`.quiet().nothrow();
+  const currentHeadResult = await runGit(["-C", worktreePath, "rev-parse", "HEAD"]);
   const currentHead = currentHeadResult.stdout.trim();
 
   if (!currentHead) {
@@ -143,9 +140,7 @@ export async function repairReusedWorktreeAfterRebaseFailure(
   const backupBranch = `${branchName}-backup-${timestamp}`;
 
   const backupResult =
-    await $`git -C ${repoRoot} branch ${backupBranch} ${currentHead}`
-      .quiet()
-      .nothrow();
+    await runGit(["-C", repoRoot, "branch", backupBranch, currentHead]);
   if (backupResult.exitCode !== 0) {
     log.error(
       `Cannot repair reused worktree: failed to create backup branch ${backupBranch}.`,
@@ -154,7 +149,7 @@ export async function repairReusedWorktreeAfterRebaseFailure(
   }
 
   const detachResult =
-    await $`git -C ${worktreePath} checkout --detach`.quiet().nothrow();
+    await runGit(["-C", worktreePath, "checkout", "--detach"]);
   if (detachResult.exitCode !== 0) {
     log.error(
       "Cannot repair reused worktree: failed to detach HEAD before branch realignment.",
@@ -163,9 +158,14 @@ export async function repairReusedWorktreeAfterRebaseFailure(
   }
 
   const resetResult =
-    await $`git -C ${repoRoot} branch -f ${branchName} ${targetRef(branchTarget)}`
-      .quiet()
-      .nothrow();
+    await runGit([
+      "-C",
+      repoRoot,
+      "branch",
+      "-f",
+      branchName,
+      targetRef(branchTarget),
+    ]);
   if (resetResult.exitCode !== 0) {
     log.error(
       `Cannot repair reused worktree: failed to reset ${branchName} to ${branchTarget.displayName}.`,
@@ -174,9 +174,7 @@ export async function repairReusedWorktreeAfterRebaseFailure(
   }
 
   const checkoutResult =
-    await $`git -C ${worktreePath} checkout ${branchName}`
-      .quiet()
-      .nothrow();
+    await runGit(["-C", worktreePath, "checkout", branchName]);
   if (checkoutResult.exitCode !== 0) {
     log.error(
       `Cannot repair reused worktree: failed to re-checkout ${branchName}.`,
@@ -198,7 +196,7 @@ export async function verifyAgentPushed(
   branchTarget: GitBranchTarget,
 ): Promise<boolean> {
   const afterHeadResult =
-    await $`git -C ${worktreePath} rev-parse HEAD`.quiet().nothrow();
+    await runGit(["-C", worktreePath, "rev-parse", "HEAD"]);
   const afterHead = afterHeadResult.stdout.trim();
 
   if (!afterHead || afterHead === beforeHead) {
@@ -211,9 +209,7 @@ export async function verifyAgentPushed(
   await fetchBranchTarget(repoRoot, branchTarget);
 
   const branchTargetResult =
-    await $`git -C ${repoRoot} rev-parse ${targetRef(branchTarget)}`
-      .quiet()
-      .nothrow();
+    await runGit(["-C", repoRoot, "rev-parse", targetRef(branchTarget)]);
   const branchTargetHead = branchTargetResult.stdout.trim();
 
   if (!branchTargetHead) {
@@ -222,18 +218,28 @@ export async function verifyAgentPushed(
   }
 
   const isAncestorResult =
-    await $`git -C ${repoRoot} merge-base --is-ancestor ${afterHead} ${branchTargetHead}`
-      .quiet()
-      .nothrow();
+    await runGit([
+      "-C",
+      repoRoot,
+      "merge-base",
+      "--is-ancestor",
+      afterHead,
+      branchTargetHead,
+    ]);
 
   if (isAncestorResult.exitCode === 0) {
     return true;
   }
 
   const originAdvancedResult =
-    await $`git -C ${repoRoot} merge-base --is-ancestor ${beforeHead} ${branchTargetHead}`
-      .quiet()
-      .nothrow();
+    await runGit([
+      "-C",
+      repoRoot,
+      "merge-base",
+      "--is-ancestor",
+      beforeHead,
+      branchTargetHead,
+    ]);
 
   if (originAdvancedResult.exitCode === 0 && branchTargetHead !== beforeHead) {
     log.info(
@@ -266,9 +272,13 @@ export async function pushWorktreeToMain(
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const pushResult =
-      await $`git -C ${worktreePath} push ${branchTarget.remoteName!} HEAD:${branchTarget.remoteBranch!}`
-        .quiet()
-        .nothrow();
+      await runGit([
+        "-C",
+        worktreePath,
+        "push",
+        branchTarget.remoteName!,
+        `HEAD:${branchTarget.remoteBranch!}`,
+      ]);
     if (pushResult.exitCode === 0) {
       log.info(`Pushed commits to ${branchTarget.displayName}.`);
       return true;
@@ -281,9 +291,7 @@ export async function pushWorktreeToMain(
     await fetchBranchTarget(repoRoot, branchTarget);
 
     const rebaseResult =
-      await $`git -C ${worktreePath} rebase ${targetRef(branchTarget)}`
-        .quiet()
-        .nothrow();
+      await runGit(["-C", worktreePath, "rebase", targetRef(branchTarget)]);
 
     if (rebaseResult.exitCode === 0) {
       if (config?.git?.afterRebase) {
@@ -299,9 +307,13 @@ export async function pushWorktreeToMain(
     let resolved = false;
     for (let step = 0; step < MAX_CONFLICT_STEPS; step++) {
       const conflictResult =
-        await $`git -C ${worktreePath} diff --name-only --diff-filter=U`
-          .quiet()
-          .nothrow();
+        await runGit([
+          "-C",
+          worktreePath,
+          "diff",
+          "--name-only",
+          "--diff-filter=U",
+        ]);
       const conflictFiles = conflictResult.stdout.trim().split("\n").filter(Boolean);
 
       if (conflictFiles.length === 0) {
@@ -314,23 +326,19 @@ export async function pushWorktreeToMain(
         log.error(
           `Rebase has unresolvable conflicts: ${nonAutoResolve.join(", ")}. Aborting.`,
         );
-        await $`git -C ${worktreePath} rebase --abort`.quiet().nothrow();
+        await runGit(["-C", worktreePath, "rebase", "--abort"]);
         resolved = false;
         break;
       }
 
       // Resolve auto-resolve files by accepting theirs
       for (const file of conflictFiles) {
-        await $`git -C ${worktreePath} checkout --theirs ${file}`
-          .quiet()
-          .nothrow();
-        await $`git -C ${worktreePath} add ${file}`.quiet().nothrow();
+        await runGit(["-C", worktreePath, "checkout", "--theirs", file]);
+        await runGit(["-C", worktreePath, "add", file]);
       }
 
       const continueResult =
-        await $`git -C ${worktreePath} rebase --continue`
-          .quiet()
-          .nothrow();
+        await runGit(["-C", worktreePath, "rebase", "--continue"]);
       if (continueResult.exitCode === 0) {
         resolved = true;
         break;
@@ -339,7 +347,7 @@ export async function pushWorktreeToMain(
 
     if (!resolved) {
       log.error("Failed to auto-resolve rebase conflicts.");
-      await $`git -C ${worktreePath} rebase --abort`.quiet().nothrow();
+      await runGit(["-C", worktreePath, "rebase", "--abort"]);
       return false;
     }
 

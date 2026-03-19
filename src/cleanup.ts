@@ -1,5 +1,5 @@
-import { $ } from "zx";
 import { releaseWorktreeLock, isWorktreeLockedByLiveProcess } from "./locking.js";
+import { runGit } from "./git-cli.js";
 import { listCliWorktrees } from "./worktree.js";
 import type { CliOptions, WorktreeInfo } from "./types.js";
 import * as log from "./log.js";
@@ -18,9 +18,7 @@ export async function cleanup(
       await stopRuntime(worktree.path).catch(() => {});
     }
 
-    await $`git -C ${repoRoot} worktree remove --force ${worktree.path}`
-      .quiet()
-      .nothrow()
+    await runGit(["-C", repoRoot, "worktree", "remove", "--force", worktree.path])
       .catch(() => {});
   }
 }
@@ -58,9 +56,7 @@ export async function cleanupStaleWorktrees(
     }
 
     log.info(`Removing stale worktree: ${entry.path}`);
-    await $`git -C ${repoRoot} worktree remove --force ${entry.path}`
-      .quiet()
-      .nothrow();
+    await runGit(["-C", repoRoot, "worktree", "remove", "--force", entry.path]);
   }
 }
 
