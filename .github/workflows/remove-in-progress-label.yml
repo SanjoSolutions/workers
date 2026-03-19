@@ -19,22 +19,22 @@ jobs:
               'workers:pr-ready',
               'workers:ready-to-be-picked-up',
             ];
+            const issueLabels = (context.payload.issue?.labels ?? [])
+              .map((label) => label?.name)
+              .filter((name) => typeof name === 'string');
+            const labelsToRemove = labelNames.filter((labelName) => issueLabels.includes(labelName));
 
-            for (const labelName of labelNames) {
-              try {
-                await github.rest.issues.removeLabel({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: context.issue.number,
-                  name: labelName,
-                });
-                console.log(`Removed label "${labelName}" from issue #${context.issue.number}`);
-              } catch (error) {
-                // Missing labels are fine; permission or API failures are not.
-                if (error.message.includes('404') || error.message.includes('not found')) {
-                  console.log(`Label "${labelName}" not found on issue #${context.issue.number}`);
-                } else {
-                  throw error;
-                }
-              }
+            if (labelsToRemove.length === 0) {
+              console.log(`No worker labels to remove from issue #${context.issue.number}`);
+              return;
+            }
+
+            for (const labelName of labelsToRemove) {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                name: labelName,
+              });
+              console.log(`Removed label "${labelName}" from issue #${context.issue.number}`);
             }
