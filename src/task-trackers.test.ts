@@ -733,6 +733,8 @@ describe("GitHub issue claim comments", () => {
     });
 
     expect(body.startsWith("I will work on this.")).toBe(true);
+    expect(body).toContain("<details>");
+    expect(body).toContain("<summary>Worker metadata</summary>");
     expect(body).toContain("```workers-issue-claim");
 
     expect(parseGitHubIssueClaimComment(body)).toEqual({

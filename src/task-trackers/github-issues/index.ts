@@ -230,13 +230,20 @@ export function renderGitHubIssueClaimComment(
     2,
   );
 
-  return `${normalizedMessage}\n\n\`\`\`${GITHUB_ISSUE_CLAIM_CODE_FENCE}\n${body}\n\`\`\``;
+  return `${normalizedMessage}\n\n<details>\n<summary>Worker metadata</summary>\n\n\`\`\`${GITHUB_ISSUE_CLAIM_CODE_FENCE}\n${body}\n\`\`\`\n\n</details>`;
 }
 
 export function parseGitHubIssueClaimComment(
   commentBody: string,
 ): ParsedGitHubIssueClaimComment | undefined {
-  const match = commentBody.match(
+  const normalizedCommentBody = commentBody.replace(
+    new RegExp(
+      `\\n\\n<details>\\s*\\n<summary>Worker metadata</summary>\\s*\\n\\n(\`\`\`${GITHUB_ISSUE_CLAIM_CODE_FENCE}\\n[\\s\\S]+?\\n\`\`\`)\\s*\\n\\n</details>\\s*$`,
+    ),
+    "\n\n$1",
+  );
+
+  const match = normalizedCommentBody.match(
     new RegExp(
       `^([\\s\\S]*?)\\n\\n\`\`\`${GITHUB_ISSUE_CLAIM_CODE_FENCE}\\n([\\s\\S]+?)\\n\`\`\`\\s*$`,
     ),
