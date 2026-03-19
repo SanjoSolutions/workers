@@ -181,6 +181,50 @@ describe("loadSettings githubApp", () => {
   });
 });
 
+describe("loadSettings GitHub issue claim comments", () => {
+  test("parses a configured claim comment message from project task tracker settings", async () => {
+    const cfgDir = mkdtempSync(path.join(tmpdir(), "workers-settings-claim-comment-"));
+    writeFileSync(
+      path.join(cfgDir, "settings.json"),
+      JSON.stringify({
+        worker: { defaults: { model: "gpt-5.4" } },
+        projects: [
+          {
+            repo: "/path/to/repo",
+            taskTracker: {
+              type: "github-issues",
+              repository: "SanjoSolutions/workers",
+              claimComment: {
+                message: "Starting this task now.",
+              },
+            },
+          },
+        ],
+      }, null, 2),
+      "utf8",
+    );
+
+    const settings = await loadSettings(undefined, { configDir: cfgDir });
+
+    expect(settings.projects).toEqual([
+      {
+        repo: "/path/to/repo",
+        createPullRequest: undefined,
+        taskTracker: {
+          type: "github-issues",
+          repository: "SanjoSolutions/workers",
+          tokenCommand: undefined,
+          githubApp: undefined,
+          labels: undefined,
+          claimComment: {
+            message: "Starting this task now.",
+          },
+        },
+      },
+    ]);
+  });
+});
+
 describe("ensureWorkerCli", () => {
   test("persists a provided cli when worker cli is missing", async () => {
     const cfgDir = mkdtempSync(path.join(tmpdir(), "workers-ensure-explicit-"));

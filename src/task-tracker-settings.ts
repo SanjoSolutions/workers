@@ -3,11 +3,14 @@ import { expandHomePath } from "./path-utils.js";
 import { readEnv } from "./env-utils.js";
 import type {
   GitHubAppSettings,
+  GitHubIssueClaimCommentSettings,
   GitTodoTaskTrackerSettings,
   GitHubIssuesTaskTrackerSettings,
   TaskTrackerSettings,
   WorkersSettings,
 } from "./settings.js";
+
+export const DEFAULT_GITHUB_ISSUE_CLAIM_COMMENT_MESSAGE = "I will work on this.";
 
 export interface ResolvedGitTodoTaskTracker {
   name: string;
@@ -27,6 +30,7 @@ export interface ResolvedGitHubIssuesTaskTracker {
     ready: string;
     inProgress: string;
   };
+  claimComment: Required<GitHubIssueClaimCommentSettings>;
 }
 
 export type ResolvedTaskTracker =
@@ -74,6 +78,11 @@ function resolveGitHubIssuesTracker(
     labels: {
       ready: tracker.labels?.ready?.trim() || "workers:ready-to-be-picked-up",
       inProgress: tracker.labels?.inProgress?.trim() || "workers:in-progress",
+    },
+    claimComment: {
+      message:
+        tracker.claimComment?.message?.trim()
+        || DEFAULT_GITHUB_ISSUE_CLAIM_COMMENT_MESSAGE,
     },
   };
 }

@@ -42,12 +42,35 @@ export interface GitHubIssueLabel {
   name: string;
 }
 
+export interface GitHubIssueComment {
+  id: number;
+  body: string;
+  createdAt: string;
+  authorLogin?: string;
+}
+
 export interface GitHubIssue {
   number: number;
   title: string;
   body: string;
   createdAt?: string;
   labels?: GitHubIssueLabel[];
+}
+
+export interface GitHubIssueClaimCommentMetadata {
+  type: "workers-issue-claim";
+  version: 1;
+  sessionId: string;
+  cli: string;
+  trackerName: string;
+  repository: string;
+  issueNumber: number;
+  claimedAt: string;
+}
+
+export interface ParsedGitHubIssueClaimComment {
+  message: string;
+  metadata: GitHubIssueClaimCommentMetadata;
 }
 
 export type GitHubIssueSection = "in-progress" | "ready" | "planned";

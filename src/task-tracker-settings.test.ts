@@ -129,6 +129,40 @@ describe("task tracker settings", () => {
       ready: "workers:ready-to-be-picked-up",
       inProgress: "workers:in-progress",
     });
+    expect(tracker.claimComment).toEqual({
+      message: "I will work on this.",
+    });
+  });
+
+  test("resolves a configured GitHub issue claim comment message", () => {
+    const tracker = resolveTaskTrackerForRepo(
+      "/home/jonas/workers",
+      {
+        ...BASE_SETTINGS,
+        projects: [
+          {
+            repo: "/home/jonas/workers",
+            taskTracker: {
+              type: "github-issues",
+              repository: "SanjoSolutions/workers",
+              claimComment: {
+                message: "Starting this task now.",
+              },
+            },
+          },
+        ],
+      },
+      {},
+    );
+
+    expect(tracker.kind).toBe("github-issues");
+    if (tracker.kind !== "github-issues") {
+      throw new Error("expected github-issues tracker");
+    }
+
+    expect(tracker.claimComment).toEqual({
+      message: "Starting this task now.",
+    });
   });
 
   test("leaves env untouched when the repo has no configured tracker", async () => {
@@ -159,6 +193,9 @@ describe("task tracker settings", () => {
         labels: {
           ready: "ready",
           inProgress: "in-progress",
+        },
+        claimComment: {
+          message: "I will work on this.",
         },
       },
     };

@@ -4,6 +4,7 @@ import path from "path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { ResolvedGitHubIssuesTaskTracker } from "./task-tracker-settings.js";
 import type { ClaimedTask, GitHubIssue } from "./task-trackers.js";
+import type { GitHubIssueComment } from "./task-trackers/github-issues.js";
 
 const ghCommands: string[] = [];
 const ghResults: Array<{ exitCode: number; stdout: string }> = [];
@@ -37,6 +38,11 @@ const {
   partitionGitHubIssuesBySection,
   syncCompletedTask,
 } = await import("./task-trackers.js");
+const {
+  parseGitHubIssueClaimComment,
+  renderGitHubIssueClaimComment,
+  selectWinningGitHubIssueClaimComment,
+} = await import("./task-trackers/github-issues.js");
 
 function createTracker(): ResolvedGitHubIssuesTaskTracker {
   return {
@@ -49,6 +55,9 @@ function createTracker(): ResolvedGitHubIssuesTaskTracker {
     labels: {
       ready: "workers:ready-to-be-picked-up",
       inProgress: "workers:in-progress",
+    },
+    claimComment: {
+      message: "I will work on this.",
     },
   };
 }
@@ -63,6 +72,9 @@ const TRACKER: ResolvedGitHubIssuesTaskTracker = {
   labels: {
     ready: "workers:ready-to-be-picked-up",
     inProgress: "workers:in-progress",
+  },
+  claimComment: {
+    message: "I will work on this.",
   },
 };
 
@@ -246,5 +258,74 @@ describe("createGitHubIssueTask", () => {
     expect(sections.planned.map((issue) => issue.title)).toEqual(["Backlog item"]);
     expect(sections.ready.map((issue) => issue.title)).toEqual(["Ready item"]);
     expect(sections["in-progress"].map((issue) => issue.title)).toEqual(["Claimed item"]);
+  });
+
+  test("renders a human-readable claim comment with structured metadata", () => {
+    const body = renderGitHubIssueClaimComment("I will work on this.", {
+      sessionId: "codex-claim-session",
+      cli: "codex",
+      trackerName: "workers",
+      repository: "SanjoSolutions/workers",
+      issueNumber: 42,
+      claimedAt: "2026-03-19T10:00:00.000Z",
+    });
+
+    expect(body.startsWith("I will work on this.")).toBe(true);
+    expect(body).toContain("```workers-issue-claim");
+
+    expect(parseGitHubIssueClaimComment(body)).toEqual({
+      message: "I will work on this.",
+      metadata: {
+        type: "workers-issue-claim",
+        version: 1,
+        sessionId: "codex-claim-session",
+        cli: "codex",
+        trackerName: "workers",
+        repository: "SanjoSolutions/workers",
+        issueNumber: 42,
+        claimedAt: "2026-03-19T10:00:00.000Z",
+      },
+    });
+  });
+
+  test("deterministically selects the earliest structured claim comment during a race", () => {
+    const comments: GitHubIssueComment[] = [
+      {
+        id: 18,
+        body: "Looks good to me.",
+        createdAt: "2026-03-19T10:00:02.000Z",
+      },
+      {
+        id: 21,
+        body: renderGitHubIssueClaimComment("I will work on this.", {
+          sessionId: "codex-session-two",
+          cli: "codex",
+          trackerName: "workers",
+          repository: "SanjoSolutions/workers",
+          issueNumber: 42,
+          claimedAt: "2026-03-19T10:00:04.000Z",
+        }),
+        createdAt: "2026-03-19T10:00:04.000Z",
+      },
+      {
+        id: 20,
+        body: renderGitHubIssueClaimComment("I will work on this.", {
+          sessionId: "codex-session-one",
+          cli: "codex",
+          trackerName: "workers",
+          repository: "SanjoSolutions/workers",
+          issueNumber: 42,
+          claimedAt: "2026-03-19T10:00:03.000Z",
+        }),
+        createdAt: "2026-03-19T10:00:03.000Z",
+      },
+    ];
+
+    expect(selectWinningGitHubIssueClaimComment(comments)).toMatchObject({
+      id: 20,
+      metadata: {
+        sessionId: "codex-session-one",
+      },
+    });
   });
 });

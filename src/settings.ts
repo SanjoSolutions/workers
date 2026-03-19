@@ -44,6 +44,10 @@ export interface GitHubIssueLabelsSettings {
   inProgress?: string;
 }
 
+export interface GitHubIssueClaimCommentSettings {
+  message?: string;
+}
+
 export interface GitHubAppSettings {
   appId: string;
   privateKeyPath: string;
@@ -55,6 +59,7 @@ export interface GitHubIssuesTaskTrackerSettings {
   tokenCommand?: string;
   githubApp?: GitHubAppSettings;
   labels?: GitHubIssueLabelsSettings;
+  claimComment?: GitHubIssueClaimCommentSettings;
 }
 
 export type TaskTrackerSettings =
@@ -207,6 +212,18 @@ function normalizeInlineTracker(
         ? rawTokenCommand.trim()
         : undefined;
 
+    const rawClaimComment = obj.claimComment;
+    const claimComment =
+      rawClaimComment &&
+      typeof rawClaimComment === "object" &&
+      !Array.isArray(rawClaimComment) &&
+      typeof (rawClaimComment as Record<string, unknown>).message === "string" &&
+      ((rawClaimComment as Record<string, string>).message).trim()
+        ? {
+            message: ((rawClaimComment as Record<string, string>).message).trim(),
+          }
+        : undefined;
+
     const rawGitHubApp = obj.githubApp;
     const githubApp =
       rawGitHubApp &&
@@ -226,6 +243,7 @@ function normalizeInlineTracker(
       tokenCommand,
       githubApp,
       labels,
+      claimComment,
     };
   }
 

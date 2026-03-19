@@ -176,6 +176,13 @@ Workers orchestrates isolated development work for AI coding agents across multi
   before closing the issue.
 - In GitHub Issues trackers, unlabeled open issues must be treated as planned or backlog work, and
   only `workers:ready-to-be-picked-up` and `workers:in-progress` remain operational workflow labels.
+- In GitHub Issues trackers, claiming a ready issue must add a worker-authored claim comment that
+  begins with a human-readable message and also includes structured claim metadata for machine
+  parsing.
+- The human-readable GitHub issue claim comment message must be configurable per tracker, with a
+  sensible default.
+- Concurrent GitHub issue claim attempts must resolve deterministically so only one worker keeps the
+  claim and losing workers continue polling without crashing.
 - Tracker selection and worker polling must no longer be hard-coded to a single repository.
 
 ## 8.3 Assistant Command
