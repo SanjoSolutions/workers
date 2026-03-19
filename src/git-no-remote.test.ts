@@ -173,6 +173,7 @@ describe("git flow with a tracked non-origin remote", () => {
     );
 
     writeFileSync(path.join(first.worktree.path, "feature.txt"), "first task\n", "utf8");
+    writeFileSync(path.join(first.worktree.path, "leftover.log"), "stale file\n", "utf8");
     git(["add", "feature.txt"], first.worktree.path);
     git(["commit", "-m", "first task"], first.worktree.path);
     const firstTaskHead = git(["rev-parse", "HEAD"], first.worktree.path);
@@ -199,11 +200,17 @@ describe("git flow with a tracked non-origin remote", () => {
       git(["rev-parse", "worker/main"], repoRoot),
     );
     expect(() =>
+      git(["status", "--short", "--untracked-files=all"], second.worktree.path),
+    ).not.toThrow();
+    expect(
+      git(["status", "--short", "--untracked-files=all"], second.worktree.path),
+    ).toBe("");
+    expect(() =>
       git(["merge-base", "--is-ancestor", firstTaskHead, "work/codex-128"], repoRoot),
     ).toThrow();
   });
 
-  test("reused worker runs skip dirty worktrees with untracked files", async () => {
+  test("reused worker runs clean untracked files before switching tasks", async () => {
     const { repoRoot } = makeRepoWithBareRemote();
     const projectWorktreeDir = path.join(repoRoot, ".worktrees", "test-project");
     const worktreeLockRoot = path.join(repoRoot, ".git", "worktree-active-locks");
@@ -241,9 +248,12 @@ describe("git flow with a tracked non-origin remote", () => {
       projectWorktreeDir,
     );
 
-    expect(second.worktree.reuseMode).toBe("new");
-    expect(second.worktree.path).not.toBe(first.worktree.path);
+    expect(second.worktree.reuseMode).toBe("reused");
+    expect(second.worktree.path).toBe(first.worktree.path);
     expect(second.worktree.branchName).toBe("work/codex-201");
+    expect(
+      git(["status", "--short", "--untracked-files=all"], second.worktree.path),
+    ).toBe("");
   });
 
   test("project repos without an upstream remote still expose a usable local branch target", async () => {

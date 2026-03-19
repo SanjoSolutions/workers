@@ -17,6 +17,7 @@ Be the assistant you'd actually want to talk to. Concise when needed, thorough w
 - `SPEC.md` is the high-level natural language specification for this repository. Update it whenever requirements change or new ones are added.
   Keep it very high-level. Automate all lower level specs with automated tests.
 - When a new requirement conflicts with an existing requirement in `SPEC.md`, do not silently choose one. Surface the conflict to the user and let them decide.
+- `README.md` is the minimal document for new users. Keep testing notes and other contributor or operational details in separate docs.
 
 # Testing practices
 

@@ -15,11 +15,6 @@ A human-first process that supports spontaneity.
   * TODO.md: A lightweight task management system.
 * SPEC.md: A standard for a high-level project spec.
 
-## Testing
-
-* `pnpm test`: The default automated test run.
-* `pnpm test:cli-features`: On-demand checks for the exact CLI feature usage patterns used by workers. Run these when installing or updating an agent CLI.
-
 ## How to
 
 __Prerequisites:__
