@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, writeFileSync } from "fs";
+import { existsSync, mkdtempSync, mkdirSync, realpathSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
 import { execFileSync } from "child_process";
@@ -15,6 +15,14 @@ function git(args: string[], cwd: string): string {
     cwd,
     encoding: "utf8",
   }).trim();
+}
+
+function normalizeExistingPath(targetPath: string): string {
+  const resolvedPath = path.resolve(targetPath);
+  if (!existsSync(resolvedPath)) {
+    return resolvedPath;
+  }
+  return realpathSync.native(resolvedPath);
 }
 
 function makeRepo(): string {
@@ -191,7 +199,9 @@ describe("git flow with a tracked non-origin remote", () => {
     );
 
     expect(second.worktree.reuseMode).toBe("reused");
-    expect(second.worktree.path).toBe(first.worktree.path);
+    expect(normalizeExistingPath(second.worktree.path)).toBe(
+      normalizeExistingPath(first.worktree.path),
+    );
     expect(second.worktree.branchName).toBe("work/codex-128");
     expect(git(["branch", "--show-current"], second.worktree.path)).toBe(
       "work/codex-128",
@@ -249,7 +259,9 @@ describe("git flow with a tracked non-origin remote", () => {
     );
 
     expect(second.worktree.reuseMode).toBe("reused");
-    expect(second.worktree.path).toBe(first.worktree.path);
+    expect(normalizeExistingPath(second.worktree.path)).toBe(
+      normalizeExistingPath(first.worktree.path),
+    );
     expect(second.worktree.branchName).toBe("work/codex-201");
     expect(
       git(["status", "--short", "--untracked-files=all"], second.worktree.path),
