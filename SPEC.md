@@ -148,6 +148,12 @@ Workers orchestrates isolated development work for AI coding agents across multi
   candidate models to consider.
 - Codex auto reasoning effort selection must be configurable through this settings file.
 - The default task tracker must be configurable through this settings file.
+- Workers settings must support one shared `githubApp` configuration with `appId` and
+  `privateKeyPath`.
+- When configured, the shared `githubApp` must provide GitHub authentication for both task tracker
+  operations and launched agent sessions.
+- Invalid shared `githubApp` configuration in settings must fail with a clear error instead of being
+  ignored silently.
 - Settings must support named task trackers and project-to-task-tracker assignments.
 - Project registrations in settings must be stored as an ordered array, and worker polling must
   follow that order from first project to last.

@@ -3,6 +3,8 @@ import * as log from "./log.js";
 import { buildAgentPrompt } from "./agent-prompt.js";
 import { getAgentStrategy } from "./agent-strategies/index.js";
 import type { AgentResult } from "./agent-strategies/types.js";
+import { loadSettings } from "./settings.js";
+import { applyGitHubTokenFromSettings } from "./task-tracker-settings.js";
 
 export async function launchAgent(
   options: CliOptions,
@@ -12,6 +14,9 @@ export async function launchAgent(
   config?: WorkConfig,
   baseEnv: NodeJS.ProcessEnv = process.env,
 ): Promise<AgentResult> {
+  const settings = await loadSettings();
+  await applyGitHubTokenFromSettings(settings);
+
   const noTodo = !claimedTodoItem;
   const workflowMode = options.interactive ? "interactive" : "non-interactive";
 

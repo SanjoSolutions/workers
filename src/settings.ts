@@ -29,6 +29,7 @@ export interface AssistantDefaults {
 export interface WorkersSettings {
   defaults: WorkerDefaults;
   assistant: { defaults: AssistantDefaults };
+  githubApp?: GitHubAppSettings;
   projects: ProjectSettings[];
 }
 
@@ -138,6 +139,37 @@ function normalizeStringArray(raw: unknown, fallback: string[]): string[] {
   }
 
   return [...new Set(values)];
+}
+
+function normalizeGitHubApp(
+  raw: unknown,
+  location: string,
+): GitHubAppSettings | undefined {
+  if (raw == null) {
+    return undefined;
+  }
+
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new Error(
+      `Invalid ${location}: expected an object with non-empty string fields "appId" and "privateKeyPath".`,
+    );
+  }
+
+  const obj = raw as Record<string, unknown>;
+  const appId = typeof obj.appId === "string" ? obj.appId.trim() : "";
+  const privateKeyPath =
+    typeof obj.privateKeyPath === "string" ? obj.privateKeyPath.trim() : "";
+
+  if (!appId || !privateKeyPath) {
+    throw new Error(
+      `Invalid ${location}: expected non-empty string fields "appId" and "privateKeyPath".`,
+    );
+  }
+
+  return {
+    appId,
+    privateKeyPath,
+  };
 }
 
 function normalizeInlineTracker(
@@ -321,6 +353,7 @@ export async function loadSettings(
     typeof assistantDefaults.cli === "string" && VALID_CLI_SET.has(assistantDefaults.cli as CliName)
       ? (assistantDefaults.cli as CliName)
       : undefined;
+  const githubApp = normalizeGitHubApp(parsed.githubApp, `githubApp in ${filePath}`);
 
   return {
     defaults: {
@@ -347,6 +380,7 @@ export async function loadSettings(
         cli: assistantCli,
       },
     },
+    githubApp,
     projects: normalizeProjectEntries(parsed),
   };
 }

@@ -3,12 +3,19 @@ import type { WorkersSettings } from "./settings.js";
 import {
   applyGitHubTokenForRepo,
   applyGitHubTokenToEnv,
+  resolveGitHubAuthentication,
   resolveTaskTrackerForRepo,
   resolveTaskTrackers,
 } from "./task-tracker-settings.js";
 
 const BASE_SETTINGS: WorkersSettings = {
-  defaults: { cli: "codex", model: "gpt-5.4" },
+  defaults: {
+    cli: "codex",
+    model: "gpt-5.4",
+    autoModelSelection: true,
+    autoModelSelectionModels: ["gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex"],
+    autoReasoningEffort: true,
+  },
   assistant: { defaults: { cli: "codex" } },
   projects: [
     {
@@ -133,5 +140,54 @@ describe("task tracker settings", () => {
 
     expect(env.GH_TOKEN).toBe("shared-token");
     expect(process.env.GH_TOKEN).toBeUndefined();
+  });
+
+  test("prefers the shared GitHub App configuration for authentication", () => {
+    const auth = resolveGitHubAuthentication({
+      ...BASE_SETTINGS,
+      githubApp: {
+        appId: "12345",
+        privateKeyPath: "~/.config/workers/github-app.pem",
+      },
+      projects: [
+        {
+          repo: "/home/jonas/openclaw",
+          taskTracker: {
+            type: "github-issues",
+            repository: "acme/openclaw",
+            tokenCommand: "gh auth token",
+          },
+        },
+      ],
+    });
+
+    expect(auth).toEqual({
+      githubApp: {
+        appId: "12345",
+        privateKeyPath: "~/.config/workers/github-app.pem",
+      },
+      tokenCommand: undefined,
+    });
+  });
+
+  test("falls back to tracker authentication when no shared GitHub App is configured", () => {
+    const auth = resolveGitHubAuthentication({
+      ...BASE_SETTINGS,
+      projects: [
+        {
+          repo: "/home/jonas/openclaw",
+          taskTracker: {
+            type: "github-issues",
+            repository: "acme/openclaw",
+            tokenCommand: "gh auth token",
+          },
+        },
+      ],
+    });
+
+    expect(auth).toEqual({
+      githubApp: undefined,
+      tokenCommand: "gh auth token",
+    });
   });
 });

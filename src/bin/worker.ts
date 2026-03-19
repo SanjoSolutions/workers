@@ -30,10 +30,9 @@ import {
 } from "../task-target.js";
 import { initializeProject, isCreatePullRequestEnabled, loadSettings, persistProjectSettings } from "../settings.js";
 import {
-  applyGitHubToken,
   applyGitHubTokenForRepo,
+  applyGitHubTokenFromSettings,
   resolvePollingTaskTrackers,
-  resolveTaskTrackers,
 } from "../task-tracker-settings.js";
 import {
   claimTaskFromTracker,
@@ -348,8 +347,7 @@ async function main(): Promise<void> {
   // eslint-disable-next-line no-constant-condition
   while (true) {
     const settings = await loadSettings();
-    const { trackers } = resolveTaskTrackers(settings);
-    await applyGitHubToken(trackers);
+    await applyGitHubTokenFromSettings(settings);
     const pollableTrackers = resolvePollingTaskTrackers(settings);
 
     if (pollableTrackers.length === 0) {
