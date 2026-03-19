@@ -60,8 +60,8 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - This intake command is intended for a direct user-facing Codex session that captures bigger tasks instead of attempting them immediately.
 - The intake command must use the shared TODO repo configured via environment variable.
 - Workers must also provide a shared intake skill for the direct user-facing Codex session so this behavior can be applied by default.
-- After larger work is queued, the clarification skill remains responsible for refining it into an autonomous task that can move toward `## Ready to be picked up`.
-- When the coordinator skill invokes clarification, clarification acts as a temporary nested step and control returns to coordinator afterward.
+- After larger work is queued, the assistant-local clarification capability under `agents/assistant` remains responsible for refining it into an autonomous task that can move toward `## Ready to be picked up`.
+- When the assistant invokes clarification, clarification acts as a temporary nested step and control returns to the assistant afterward.
 - Package installation must expose `assistant` and `worker` as Node bin commands.
 - Ready-to-pick-up tasks must record their target repo in structured task metadata.
 - Tasks that are not for any repo must record that explicitly as `Repo: none`.
@@ -103,6 +103,7 @@ Workers orchestrates isolated development work for AI coding agents across multi
 
 - Workers supports Claude Code CLI, Codex CLI, and Gemini CLI.
 - Shared skills can live under `.agents/skills`.
+- Clarification must remain an assistant-only capability under `agents/assistant/.agents/skills/clarification`.
 - `.claude/skills` may point to the shared skills location.
 - Agent instructions must make clear when TODO synchronization is handled by the workers runtime rather than by the project repo commit.
 - When no explicit model is specified (via TODO metadata, CLI flag, or project config), the Claude

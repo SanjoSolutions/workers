@@ -34,8 +34,9 @@ Queue the request into TODO.md when it is larger, including cases like:
 ## For Larger Tasks
 
 1. Turn the request into a concise markdown TODO item.
-2. Use the clarification skill to refine the item. Every queued task must be autonomous and ready
-   for a worker to pick up without follow-up questions.
+2. Use the assistant-local clarification capability at `.agents/skills/clarification` to refine
+   the item. Every queued task must be autonomous and ready for a worker to pick up without
+   follow-up questions.
 3. After clarification finishes, add the clarified item with
    `node build/scripts/add-todo.js --ready`.
    Workers will route it to the configured task tracker for the target repo, or to the default task
