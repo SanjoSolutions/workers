@@ -23,6 +23,7 @@ async function main(): Promise<void> {
     if (!VALID_CLI_SET.has(opts.cli as CliName)) {
       throw new Error(`Unsupported CLI: ${opts.cli} (expected: claude, codex, gemini)`);
     }
+    await ensureAssistantCli(settings, undefined, { preferredCli: opts.cli as CliName });
     cli = opts.cli as CliName;
   } else {
     cli = await ensureAssistantCli(settings);

@@ -2,7 +2,7 @@ import { existsSync, lstatSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "os";
 import path from "path";
 import { describe, expect, test } from "vitest";
-import { ensureWorkerCli, initializeProject, isCreatePullRequestEnabled, loadSettings } from "./settings.js";
+import { ensureAssistantCli, ensureWorkerCli, initializeProject, isCreatePullRequestEnabled, loadSettings } from "./settings.js";
 
 async function createFakeCli(binDir: string, name: string): Promise<void> {
   const { mkdir, writeFile, chmod } = await import("fs/promises");
@@ -96,6 +96,29 @@ describe("loadSettings createPullRequest", () => {
 });
 
 describe("ensureWorkerCli", () => {
+  test("persists a provided cli when worker cli is missing", async () => {
+    const cfgDir = mkdtempSync(path.join(tmpdir(), "workers-ensure-explicit-"));
+    const settingsFilePath = path.join(cfgDir, "settings.json");
+
+    writeFileSync(settingsFilePath, '{ "worker": { "defaults": { "model": "gpt-5.4" } } }\n', "utf8");
+
+    const settings = await loadSettings(undefined, { configDir: cfgDir });
+    expect(settings.defaults.cli).toBeUndefined();
+
+    const cli = await ensureWorkerCli(settings, cfgDir, {
+      preferredCli: "codex",
+      promptForCli: async () => {
+        throw new Error("should not prompt");
+      },
+    });
+
+    expect(cli).toBe("codex");
+    expect(settings.defaults.cli).toBe("codex");
+    expect(JSON.parse(readFileSync(settingsFilePath, "utf8"))).toMatchObject({
+      worker: { defaults: { cli: "codex" } },
+    });
+  });
+
   test("auto-selects the only installed cli and persists", async () => {
     const cfgDir = mkdtempSync(path.join(tmpdir(), "workers-ensure-"));
     const settingsFilePath = path.join(cfgDir, "settings.json");
@@ -184,6 +207,31 @@ describe("ensureWorkerCli", () => {
     });
 
     expect(cli).toBe("gemini");
+  });
+});
+
+describe("ensureAssistantCli", () => {
+  test("persists a provided cli when assistant cli is missing", async () => {
+    const cfgDir = mkdtempSync(path.join(tmpdir(), "workers-assistant-explicit-"));
+    const settingsFilePath = path.join(cfgDir, "settings.json");
+
+    writeFileSync(settingsFilePath, '{ "worker": { "defaults": { "model": "gpt-5.4" } } }\n', "utf8");
+
+    const settings = await loadSettings(undefined, { configDir: cfgDir });
+    expect(settings.assistant.defaults.cli).toBeUndefined();
+
+    const cli = await ensureAssistantCli(settings, cfgDir, {
+      preferredCli: "claude",
+      promptForCli: async () => {
+        throw new Error("should not prompt");
+      },
+    });
+
+    expect(cli).toBe("claude");
+    expect(settings.assistant.defaults.cli).toBe("claude");
+    expect(JSON.parse(readFileSync(settingsFilePath, "utf8"))).toMatchObject({
+      assistant: { defaults: { cli: "claude" } },
+    });
   });
 });
 
