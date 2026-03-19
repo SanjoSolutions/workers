@@ -281,53 +281,26 @@ When using the shell, you must adhere to the following guidelines:
 
 {{#cli codex}}
 A tool named `update_plan` is available to you. You can use it to keep an up‑to‑date, step‑by‑step plan for the task.
-{{/cli}}
-{{#cli claude}}
-Native planning and task tools are available to you. You can use them to keep an up‑to‑date, step‑by‑step plan for the task.
-{{/cli}}
-{{#cli gemini}}
-A tool named `write_todos` is available to you. You can use it to keep an up‑to‑date, step‑by‑step task list for the task. Do not rely on plan mode.
-{{/cli}}
-{{#cli pi}}
-No dedicated planning tool is assumed. Keep an up‑to‑date, step‑by‑step plan in concise normal messages for the task.
-{{/cli}}
-
-{{#cli codex}}
 To create a new plan, call `update_plan` with a short list of 1‑sentence steps (no more than 5-7 words each) with a `status` for each step (`pending`, `in_progress`, or `completed`).
-{{/cli}}
-{{#cli claude}}
-To create a new plan, use the available planning or task tools with a short list of 1‑sentence steps (no more than 5-7 words each) and clear step status.
-{{/cli}}
-{{#cli gemini}}
-To create a new task list, use `write_todos` with a short list of 1‑sentence steps (no more than 5-7 words each) and clear step status.
-{{/cli}}
-{{#cli pi}}
-To create a new plan, write a short list of 1‑sentence steps (no more than 5-7 words each) in a concise normal message and keep the current step clear.
-{{/cli}}
-
-{{#cli codex}}
 When steps have been completed, use `update_plan` to mark each finished step as `completed` and the next step you are working on as `in_progress`. There should always be exactly one `in_progress` step until everything is done. You can mark multiple items as complete in a single `update_plan` call.
-{{/cli}}
-{{#cli claude}}
-When steps have been completed, use the available planning or task tools to mark finished steps as complete and the next step you are working on as in progress. There should always be exactly one current step in progress until everything is done.
-{{/cli}}
-{{#cli gemini}}
-When steps have been completed, use `write_todos` to mark finished steps as complete and the next step you are working on as in progress. There should always be exactly one current step in progress until everything is done.
-{{/cli}}
-{{#cli pi}}
-When steps have been completed, update the normal-message plan to mark finished steps as complete and the next step you are working on as in progress. There should always be exactly one current step in progress until everything is done.
-{{/cli}}
-
-{{#cli codex}}
 If all steps are complete, ensure you call `update_plan` to mark all steps as `completed`.
 {{/cli}}
 {{#cli claude}}
+Native planning and task tools are available to you. You can use them to keep an up‑to‑date, step‑by‑step plan for the task.
+To create a new plan, use the available planning or task tools with a short list of 1‑sentence steps (no more than 5-7 words each) and clear step status.
+When steps have been completed, use the available planning or task tools to mark finished steps as complete and the next step you are working on as in progress. There should always be exactly one current step in progress until everything is done.
 If all steps are complete, ensure you mark the full plan as completed using the available planning or task tools.
 {{/cli}}
 {{#cli gemini}}
+A tool named `write_todos` is available to you. You can use it to keep an up‑to‑date, step‑by‑step task list for the task. Do not rely on plan mode.
+To create a new task list, use `write_todos` with a short list of 1‑sentence steps (no more than 5-7 words each) and clear step status.
+When steps have been completed, use `write_todos` to mark finished steps as complete and the next step you are working on as in progress. There should always be exactly one current step in progress until everything is done.
 If all steps are complete, ensure you use `write_todos` to mark the full task list as completed.
 {{/cli}}
 {{#cli pi}}
+No dedicated planning tool is assumed. Keep an up‑to‑date, step‑by‑step plan in concise normal messages for the task.
+To create a new plan, write a short list of 1‑sentence steps (no more than 5-7 words each) in a concise normal message and keep the current step clear.
+When steps have been completed, update the normal-message plan to mark finished steps as complete and the next step you are working on as in progress. There should always be exactly one current step in progress until everything is done.
 If all steps are complete, ensure your final normal-message plan marks the full plan as completed.
 {{/cli}}
 
