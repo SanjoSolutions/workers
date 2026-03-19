@@ -30,5 +30,5 @@ docker run --rm -it \
     cp /tmp/claude-config/.credentials.json /tmp/home/.claude/.credentials.json &&
     cp /tmp/claude-config/.claude.json /tmp/home/.claude.json &&
     echo "{\"model\":\"claude-opus-4-6\"}" > /tmp/home/.claude/settings.json &&
-    exec npx tsx src/tests/smoke/coordinator.ts
+    exec npx tsx src/tests/smoke/assistant.ts
   '

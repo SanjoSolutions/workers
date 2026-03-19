@@ -14,7 +14,7 @@ function defaultPrompt(
 3. Commit your implementation changes on the worker branch for this repo. If this task bootstraps
    a new project, the workers runtime may already have created the target repo and worktree for you;
    continue the implementation there unless the task explicitly says more bootstrap is needed.
-4. Do NOT merge back to the tracked branch or push directly to main. The coordinator lands finished
+4. Do NOT merge back to the tracked branch or push directly to main. The assistant lands finished
    worker branches later.
 5. Do NOT add the local mirrored task file to the code-repo commit when it is untracked or ignored here.
    The workers runtime will sync task completion back to the configured task tracker after your work is done.`;

@@ -1,9 +1,9 @@
 /**
- * Smoke test: verify the coordinator skill is picked up by Claude CLI.
+ * Smoke test: verify the assistant guidance is picked up by Claude CLI.
  *
  * Requires a real `claude` binary authenticated via ~/.claude/.credentials.json.
  *
- * Sets up a project with the coordinator skill, launches Claude
+ * Sets up a project with the assistant guidance, launches Claude
  * interactively, sends a large multi-step request, and lets you observe
  * whether it delegates to TODO.md or starts implementing directly.
  * Stop with Ctrl+C once it's clear whether it worked.
@@ -37,7 +37,7 @@ async function setupProject(root: string, name: string): Promise<string> {
   writeFileSync(path.join(projectPath, "TODO.md"), TODO_TEMPLATE);
 
   // Provide add-todo.js at build/scripts/add-todo.js — matching the path
-  // referenced in the coordinator skill — so Claude can queue tasks.
+  // referenced in the assistant instructions — so Claude can queue tasks.
   const addTodoDir = path.join(projectPath, "build", "scripts");
   mkdirSync(addTodoDir, { recursive: true });
   writeFileSync(
@@ -83,13 +83,13 @@ const PROMPT = [
 ].join("\n");
 
 async function main(): Promise<void> {
-  const root = mkdtempSync(path.join(tmpdir(), "smoke-coordinator-"));
+  const root = mkdtempSync(path.join(tmpdir(), "smoke-assistant-"));
   const projectPath = await setupProject(root, "big-task");
 
   console.log(`Project: ${projectPath}\n`);
   console.log("Launching Claude interactively with a big task.");
   console.log("Watch the output — stop with Ctrl+C once it's clear whether the");
-  console.log("coordinator delegated to TODO.md or started implementing directly.\n");
+  console.log("assistant queued work in TODO.md or started implementing directly.\n");
 
   const workersRoot = process.cwd();
   const assistantAgentDir = path.join(workersRoot, "agents", "assistant");
@@ -129,7 +129,7 @@ async function main(): Promise<void> {
     "utf8",
   );
   if (todoAfter === TODO_TEMPLATE) {
-    console.log("\nTODO.md: unchanged (coordinator did NOT delegate)");
+    console.log("\nTODO.md: unchanged (assistant did NOT queue the work)");
   } else {
     console.log("\nTODO.md after:");
     console.log(todoAfter);

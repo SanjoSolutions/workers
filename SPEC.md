@@ -91,7 +91,7 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - Claim selection must avoid tasks blocked by dependencies or active conflict-risk annotations.
 - Workers must leave completed work on the worker branch/worktree by default.
 - Workers must not automatically merge or push worker output back to the tracked branch; the
-  coordinator is responsible for landing completed work.
+  assistant is responsible for landing completed work.
 - When a project has `createPullRequest: true` in its settings, workers must push the completed
   branch and create a GitHub PR after task completion.
 - The PR title must be derived from the TODO item summary.
@@ -168,7 +168,7 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - Project registrations in settings must be stored as an ordered array, and worker polling must
   follow that order from first project to last.
 - Projects must be added to settings automatically when they are first mentioned or bootstrapped.
-- The coordinator intake flow must route queued work to the configured task tracker for the target
+- The assistant intake flow must route queued work to the configured task tracker for the target
   project, falling back to the default task tracker when the project has no explicit assignment.
 - Workers must not persist a default Codex reasoning level value in settings; TODO metadata may
   specify `Reasoning`, auto reasoning effort may be enabled in settings, and the runtime fallback
@@ -218,7 +218,7 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - A branch is **in-progress** when its local `TODO.md` in-progress item still exists in the
   tracker's current in-progress section.
 - A branch is **unknown** when no local `TODO.md` is found in its worktree.
-- The coordinator must run `list-todos --branches` at the start of every new conversation and
+- The assistant must run `list-todos --branches` at the start of every new conversation and
   proactively present any finished branches to the user with a merge suggestion.
 
 ## 9. Platform Support
