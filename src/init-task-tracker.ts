@@ -3,7 +3,7 @@ import select from "@inquirer/select";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import os from "os";
 import path from "path";
-import { $ } from "zx";
+import { runGit } from "./git-cli.js";
 import { determinePackageRoot } from "./settings.js";
 
 /**
@@ -14,7 +14,7 @@ export async function initGitTodoRepo(repoDir: string): Promise<void> {
   mkdirSync(repoDir, { recursive: true });
 
   if (!existsSync(path.join(repoDir, ".git"))) {
-    const result = await $`git -C ${repoDir} init`.quiet().nothrow();
+    const result = await runGit(["-C", repoDir, "init"]);
     if (result.exitCode !== 0) {
       throw new Error(`Failed to initialize git repository in ${repoDir}.`);
     }
@@ -35,9 +35,9 @@ export async function initGitTodoRepo(repoDir: string): Promise<void> {
     }
     process.stdout.write(`Created TODO.md in ${repoDir}.\n`);
 
-    await $`git -C ${repoDir} add TODO.md`.quiet().nothrow();
+    await runGit(["-C", repoDir, "add", "TODO.md"]);
     const commitResult =
-      await $`git -C ${repoDir} commit -m ${"Initialize TODO.md"}`.quiet().nothrow();
+      await runGit(["-C", repoDir, "commit", "-m", "Initialize TODO.md"]);
     if (commitResult.exitCode === 0) {
       process.stdout.write("Created initial commit.\n");
     }

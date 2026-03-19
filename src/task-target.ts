@@ -2,8 +2,8 @@ import { createHash } from "crypto";
 import { mkdirSync, readdirSync } from "fs";
 import os from "os";
 import path from "path";
-import { $ } from "zx";
 import { extractTodoField } from "./agent-prompt.js";
+import { runGit } from "./git-cli.js";
 import { findGitRepoRoot } from "./git-utils.js";
 import { expandHomePath, sanitizeSegment } from "./path-utils.js";
 
@@ -93,18 +93,20 @@ export function resolveClaimedItemTarget(
 }
 
 async function ensureGitIdentity(repoRoot: string): Promise<void> {
-  const nameResult =
-    await $`git -C ${repoRoot} config --get user.name`.quiet().nothrow();
+  const nameResult = await runGit(["-C", repoRoot, "config", "--get", "user.name"]);
   if (nameResult.exitCode !== 0 || !nameResult.stdout.trim()) {
-    await $`git -C ${repoRoot} config user.name Workers`.quiet().nothrow();
+    await runGit(["-C", repoRoot, "config", "user.name", "Workers"]);
   }
 
-  const emailResult =
-    await $`git -C ${repoRoot} config --get user.email`.quiet().nothrow();
+  const emailResult = await runGit(["-C", repoRoot, "config", "--get", "user.email"]);
   if (emailResult.exitCode !== 0 || !emailResult.stdout.trim()) {
-    await $`git -C ${repoRoot} config user.email workers@example.invalid`
-      .quiet()
-      .nothrow();
+    await runGit([
+      "-C",
+      repoRoot,
+      "config",
+      "user.email",
+      "workers@example.invalid",
+    ]);
   }
 }
 
@@ -117,8 +119,13 @@ async function ensureRemote(
     return;
   }
 
-  const existingResult =
-    await $`git -C ${repoRoot} remote get-url ${remoteName}`.quiet().nothrow();
+  const existingResult = await runGit([
+    "-C",
+    repoRoot,
+    "remote",
+    "get-url",
+    remoteName,
+  ]);
   const existingUrl = existingResult.stdout.trim();
 
   if (existingResult.exitCode === 0 && existingUrl === remoteUrl) {
@@ -131,25 +138,34 @@ async function ensureRemote(
     );
   }
 
-  const addResult =
-    await $`git -C ${repoRoot} remote add ${remoteName} ${remoteUrl}`.quiet().nothrow();
+  const addResult = await runGit([
+    "-C",
+    repoRoot,
+    "remote",
+    "add",
+    remoteName,
+    remoteUrl,
+  ]);
   if (addResult.exitCode !== 0) {
     throw new Error(`Failed to add remote "${remoteName}" to ${repoRoot}.`);
   }
 }
 
 async function ensureInitialCommit(repoRoot: string): Promise<void> {
-  const headResult =
-    await $`git -C ${repoRoot} rev-parse --verify HEAD`.quiet().nothrow();
+  const headResult = await runGit(["-C", repoRoot, "rev-parse", "--verify", "HEAD"]);
   if (headResult.exitCode === 0) {
     return;
   }
 
   await ensureGitIdentity(repoRoot);
-  const commitResult =
-    await $`git -C ${repoRoot} commit --allow-empty -m "chore: initialize repository"`
-      .quiet()
-      .nothrow();
+  const commitResult = await runGit([
+    "-C",
+    repoRoot,
+    "commit",
+    "--allow-empty",
+    "-m",
+    "chore: initialize repository",
+  ]);
   if (commitResult.exitCode !== 0) {
     throw new Error(`Failed to create initial commit in ${repoRoot}.`);
   }
@@ -166,8 +182,13 @@ export async function ensureTaskRepo(
       return { repoRoot: existingScratchRepo, bootstrapped: false };
     }
 
-    const initResult =
-      await $`git -C ${target.repoPath} init -b main`.quiet().nothrow();
+    const initResult = await runGit([
+      "-C",
+      target.repoPath,
+      "init",
+      "-b",
+      "main",
+    ]);
     if (initResult.exitCode !== 0) {
       throw new Error(`Failed to initialize scratch repo at ${target.repoPath}.`);
     }
@@ -196,8 +217,13 @@ export async function ensureTaskRepo(
     );
   }
 
-  const initResult =
-    await $`git -C ${target.repoPath} init -b main`.quiet().nothrow();
+  const initResult = await runGit([
+    "-C",
+    target.repoPath,
+    "init",
+    "-b",
+    "main",
+  ]);
   if (initResult.exitCode !== 0) {
     throw new Error(`Failed to initialize git repo at ${target.repoPath}.`);
   }

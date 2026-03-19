@@ -1,3 +1,4 @@
+import path from "path";
 import { describe, expect, test } from "vitest";
 import type { WorkersSettings } from "./settings.js";
 import {
@@ -28,6 +29,10 @@ const BASE_SETTINGS: WorkersSettings = {
   ],
 };
 
+function normalizeExpectedPath(value: string): string {
+  return path.resolve(value);
+}
+
 describe("task tracker settings", () => {
   test("resolves the tracker configured for a project repo", () => {
     const tracker = resolveTaskTrackerForRepo(
@@ -40,7 +45,7 @@ describe("task tracker settings", () => {
     if (tracker.kind !== "git-todo") {
       throw new Error("expected git-todo tracker");
     }
-    expect(tracker.repo).toBe("/home/jonas/openclaw-todos");
+    expect(tracker.repo).toBe(normalizeExpectedPath("/home/jonas/openclaw-todos"));
   });
 
   test("falls back to WORKERS_TODO_REPO when project has no tracker", () => {
@@ -57,7 +62,7 @@ describe("task tracker settings", () => {
     if (tracker.kind !== "git-todo") {
       throw new Error("expected git-todo tracker");
     }
-    expect(tracker.repo).toBe("/home/jonas/todos");
+    expect(tracker.repo).toBe(normalizeExpectedPath("/home/jonas/todos"));
   });
 
   test("supports env-based default tracker when settings have no projects", () => {
@@ -77,7 +82,7 @@ describe("task tracker settings", () => {
     if (envTracker?.kind !== "git-todo") {
       throw new Error("expected git-todo tracker");
     }
-    expect(envTracker.repo).toBe("/home/jonas/todos");
+    expect(envTracker.repo).toBe(normalizeExpectedPath("/home/jonas/todos"));
   });
 
   test("injects GH_TOKEN into a provided env for a repo with a GitHub tracker", async () => {
