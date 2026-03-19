@@ -135,6 +135,26 @@ function normalizeExistingPath(targetPath: string): string {
   return realpathSync.native(resolvedPath);
 }
 
+function resolveSmokeTestPath(baseEnv: NodeJS.ProcessEnv, fakeBinDir: string): string {
+  const pathEntries = [fakeBinDir, resolveGitBinaryDir()];
+
+  if (process.platform === "win32") {
+    const commandProcessor = baseEnv.ComSpec;
+    if (commandProcessor) {
+      pathEntries.push(path.dirname(commandProcessor));
+    }
+
+    const systemRoot = baseEnv.SystemRoot;
+    if (systemRoot) {
+      pathEntries.push(path.join(systemRoot, "System32"));
+    }
+  }
+
+  return pathEntries
+    .filter(Boolean)
+    .join(path.delimiter);
+}
+
 async function main(): Promise<void> {
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
   const tempRoot = mkdtempSync(path.join(os.tmpdir(), "workers-packaged-smoke-"));
@@ -205,7 +225,7 @@ async function main(): Promise<void> {
 
   const sharedEnv = {
     ...baseEnv,
-    PATH: `${fakeBinDir}${path.delimiter}${resolveGitBinaryDir()}`,
+    PATH: resolveSmokeTestPath(baseEnv, fakeBinDir),
     WORKERS_CONFIG_DIR: configDir,
     WORKERS_FAKE_CLI_LOG_DIR: fakeLogDir,
   };
