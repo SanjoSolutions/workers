@@ -1,4 +1,5 @@
 import { describe, expect, test, vi, beforeEach } from "vitest";
+import path from "path";
 import { CodexAgentStrategy } from "./codex.js";
 import { spawnAgentProcess } from "./process.js";
 import { evaluateCodexSelection } from "../model-selection.js";
@@ -29,6 +30,7 @@ describe("CodexAgentStrategy", () => {
       autoModelSelection: true,
       autoModelSelectionModels: ["gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex"],
       autoReasoningEffort: true,
+      codexSystemPromptVariant: "full",
     },
     noTodo: false,
     config: undefined,
@@ -66,8 +68,9 @@ describe("CodexAgentStrategy", () => {
     }));
 
     const call = vi.mocked(spawnAgentProcess).mock.calls[0]?.[0];
-    expect(call?.args.at(-1)).toContain("# Worker System Prompt");
-    expect(call?.args.at(-1)).toContain("Implement it");
+    expect(call?.args).toContain("Implement it");
+    expect(call?.args).toContainEqual(expect.stringContaining("model_instructions_file="));
+    expect(call?.args).toContainEqual(expect.stringContaining("SYSTEM.md"));
   });
 
   test("skips auto-selection when explicit model and reasoning effort are provided", async () => {
@@ -101,7 +104,22 @@ describe("CodexAgentStrategy", () => {
     } as any);
 
     const call = vi.mocked(spawnAgentProcess).mock.calls[0]?.[0];
-    expect(call?.args.at(-1)).toContain("# Assistant System Prompt");
+    expect(call?.args).toContainEqual(expect.stringContaining("model_instructions_file="));
+    expect(call?.args).toContainEqual(expect.stringContaining(path.join("agents", "assistant", "SYSTEM.md")));
+    expect(call?.args).not.toContain("");
     expect(call?.env.GH_TOKEN).toBe("shared-token");
+  });
+
+  test("uses the minimal worker system prompt variant when configured", async () => {
+    await strategy.launch({
+      ...baseContext,
+      options: {
+        ...baseContext.options,
+        codexSystemPromptVariant: "minimal",
+      },
+    } as any);
+
+    const call = vi.mocked(spawnAgentProcess).mock.calls[0]?.[0];
+    expect(call?.args).toContainEqual(expect.stringContaining("SYSTEM_MINIMAL.md"));
   });
 });

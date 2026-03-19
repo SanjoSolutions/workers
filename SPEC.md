@@ -118,6 +118,14 @@ Workers orchestrates isolated development work for AI coding agents across multi
   CLI flag, or project config), the strategy must auto-evaluate the best reasoning effort when
   `worker.defaults.autoReasoningEffort` is enabled. The evaluation must fall back to `high` on
   failure.
+- When the worker CLI is Codex, workers must load the selected worker system prompt through Codex
+  `model_instructions_file` instead of inlining that prompt into the user task prompt.
+- Workers must provide two Codex worker system prompt variants, `SYSTEM.md` and
+  `SYSTEM_MINIMAL.md`.
+- Both Codex worker system prompt variants must be task-tracker-neutral and must not assume the
+  claimed task came from one specific task tracker backend.
+- The Codex worker system prompt must instruct the worker to operate as autonomously as possible
+  while still allowing user input requests when the worker is genuinely blocked.
 
 ## 8. Runtime Hooks
 
@@ -148,6 +156,7 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - Codex auto model selection must be configurable through this settings file, including the list of
   candidate models to consider.
 - Codex auto reasoning effort selection must be configurable through this settings file.
+- Codex worker system prompt variant selection must be configurable through this settings file.
 - The default task tracker must be configurable through this settings file.
 - Workers settings must support one shared `githubApp` configuration with `appId` and
   `privateKeyPath`.

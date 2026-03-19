@@ -49,6 +49,7 @@ async function main(): Promise<void> {
     autoModelSelection: settings.defaults.autoModelSelection,
     autoModelSelectionModels: settings.defaults.autoModelSelectionModels,
     autoReasoningEffort: settings.defaults.autoReasoningEffort,
+    codexSystemPromptVariant: settings.defaults.codexSystemPromptVariant,
   };
 
   const strategy = getAgentStrategy(cli);

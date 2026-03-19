@@ -1,5 +1,18 @@
 # Third-Party Notices
 
+## OpenAI Codex base instructions
+
+Parts of the worker Codex prompt files are adapted from the OpenAI Codex base
+instructions:
+
+- Source repository: <https://github.com/openai/codex>
+- Source file: `codex-rs/protocol/src/prompts/base_instructions/default.md`
+- Adapted files in this repo: `agents/worker/SYSTEM.md`,
+  `agents/worker/SYSTEM_MINIMAL.md`
+
+OpenAI Codex is licensed under the Apache License 2.0. The license text used
+for this adaptation is included in `LICENSES/Apache-2.0.txt`.
+
 ## OpenClaw AGENTS guidance
 
 Parts of [`AGENTS.md`](/home/jonas/workers/AGENTS.md) are adapted from

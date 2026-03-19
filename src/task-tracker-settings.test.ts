@@ -15,6 +15,7 @@ const BASE_SETTINGS: WorkersSettings = {
     autoModelSelection: true,
     autoModelSelectionModels: ["gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex"],
     autoReasoningEffort: true,
+    codexSystemPromptVariant: "full",
   },
   assistant: { defaults: { cli: "codex" } },
   projects: [

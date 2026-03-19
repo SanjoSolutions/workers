@@ -24,6 +24,8 @@
     "build/",
     "src/scripts/",
     "agents/",
+    "LICENSES/",
+    "THIRD_PARTY_NOTICES.md",
     "new-project-template/"
   ],
   "dependencies": {

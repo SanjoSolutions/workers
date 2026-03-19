@@ -1,4 +1,3 @@
-import { readFileSync } from "fs";
 import path from "path";
 import { extractTodoField } from "../../agent-prompt.js";
 import { evaluateCodexSelection } from "../../model-selection.js";
@@ -7,6 +6,18 @@ import { spawnManagedInteractiveAgent } from "../managed-interactive.js";
 import { spawnAgentProcess } from "../process.js";
 import type { AgentStrategy } from "../types.js";
 import { setupManagedInteractiveCodexSession } from "./interactive.js";
+
+function resolveWorkerSystemPromptFile(
+  packageRoot: string,
+  variant: "full" | "minimal",
+): string {
+  return path.join(
+    packageRoot,
+    "agents",
+    "worker",
+    variant === "minimal" ? "SYSTEM_MINIMAL.md" : "SYSTEM.md",
+  );
+}
 
 export class CodexAgentStrategy implements AgentStrategy {
   readonly cli = "codex" as const;
@@ -48,20 +59,20 @@ export class CodexAgentStrategy implements AgentStrategy {
 
     const packageRoot = determinePackageRoot();
     const agentType = context.noTodo ? "assistant" : "worker";
-    const systemPromptFile = path.join(packageRoot, "agents", agentType, "SYSTEM.md");
-    const systemPrompt = readFileSync(systemPromptFile, "utf8").trim();
-    const codexPrompt = [
-      "Follow these instructions exactly:",
-      systemPrompt,
-      context.nextPrompt,
-    ]
-      .filter((section) => section.trim().length > 0)
-      .join("\n\n");
+    const codexSystemPromptVariant =
+      context.config?.agent?.codexSystemPromptVariant
+      || context.options.codexSystemPromptVariant
+      || "full";
+    const systemPromptFile = agentType === "worker"
+      ? resolveWorkerSystemPromptFile(packageRoot, codexSystemPromptVariant)
+      : path.join(packageRoot, "agents", agentType, "SYSTEM.md");
 
     const codexArgs = [
       ...(codexModel ? ["--model", codexModel] : []),
       "--config",
       `model_reasoning_effort=${reasoningEffort}`,
+      "--config",
+      `model_instructions_file=${JSON.stringify(systemPromptFile)}`,
     ];
     for (const dir of context.config?.agent?.codexWritableDirs ?? []) {
       codexArgs.push("--add-dir", dir);
@@ -74,7 +85,7 @@ export class CodexAgentStrategy implements AgentStrategy {
     if (context.noTodo) {
       return spawnAgentProcess({
         command: "codex",
-        args: [...codexArgs, codexPrompt],
+        args: codexArgs,
         cwd: context.worktreePath,
         env: context.env,
         captureOutput: false,
@@ -90,7 +101,8 @@ export class CodexAgentStrategy implements AgentStrategy {
       );
       return spawnManagedInteractiveAgent(
         "codex",
-        ["--enable", "codex_hooks", ...codexArgs, `${codexPrompt}\n\n${managedSession.nextPrompt}`],
+        ["--enable", "codex_hooks", ...codexArgs, context.nextPrompt, managedSession.nextPrompt]
+          .filter((arg) => arg.trim().length > 0),
         context.worktreePath,
         managedSession.env,
         managedSession.statusFile,
@@ -106,7 +118,7 @@ export class CodexAgentStrategy implements AgentStrategy {
         "--config",
         "approval_policy=never",
         ...codexArgs,
-        codexPrompt,
+        context.nextPrompt,
       ],
       cwd: context.worktreePath,
       env: context.env,

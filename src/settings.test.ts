@@ -31,6 +31,7 @@ describe("settings bootstrap", () => {
       "gpt-5.3-codex",
     ]);
     expect(settings.defaults.autoReasoningEffort).toBe(true);
+    expect(settings.defaults.codexSystemPromptVariant).toBe("full");
     expect(settings.assistant.defaults.cli).toBeUndefined();
     expect(settings.projects).toEqual([]);
     expect(settings.projects).toEqual([]);
@@ -56,6 +57,7 @@ describe("settings bootstrap", () => {
       "gpt-5.3-codex",
     ]);
     expect(settings.defaults.autoReasoningEffort).toBe(true);
+    expect(settings.defaults.codexSystemPromptVariant).toBe("full");
     expect(settings.projects).toEqual([]);
     expect(settings.projects).toEqual([]);
   });
@@ -72,6 +74,7 @@ describe("settings bootstrap", () => {
             autoModelSelection: false,
             autoModelSelectionModels: ["gpt-5.4-mini", "gpt-5.3-codex"],
             autoReasoningEffort: false,
+            codexSystemPromptVariant: "minimal",
           },
         },
       }, null, 2),
@@ -88,6 +91,7 @@ describe("settings bootstrap", () => {
       "gpt-5.3-codex",
     ]);
     expect(settings.defaults.autoReasoningEffort).toBe(false);
+    expect(settings.defaults.codexSystemPromptVariant).toBe("minimal");
   });
 });
 
