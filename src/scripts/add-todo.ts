@@ -1,14 +1,9 @@
 #!/usr/bin/env node
 
 import { readFileSync, writeFileSync } from "fs";
-import path from "path";
 import readline from "readline/promises";
-import { insertIntoSection, SECTION_HEADERS, type TodoSection } from "../add-todo.js";
-import { extractTodoField } from "../agent-prompt.js";
-import { hasTaskTracker, loadSettings, persistProjectSettings } from "../settings.js";
-import { applyGitHubTokenFromSettings, resolveTaskTrackerForRepo } from "../task-tracker-settings.js";
-import { withTodoLock } from "../claim-todo.js";
-import { commitAndPushTodoRepo, createGitHubIssueTask, fastForwardRepo } from "../task-trackers.js";
+import { SECTION_HEADERS, type TodoSection } from "../add-todo.js";
+import { addTodoToConfiguredTracker } from "../add-todo-command.js";
 
 interface ParsedArgs {
   section: TodoSection;
@@ -116,86 +111,16 @@ async function readTodoText(argText: string): Promise<string> {
   }
 }
 
-function normalizeTodoItem(text: string): string[] {
-  const lines = text
-    .split(/\r?\n/)
-    .map((line) => line.replace(/\s+$/, ""));
-
-  while (lines.length > 0 && lines[0] === "") lines.shift();
-  while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
-
-  if (lines.length === 0) {
-    throw new Error("TODO text is required.");
-  }
-
-  if (!lines[0].startsWith("- ")) {
-    lines[0] = `- ${lines[0]}`;
-  }
-
-  return lines;
-}
-
 async function main(): Promise<void> {
   const args = parseArgs(process.argv);
   const todoText = await readTodoText(args.text);
-  const settings = await loadSettings();
-  await applyGitHubTokenFromSettings(settings);
-
-  const repoField = extractTodoField(todoText, "Repo");
-  if (repoField && repoField.toLowerCase() !== "none") {
-    persistProjectSettings([
-      {
-        repo: path.resolve(repoField),
-      },
-    ]);
-  }
-
-  const targetRepo = repoField && repoField.toLowerCase() !== "none"
-    ? path.resolve(repoField)
-    : process.cwd();
-
-  if (!hasTaskTracker(settings)) {
-    const { promptAndInitTaskTracker } = await import("../init-task-tracker.js");
-    await promptAndInitTaskTracker(process.cwd());
-  }
-
-  const tracker = resolveTaskTrackerForRepo(targetRepo, settings);
-  const itemLines = normalizeTodoItem(todoText);
-
-  if (tracker.kind === "github-issues") {
-    const issueUrl = await createGitHubIssueTask(
-      tracker,
-      args.section,
-      itemLines,
-      args.issueNumber,
-    );
-    const verb = args.issueNumber !== undefined ? "Updated" : "Added";
-    console.log(
-      `${verb} TODO in ${args.section} in ${tracker.repository} as GitHub issue ${issueUrl} (task tracker: ${tracker.name})`,
-    );
-    return;
-  }
-
-  const todoPath = path.resolve(tracker.repo, tracker.file);
-
-  await fastForwardRepo(tracker.repo);
-
-  const pushed = await withTodoLock(todoPath, async () => {
-    const original = readFileSync(todoPath, "utf8");
-    const nextContent = insertIntoSection(original, itemLines, args.section);
-    writeFileSync(todoPath, nextContent, "utf8");
-
-    const summary = itemLines[0].replace(/^- /, "");
-    return commitAndPushTodoRepo(
-      tracker.repo,
-      tracker.file,
-      `Add TODO: ${summary}`,
-    );
+  const message = await addTodoToConfiguredTracker({
+    section: args.section,
+    text: todoText,
+    issueNumber: args.issueNumber,
+    cwd: process.cwd(),
   });
-
-  console.log(
-    `Added TODO to ${args.section} in ${todoPath} (task tracker: ${tracker.name})${pushed ? "" : " (push failed)"}`,
-  );
+  console.log(message);
 }
 
 main().catch((error) => {
