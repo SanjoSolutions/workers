@@ -201,6 +201,11 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - The assistant command must use the workers repo's `AGENTS.md` and related configuration.
 - The assistant CLI is configurable via `assistant.defaults.cli` in settings, falling back to
   `worker.defaults.cli`.
+- The shared assistant system prompt used across supported assistant CLIs must be
+  `agents/assistant/SYSTEM.md`.
+- `agents/assistant/SYSTEM.md` must match the upstream Codex base instructions from
+  `codex-rs/protocol/src/prompts/base_instructions/default.md` without additional workers-specific
+  overrides.
 
 ## 8.4 Branch Status Reporting
 

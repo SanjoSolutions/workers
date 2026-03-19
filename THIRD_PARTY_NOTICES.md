@@ -8,7 +8,7 @@ instructions:
 - Source repository: <https://github.com/openai/codex>
 - Source file: `codex-rs/protocol/src/prompts/base_instructions/default.md`
 - Adapted files in this repo: `agents/worker/SYSTEM.md`,
-  `agents/worker/SYSTEM_MINIMAL.md`
+  `agents/worker/SYSTEM_MINIMAL.md`, `agents/assistant/SYSTEM.md`
 
 OpenAI Codex is licensed under the Apache License 2.0. The license text used
 for this adaptation is included in `LICENSES/Apache-2.0.txt`.

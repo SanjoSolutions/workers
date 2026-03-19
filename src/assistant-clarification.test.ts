@@ -32,6 +32,9 @@ describe("assistant clarification capability", () => {
     expect(existsSync(assistantSkillPath)).toBe(true);
     expect(existsSync(legacySkillPath)).toBe(false);
     expect(readFileSync(assistantSystemPath, "utf8")).toContain(
+      "You are a coding agent running in the Codex CLI",
+    );
+    expect(readFileSync(assistantSystemPath, "utf8")).not.toContain(
       "assistant-local clarification capability",
     );
   });
