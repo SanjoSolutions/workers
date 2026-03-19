@@ -1,9 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 import { todoContainsSummary } from "./claim-todo.js";
-import type {
-  PollableTaskTracker,
-} from "./task-tracker-settings.js";
+import type { PollableTaskTracker } from "./task-tracker-settings.js";
 import {
   claimTaskFromGitHubIssuesTracker,
   createGitHubIssueTask,
@@ -20,6 +18,7 @@ import {
   claimTaskFromGitTodoTracker,
   syncCompletedGitTodoTask,
 } from "./task-trackers/git-todo/index.js";
+
 export type {
   ClaimTaskResult,
   ClaimedTask,
@@ -27,6 +26,7 @@ export type {
   GitHubIssue,
   GitHubIssueSection,
 } from "./task-trackers/types.js";
+
 export {
   commitAndPushTodoRepo,
   createGitHubIssueTask,

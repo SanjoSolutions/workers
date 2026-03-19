@@ -14,16 +14,12 @@ import {
 import {
   listOpenGitHubIssues,
   partitionGitHubIssuesBySection,
+  type GitHubIssue,
 } from "../task-trackers.js";
 
 type SectionFilter = "in-progress" | "ready" | "planned" | "all";
 type Mode = "list" | "branches";
 
-/**
- * Parse a duration string like "7d", "24h", "2w" into:
- * - gitSince: a string suitable for git --since (e.g. "7 days ago")
- * - isoDate: an ISO 8601 date string for filtering gh issue lists
- */
 function parseDuration(duration: string): { gitSince: string; isoDate: string } {
   const match = duration.match(/^(\d+)(d|h|w)$/);
   if (!match) {
@@ -60,7 +56,6 @@ async function getCompletedGitTodos(
 
   const completed: string[] = [];
   for (const line of result.stdout.split("\n")) {
-    // Lines removed from the file start with "-" in a diff hunk (but not "---" file header)
     if (/^-[^-]/.test(line)) {
       const content = line.slice(1);
       if (/^- /.test(content)) {
@@ -69,7 +64,6 @@ async function getCompletedGitTodos(
     }
   }
 
-  // Deduplicate while preserving order
   return [...new Set(completed)];
 }
 
@@ -80,6 +74,31 @@ function extractItemDependencies(item: string): string[] {
     if (match) dependencies.push(match[1]);
   }
   return dependencies;
+}
+
+function renderGitHubIssueItem(
+  issue: { title: string; body: string },
+  taskSpecItem?: string,
+): string {
+  if (taskSpecItem) {
+    return taskSpecItem;
+  }
+
+  const bodyLines = issue.body
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+$/, ""))
+    .filter((line, index, lines) => {
+      if (line !== "") {
+        return true;
+      }
+      return index > 0 && index < lines.length - 1;
+    });
+
+  return [`- ${issue.title}`, ...bodyLines].join("\n").trim();
+}
+
+function extractItemSummary(item: string): string {
+  return item.split("\n")[0].replace(/^- /, "").trim();
 }
 
 function parseArgs(argv: string[]): { section: SectionFilter; mode: Mode; completed: boolean; since: string } {
@@ -230,7 +249,7 @@ async function listGitHubIssuesTracker(
       ? (["in-progress", "ready", "planned"] as const)
       : [section];
 
-  let openIssuesBySection: Record<string, { number: number; title: string; body: string }[]> = {};
+  let openIssuesBySection: Record<string, GitHubIssue[]> = {};
   try {
     openIssuesBySection = partitionGitHubIssuesBySection(
       await listOpenGitHubIssues(tracker),
@@ -243,7 +262,9 @@ async function listGitHubIssuesTracker(
   const activeTitles = new Set<string>();
   for (const sectionName of ["in-progress", "ready"] as const) {
     for (const issue of openIssuesBySection[sectionName] ?? []) {
-      activeTitles.add(issue.title);
+      activeTitles.add(
+        extractItemSummary(renderGitHubIssueItem(issue, issue.taskSpecItem)),
+      );
     }
   }
 
@@ -254,10 +275,12 @@ async function listGitHubIssuesTracker(
     const header = sectionName === "in-progress" ? "In progress" : sectionName === "ready" ? "Ready to be picked up" : "Planned";
     console.log(`  ## ${header}:`);
     for (const issue of issues) {
-      console.log(`    - ${issue.title} (#${issue.number})`);
+      const item = renderGitHubIssueItem(issue, issue.taskSpecItem);
+      const summary = extractItemSummary(item);
+      console.log(`    - ${summary} (#${issue.number})`);
 
       if (sectionName === "ready") {
-        const dependencies = extractItemDependencies(`- ${issue.title}\n${issue.body}`);
+        const dependencies = extractItemDependencies(item);
         const blockedBy = dependencies.filter((dep) => activeTitles.has(dep));
         if (blockedBy.length > 0) {
           console.log(`      (blocked by: ${blockedBy.join(", ")})`);
@@ -346,16 +369,16 @@ async function collectTrackerInProgressSummaries(
         // skip unreadable trackers
       }
     } else {
-      // GitHub Issues tracker: fetch open in-progress issues
-      const result =
-        await $`gh issue list --repo ${tracker.repository} --state open --label ${tracker.labels.inProgress} --limit 100 --json title`
-          .quiet()
-          .nothrow();
-      if (result.exitCode === 0) {
-        const issues = JSON.parse(result.stdout) as { title: string }[];
-        for (const issue of issues) {
-          summaries.add(issue.title);
+      try {
+        const openIssues = await listOpenGitHubIssues(tracker);
+        const inProgressIssues = partitionGitHubIssuesBySection(openIssues, tracker)["in-progress"];
+        for (const issue of inProgressIssues) {
+          summaries.add(
+            extractItemSummary(renderGitHubIssueItem(issue, issue.taskSpecItem)),
+          );
         }
+      } catch {
+        // skip unreadable trackers
       }
     }
   }
@@ -436,7 +459,6 @@ async function listBranches(
 
   const trackerInProgressSummaries = await collectTrackerInProgressSummaries(trackerList);
 
-  // Collect unique project repos, including tracker repos for git-todo trackers
   const allRepos = new Set<string>(projectRepos);
   for (const tracker of trackerList) {
     if (tracker.kind === "git-todo") {
@@ -453,9 +475,9 @@ async function listBranches(
     anyBranches = true;
     console.log(`[${path.basename(projectRepo)}] ${projectRepo}`);
 
-    const finished = statuses.filter((s) => s.status === "finished");
-    const inProgress = statuses.filter((s) => s.status === "in-progress");
-    const unknown = statuses.filter((s) => s.status === "unknown");
+    const finished = statuses.filter((status) => status.status === "finished");
+    const inProgress = statuses.filter((status) => status.status === "in-progress");
+    const unknown = statuses.filter((status) => status.status === "unknown");
 
     if (finished.length > 0) {
       console.log("  Finished branches (ready to merge):");

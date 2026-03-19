@@ -116,6 +116,8 @@ SPEC.md captures the high-level requirements for a project.
 - The default external worktree layout must namespace each project to avoid collisions between repos
   that share the same directory name.
 - Reused worktrees must be synced with the latest project repository state before agent work starts.
+- Each claimed task must run on a fresh dedicated worker branch, even when workers reuse an
+  existing worktree path for that repo.
 - Claim selection must avoid tasks blocked by dependencies or active conflict-risk annotations.
 - Workers must leave completed work on the worker branch/worktree by default.
 - Workers must not automatically merge or push worker output back to the tracked branch; the
@@ -209,6 +211,14 @@ SPEC.md captures the high-level requirements for a project.
 - Tasks with `Repo: none` or tasks for unmapped projects must use the default task tracker.
 - Workers must support both the Git-backed `TODO.md` tracker and GitHub Issues as concrete task
   tracker backends.
+- When workers clarify or queue work against an existing GitHub issue, they must preserve the
+  user-authored issue title and body instead of overwriting them.
+- Worker-authored normalized task specifications for GitHub Issues must be stored in a structured
+  worker comment format that can be identified and parsed without inspecting unrelated discussion
+  comments.
+- GitHub Issues claim, listing, and execution flows must derive worker metadata from the latest
+  structured worker task-spec comment, defaulting to new comments for updates and allowing edits
+  only when correcting a recent unresponded worker comment.
 - When a GitHub Issues-backed task is closed through workers, workers must remove its queue labels
   before closing the issue.
 - In GitHub Issues trackers, unlabeled open issues must be treated as planned or backlog work, and

@@ -46,6 +46,7 @@ export interface GitHubIssueComment {
   id: number;
   body: string;
   createdAt: string;
+  updatedAt?: string;
   authorLogin?: string;
 }
 
@@ -55,6 +56,7 @@ export interface GitHubIssue {
   body: string;
   createdAt?: string;
   labels?: GitHubIssueLabel[];
+  taskSpecItem?: string;
 }
 
 export interface GitHubIssueClaimCommentMetadata {

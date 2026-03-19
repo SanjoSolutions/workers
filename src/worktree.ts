@@ -1,7 +1,7 @@
 import path from "path";
 import { $ } from "zx";
 import type { CliOptions, WorkConfig, WorktreeInfo } from "./types.js";
-import { tryAcquireWorktreeLock } from "./locking.js";
+import { releaseWorktreeLock, tryAcquireWorktreeLock } from "./locking.js";
 import * as log from "./log.js";
 import type { GitBranchTarget } from "./git-target.js";
 import { targetRef } from "./git-target.js";
@@ -60,6 +60,7 @@ export async function selectWorktree(
   projectWorktreeDir: string,
 ): Promise<{ worktree: WorktreeInfo; lockDir: string }> {
   await $`git -C ${repoRoot} worktree prune`.quiet().nothrow();
+  const desiredBranchName = `work/${sessionTag}`;
 
   if (options.reuseWorktree) {
     const entries = await listCliWorktrees(
@@ -76,6 +77,41 @@ export async function selectWorktree(
       );
       if (!lockDir) {
         continue;
+      }
+
+      if (!options.noTodo) {
+        const statusResult =
+          await $`git -C ${entry.path} status --porcelain --untracked-files=all`
+            .quiet()
+            .nothrow();
+        if (statusResult.exitCode !== 0 || statusResult.stdout.trim() !== "") {
+          log.info(
+            `Skipping reused worktree ${entry.path}: local changes or untracked files prevent switching to ${desiredBranchName}.`,
+          );
+          releaseWorktreeLock(lockDir);
+          continue;
+        }
+
+        const checkoutResult =
+          await $`git -C ${entry.path} checkout -B ${desiredBranchName} ${targetRef(branchTarget)}`
+            .quiet()
+            .nothrow();
+        if (checkoutResult.exitCode !== 0) {
+          log.info(
+            `Skipping reused worktree ${entry.path}: failed to create fresh task branch ${desiredBranchName}.`,
+          );
+          releaseWorktreeLock(lockDir);
+          continue;
+        }
+
+        return {
+          worktree: {
+            path: entry.path,
+            branchName: desiredBranchName,
+            reuseMode: "reused",
+          },
+          lockDir,
+        };
       }
 
       const branchName = entry.branchRef
@@ -95,7 +131,7 @@ export async function selectWorktree(
 
   // Create new worktree
   const worktreePath = path.join(projectWorktreeDir, sessionTag);
-  const branchName = `work/${sessionTag}`;
+  const branchName = desiredBranchName;
 
   const addResult =
     await $`git -C ${repoRoot} worktree add -b ${branchName} ${worktreePath} ${targetRef(branchTarget)}`

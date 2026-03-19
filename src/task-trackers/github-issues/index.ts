@@ -1,5 +1,5 @@
-import { $ } from "zx";
 import { randomUUID } from "crypto";
+import { $ } from "zx";
 import { claimFromTodoText } from "../../claim-todo.js";
 import type {
   PollableTaskTracker,
@@ -15,6 +15,7 @@ import type {
   GitHubIssueSection,
   ParsedGitHubIssueClaimComment,
 } from "../types.js";
+
 export type {
   GitHubIssue,
   GitHubIssueComment,
@@ -23,6 +24,13 @@ export type {
 const GITHUB_ISSUE_CLAIM_COMMENT_TYPE = "workers-issue-claim";
 const GITHUB_ISSUE_CLAIM_COMMENT_VERSION = 1;
 const GITHUB_ISSUE_CLAIM_CODE_FENCE = "workers-issue-claim";
+const WORKER_TASK_SPEC_COMMENT_START = "<!-- workers-task-spec:v1 -->";
+const WORKER_TASK_SPEC_COMMENT_END = "<!-- /workers-task-spec -->";
+const COMMENT_CORRECTION_WINDOW_MS = 30 * 60 * 1000;
+
+interface CreateGitHubIssueTaskOptions {
+  commentMode?: "append" | "correct-latest";
+}
 
 function trimTrailingEmptyLines(lines: string[]): string[] {
   let end = lines.length;
@@ -34,6 +42,40 @@ function trimTrailingEmptyLines(lines: string[]): string[] {
 
 function filterGitHubIssueBodyLines(lines: string[]): string[] {
   return lines.filter((line) => !/^\s+- Repo:\s*.+$/i.test(line));
+}
+
+function normalizeGitHubIssueTaskItem(itemLines: string[]): string {
+  return trimTrailingEmptyLines(itemLines.map((line) => line.replace(/\s+$/, ""))).join("\n");
+}
+
+function renderGitHubIssueTaskSpecComment(item: string): string {
+  return [
+    WORKER_TASK_SPEC_COMMENT_START,
+    "```text",
+    item,
+    "```",
+    WORKER_TASK_SPEC_COMMENT_END,
+  ].join("\n");
+}
+
+function parseGitHubIssueTaskSpecComment(body: string): string | undefined {
+  const match = body.match(
+    /<!-- workers-task-spec:v1 -->\s*```(?:text)?\s*([\s\S]*?)\s*```\s*<!-- \/workers-task-spec -->/i,
+  );
+  const item = match?.[1]?.trim();
+  return item || undefined;
+}
+
+function parseGitHubIssueNumber(issueUrl: string): number | undefined {
+  const match = issueUrl.trim().match(/\/issues\/(\d+)$/);
+  if (!match) {
+    return undefined;
+  }
+
+  const issueNumber = Number(match[1]);
+  return Number.isInteger(issueNumber) && issueNumber > 0
+    ? issueNumber
+    : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -98,7 +140,41 @@ function compareGitHubIssueClaimCommentOrder(
   return left.body.localeCompare(right.body);
 }
 
+function compareGitHubIssueTaskSpecCommentOrder(
+  left: GitHubIssueComment,
+  right: GitHubIssueComment,
+): number {
+  const leftTimestamp = Date.parse(left.updatedAt ?? left.createdAt) || 0;
+  const rightTimestamp = Date.parse(right.updatedAt ?? right.createdAt) || 0;
+  if (leftTimestamp !== rightTimestamp) {
+    return leftTimestamp - rightTimestamp;
+  }
+
+  return left.id - right.id;
+}
+
+function findEditableGitHubTaskSpecComment(
+  comments: GitHubIssueComment[],
+): GitHubIssueComment | undefined {
+  if (comments.length === 0) {
+    return undefined;
+  }
+
+  const latestComment = [...comments].sort(compareGitHubIssueTaskSpecCommentOrder).at(-1);
+  if (!latestComment || !parseGitHubIssueTaskSpecComment(latestComment.body)) {
+    return undefined;
+  }
+
+  const referenceTimestamp = latestComment.updatedAt ?? latestComment.createdAt;
+  const ageMs = Date.now() - Date.parse(referenceTimestamp);
+  return ageMs <= COMMENT_CORRECTION_WINDOW_MS ? latestComment : undefined;
+}
+
 function renderIssueItem(issue: GitHubIssue): string {
+  if (issue.taskSpecItem) {
+    return issue.taskSpecItem;
+  }
+
   const bodyLines = trimTrailingEmptyLines(
     issue.body
       .split(/\r?\n/)
@@ -283,6 +359,71 @@ async function ensureGitHubLabels(
   }
 }
 
+async function listGitHubIssueComments(
+  tracker: ResolvedGitHubIssuesTaskTracker,
+  issueNumber: number,
+): Promise<GitHubIssueComment[]> {
+  const result =
+    await $`gh api repos/${tracker.repository}/issues/${String(issueNumber)}/comments?per_page=100`
+      .quiet()
+      .nothrow();
+  if (result.exitCode !== 0) {
+    throw new Error(
+      `Failed to load comments for GitHub issue #${issueNumber} in ${tracker.repository}.`,
+    );
+  }
+
+  const comments = JSON.parse(result.stdout) as Array<Record<string, unknown>>;
+  return comments
+    .filter((comment) => typeof comment.id === "number" && typeof comment.body === "string")
+    .map((comment) => ({
+      id: comment.id as number,
+      body: comment.body as string,
+      createdAt:
+        typeof comment.created_at === "string"
+          ? comment.created_at
+          : typeof comment.createdAt === "string"
+            ? comment.createdAt
+            : "",
+      updatedAt:
+        typeof comment.updated_at === "string"
+          ? comment.updated_at
+          : typeof comment.updatedAt === "string"
+            ? comment.updatedAt
+            : undefined,
+      authorLogin:
+        isRecord(comment.user) && typeof comment.user.login === "string"
+          ? comment.user.login
+          : undefined,
+    }));
+}
+
+async function loadGitHubIssueTaskSpecItem(
+  tracker: ResolvedGitHubIssuesTaskTracker,
+  issueNumber: number,
+): Promise<string | undefined> {
+  try {
+    const comments = await listGitHubIssueComments(tracker, issueNumber);
+    return comments
+      .sort(compareGitHubIssueTaskSpecCommentOrder)
+      .map((comment) => parseGitHubIssueTaskSpecComment(comment.body))
+      .filter((item): item is string => Boolean(item))
+      .at(-1);
+  } catch {
+    return undefined;
+  }
+}
+
+async function attachGitHubIssueTaskSpecs(
+  tracker: ResolvedGitHubIssuesTaskTracker,
+  issues: GitHubIssue[],
+): Promise<GitHubIssue[]> {
+  return Promise.all(issues.map(async (issue) => ({
+    ...issue,
+    taskSpecItem: await loadGitHubIssueTaskSpecItem(tracker, issue.number),
+  })));
+}
+
 export async function listOpenGitHubIssues(
   tracker: ResolvedGitHubIssuesTaskTracker,
 ): Promise<GitHubIssue[]> {
@@ -296,7 +437,8 @@ export async function listOpenGitHubIssues(
     );
   }
 
-  return sortGitHubIssuesByCreatedAt(JSON.parse(result.stdout) as GitHubIssue[]);
+  const issues = sortGitHubIssuesByCreatedAt(JSON.parse(result.stdout) as GitHubIssue[]);
+  return attachGitHubIssueTaskSpecs(tracker, issues);
 }
 
 async function getGitHubIssue(
@@ -351,39 +493,6 @@ async function removeGitHubIssueLabelsIfPresent(
   }
 }
 
-async function listGitHubIssueComments(
-  tracker: ResolvedGitHubIssuesTaskTracker,
-  issueNumber: number,
-): Promise<GitHubIssueComment[]> {
-  const result =
-    await $`gh api repos/${tracker.repository}/issues/${String(issueNumber)}/comments?per_page=100`
-      .quiet()
-      .nothrow();
-  if (result.exitCode !== 0) {
-    throw new Error(
-      `Failed to load comments for GitHub issue #${issueNumber} in ${tracker.repository}.`,
-    );
-  }
-
-  const comments = JSON.parse(result.stdout) as Array<Record<string, unknown>>;
-  return comments
-    .filter((comment) => typeof comment.id === "number" && typeof comment.body === "string")
-    .map((comment) => ({
-      id: comment.id as number,
-      body: comment.body as string,
-      createdAt:
-        typeof comment.created_at === "string"
-          ? comment.created_at
-          : typeof comment.createdAt === "string"
-            ? comment.createdAt
-            : "",
-      authorLogin:
-        isRecord(comment.user) && typeof comment.user.login === "string"
-          ? comment.user.login
-          : undefined,
-    }));
-}
-
 async function createGitHubIssueComment(
   tracker: ResolvedGitHubIssuesTaskTracker,
   issueNumber: number,
@@ -409,6 +518,12 @@ async function createGitHubIssueComment(
         : typeof comment.createdAt === "string"
           ? comment.createdAt
           : new Date().toISOString(),
+    updatedAt:
+      typeof comment.updated_at === "string"
+        ? comment.updated_at
+        : typeof comment.updatedAt === "string"
+          ? comment.updatedAt
+          : undefined,
     authorLogin:
       isRecord(comment.user) && typeof comment.user.login === "string"
         ? comment.user.login
@@ -423,6 +538,42 @@ async function deleteGitHubIssueComment(
   await $`gh api repos/${tracker.repository}/issues/comments/${String(commentId)} --method DELETE`
     .quiet()
     .nothrow();
+}
+
+async function publishGitHubIssueTaskSpecComment(
+  tracker: ResolvedGitHubIssuesTaskTracker,
+  issueNumber: number,
+  item: string,
+  options: CreateGitHubIssueTaskOptions = {},
+): Promise<void> {
+  const body = renderGitHubIssueTaskSpecComment(item);
+
+  if (options.commentMode === "correct-latest") {
+    const comments = await listGitHubIssueComments(tracker, issueNumber);
+    const editableComment = findEditableGitHubTaskSpecComment(comments);
+    if (editableComment) {
+      const result =
+        await $`gh api repos/${tracker.repository}/issues/comments/${String(editableComment.id)} --method PATCH --field body=${body}`
+          .quiet()
+          .nothrow();
+      if (result.exitCode !== 0) {
+        throw new Error(
+          `Failed to update worker task spec comment for GitHub issue #${issueNumber} in ${tracker.repository}.`,
+        );
+      }
+      return;
+    }
+  }
+
+  const result =
+    await $`gh api repos/${tracker.repository}/issues/${String(issueNumber)}/comments --method POST --field body=${body}`
+      .quiet()
+      .nothrow();
+  if (result.exitCode !== 0) {
+    throw new Error(
+      `Failed to create worker task spec comment for GitHub issue #${issueNumber} in ${tracker.repository}.`,
+    );
+  }
 }
 
 async function resolveWinningGitHubIssueClaimComment(
@@ -464,7 +615,7 @@ export async function claimTaskFromGitHubIssuesTracker(
   }
 
   const summary = selection.item.split("\n")[0].replace(/^- /, "");
-  const selectedIssue = readyIssues.find((issue) => issue.title === summary);
+  const selectedIssue = readyIssues.find((issue) => renderIssueItem(issue) === selection.item);
   if (!selectedIssue) {
     throw new Error(
       `Failed to resolve claimed GitHub issue for "${summary}" in ${tracker.repository}.`,
@@ -612,25 +763,23 @@ export async function createGitHubIssueTask(
   section: "planned" | "ready",
   itemLines: string[],
   issueNumber?: number,
+  options: CreateGitHubIssueTaskOptions = {},
 ): Promise<string> {
   const title = itemLines[0].replace(/^- /, "").trim();
   const body = filterGitHubIssueBodyLines(itemLines.slice(1)).join("\n").trim();
+  const normalizedItem = normalizeGitHubIssueTaskItem(itemLines);
 
   if (issueNumber !== undefined) {
     const issue = await getGitHubIssue(tracker, issueNumber);
-    const editResult =
-      await $`gh issue edit ${String(issueNumber)} --repo ${tracker.repository} --title ${title} --body ${body}`
-        .quiet()
-        .nothrow();
-    if (editResult.exitCode !== 0) {
-      throw new Error(
-        `Failed to update GitHub issue #${issueNumber} in ${tracker.repository}.`,
-      );
+
+    if (section === "ready") {
+      await ensureGitHubLabels(tracker);
     }
 
     const labelsToRemove = [tracker.labels.ready, tracker.labels.inProgress].filter(
       (label) => hasGitHubIssueLabel(issue, label),
     );
+
     for (const label of labelsToRemove) {
       if (section === "ready" && label === tracker.labels.ready) {
         continue;
@@ -648,7 +797,6 @@ export async function createGitHubIssueTask(
     }
 
     if (section === "ready" && !hasGitHubIssueLabel(issue, tracker.labels.ready)) {
-      await ensureGitHubLabels(tracker);
       const addResult =
         await $`gh issue edit ${String(issueNumber)} --repo ${tracker.repository} --add-label ${tracker.labels.ready}`
           .quiet()
@@ -660,6 +808,12 @@ export async function createGitHubIssueTask(
       }
     }
 
+    await publishGitHubIssueTaskSpecComment(
+      tracker,
+      issueNumber,
+      normalizedItem,
+      options,
+    );
     return `https://github.com/${tracker.repository}/issues/${issueNumber}`;
   }
 
@@ -679,5 +833,19 @@ export async function createGitHubIssueTask(
     throw new Error(`Failed to create GitHub issue in ${tracker.repository}.`);
   }
 
-  return result.stdout.trim();
+  const issueUrl = result.stdout.trim();
+  const createdIssueNumber = parseGitHubIssueNumber(issueUrl);
+  if (createdIssueNumber === undefined) {
+    throw new Error(
+      `Failed to determine GitHub issue number from "${issueUrl}" in ${tracker.repository}.`,
+    );
+  }
+
+  await publishGitHubIssueTaskSpecComment(
+    tracker,
+    createdIssueNumber,
+    normalizedItem,
+    options,
+  );
+  return issueUrl;
 }
