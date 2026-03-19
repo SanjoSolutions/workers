@@ -61,6 +61,7 @@ interface GitHubIssue {
   title: string;
   body: string;
   createdAt?: string;
+  taskSpecItem?: string;
 }
 
 interface GitHubIssueLabel {
@@ -70,6 +71,21 @@ interface GitHubIssueLabel {
 interface GitHubIssueDetails {
   labels: GitHubIssueLabel[];
 }
+
+interface GitHubIssueComment {
+  id: number;
+  body: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface CreateGitHubIssueTaskOptions {
+  commentMode?: "append" | "correct-latest";
+}
+
+const WORKER_TASK_SPEC_COMMENT_START = "<!-- workers-task-spec:v1 -->";
+const WORKER_TASK_SPEC_COMMENT_END = "<!-- /workers-task-spec -->";
+const COMMENT_CORRECTION_WINDOW_MS = 30 * 60 * 1000;
 
 function trimTrailingEmptyLines(lines: string[]): string[] {
   let end = lines.length;
@@ -83,7 +99,155 @@ function filterGitHubIssueBodyLines(lines: string[]): string[] {
   return lines.filter((line) => !/^\s+- Repo:\s*.+$/i.test(line));
 }
 
+function normalizeGitHubIssueTaskItem(itemLines: string[]): string {
+  return trimTrailingEmptyLines(itemLines.map((line) => line.replace(/\s+$/, ""))).join("\n");
+}
+
+function renderGitHubIssueTaskSpecComment(item: string): string {
+  return [
+    WORKER_TASK_SPEC_COMMENT_START,
+    "```text",
+    item,
+    "```",
+    WORKER_TASK_SPEC_COMMENT_END,
+  ].join("\n");
+}
+
+function parseGitHubIssueTaskSpecComment(body: string): string | null {
+  const match = body.match(
+    /<!-- workers-task-spec:v1 -->\s*```(?:text)?\s*([\s\S]*?)\s*```\s*<!-- \/workers-task-spec -->/i,
+  );
+  if (!match) {
+    return null;
+  }
+
+  const item = match[1].trim();
+  return item ? item : null;
+}
+
+function parseGitHubIssueNumber(issueUrl: string): number | null {
+  const match = issueUrl.trim().match(/\/issues\/(\d+)$/);
+  return match ? Number(match[1]) : null;
+}
+
+function compareGitHubIssueComments(
+  left: GitHubIssueComment,
+  right: GitHubIssueComment,
+): number {
+  const leftTime = Date.parse(left.created_at ?? left.updated_at ?? "") || 0;
+  const rightTime = Date.parse(right.created_at ?? right.updated_at ?? "") || 0;
+  if (leftTime !== rightTime) {
+    return leftTime - rightTime;
+  }
+  return left.id - right.id;
+}
+
+function findEditableGitHubTaskSpecComment(
+  comments: GitHubIssueComment[],
+): GitHubIssueComment | null {
+  if (comments.length === 0) {
+    return null;
+  }
+
+  const sortedComments = [...comments].sort(compareGitHubIssueComments);
+  const latestComment = sortedComments[sortedComments.length - 1];
+  if (!parseGitHubIssueTaskSpecComment(latestComment.body)) {
+    return null;
+  }
+
+  const referenceTimestamp = latestComment.updated_at ?? latestComment.created_at;
+  if (!referenceTimestamp) {
+    return null;
+  }
+
+  const ageMs = Date.now() - Date.parse(referenceTimestamp);
+  return ageMs <= COMMENT_CORRECTION_WINDOW_MS ? latestComment : null;
+}
+
+async function listGitHubIssueComments(
+  repository: string,
+  issueNumber: number,
+): Promise<GitHubIssueComment[]> {
+  const result =
+    await $`gh api repos/${repository}/issues/${String(issueNumber)}/comments`
+      .quiet()
+      .nothrow();
+  if (result.exitCode !== 0) {
+    throw new Error(
+      `Failed to list comments for GitHub issue #${issueNumber} in ${repository}.`,
+    );
+  }
+
+  return JSON.parse(result.stdout) as GitHubIssueComment[];
+}
+
+export async function loadGitHubIssueTaskSpecItem(
+  repository: string,
+  issueNumber: number,
+): Promise<string | undefined> {
+  const comments = await listGitHubIssueComments(repository, issueNumber);
+  const taskSpecComments = comments
+    .sort(compareGitHubIssueComments)
+    .map((comment) => parseGitHubIssueTaskSpecComment(comment.body))
+    .filter((item): item is string => item !== null);
+
+  return taskSpecComments[taskSpecComments.length - 1];
+}
+
+async function attachGitHubIssueTaskSpecs(
+  tracker: ResolvedGitHubIssuesTaskTracker,
+  issues: GitHubIssue[],
+): Promise<GitHubIssue[]> {
+  return Promise.all(issues.map(async (issue) => ({
+    ...issue,
+    taskSpecItem: await loadGitHubIssueTaskSpecItem(
+      tracker.repository,
+      issue.number,
+    ),
+  })));
+}
+
+async function publishGitHubIssueTaskSpecComment(
+  repository: string,
+  issueNumber: number,
+  item: string,
+  options: CreateGitHubIssueTaskOptions = {},
+): Promise<void> {
+  const commentBody = renderGitHubIssueTaskSpecComment(item);
+
+  if (options.commentMode === "correct-latest") {
+    const comments = await listGitHubIssueComments(repository, issueNumber);
+    const editableComment = findEditableGitHubTaskSpecComment(comments);
+    if (editableComment) {
+      const patchResult =
+        await $`gh api repos/${repository}/issues/comments/${String(editableComment.id)} --method PATCH -f body=${commentBody}`
+          .quiet()
+          .nothrow();
+      if (patchResult.exitCode !== 0) {
+        throw new Error(
+          `Failed to update worker task spec comment for GitHub issue #${issueNumber} in ${repository}.`,
+        );
+      }
+      return;
+    }
+  }
+
+  const createResult =
+    await $`gh api repos/${repository}/issues/${String(issueNumber)}/comments --method POST -f body=${commentBody}`
+      .quiet()
+      .nothrow();
+  if (createResult.exitCode !== 0) {
+    throw new Error(
+      `Failed to create worker task spec comment for GitHub issue #${issueNumber} in ${repository}.`,
+    );
+  }
+}
+
 function renderIssueItem(issue: GitHubIssue): string {
+  if (issue.taskSpecItem) {
+    return issue.taskSpecItem;
+  }
+
   const bodyLines = trimTrailingEmptyLines(
     issue.body
       .split(/\r?\n/)
@@ -235,9 +399,10 @@ async function listGitHubIssues(
   }
 
   const parsed = JSON.parse(result.stdout) as GitHubIssue[];
-  return parsed.sort((left, right) => {
+  const sortedIssues = parsed.sort((left, right) => {
     return (left.createdAt ?? "").localeCompare(right.createdAt ?? "");
   });
+  return attachGitHubIssueTaskSpecs(tracker, sortedIssues);
 }
 
 async function removeGitHubIssueLabelsIfPresent(
@@ -365,7 +530,7 @@ async function claimTaskFromGitHubIssuesTracker(
   }
 
   const summary = selection.item.split("\n")[0].replace(/^- /, "");
-  const selectedIssue = readyIssues.find((issue) => issue.title === summary);
+  const selectedIssue = readyIssues.find((issue) => renderIssueItem(issue) === selection.item);
   if (!selectedIssue) {
     throw new Error(
       `Failed to resolve claimed GitHub issue for "${summary}" in ${tracker.repository}.`,
@@ -503,16 +668,18 @@ export async function createGitHubIssueTask(
   section: "planned" | "ready",
   itemLines: string[],
   issueNumber?: number,
+  options: CreateGitHubIssueTaskOptions = {},
 ): Promise<string> {
   await ensureGitHubLabels(tracker);
 
   const title = itemLines[0].replace(/^- /, "").trim();
+  const normalizedItem = normalizeGitHubIssueTaskItem(itemLines);
   const body = filterGitHubIssueBodyLines(itemLines.slice(1)).join("\n").trim();
   const label = section === "ready" ? tracker.labels.ready : tracker.labels.planned;
 
   if (issueNumber !== undefined) {
     const editResult =
-      await $`gh issue edit ${String(issueNumber)} --repo ${tracker.repository} --title ${title} --body ${body} --add-label ${label}`
+      await $`gh issue edit ${String(issueNumber)} --repo ${tracker.repository} --add-label ${label}`
         .quiet()
         .nothrow();
     if (editResult.exitCode !== 0) {
@@ -520,6 +687,13 @@ export async function createGitHubIssueTask(
         `Failed to update GitHub issue #${issueNumber} in ${tracker.repository}.`,
       );
     }
+
+    await publishGitHubIssueTaskSpecComment(
+      tracker.repository,
+      issueNumber,
+      normalizedItem,
+      options,
+    );
 
     return `https://github.com/${tracker.repository}/issues/${issueNumber}`;
   }
@@ -532,5 +706,20 @@ export async function createGitHubIssueTask(
     throw new Error(`Failed to create GitHub issue in ${tracker.repository}.`);
   }
 
-  return result.stdout.trim();
+  const issueUrl = result.stdout.trim();
+  const createdIssueNumber = parseGitHubIssueNumber(issueUrl);
+  if (createdIssueNumber === null) {
+    throw new Error(
+      `Failed to determine GitHub issue number from "${issueUrl}" in ${tracker.repository}.`,
+    );
+  }
+
+  await publishGitHubIssueTaskSpecComment(
+    tracker.repository,
+    createdIssueNumber,
+    normalizedItem,
+    options,
+  );
+
+  return issueUrl;
 }

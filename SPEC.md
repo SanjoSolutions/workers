@@ -167,6 +167,14 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - Tasks with `Repo: none` or tasks for unmapped projects must use the default task tracker.
 - Workers must support both the Git-backed `TODO.md` tracker and GitHub Issues as concrete task
   tracker backends.
+- When workers clarify or queue work against an existing GitHub issue, they must preserve the
+  user-authored issue title and body instead of overwriting them.
+- Worker-authored normalized task specifications for GitHub Issues must be stored in a structured
+  worker comment format that can be identified and parsed without inspecting unrelated discussion
+  comments.
+- GitHub Issues claim, listing, and execution flows must derive worker metadata from the latest
+  structured worker task-spec comment, defaulting to new comments for updates and allowing edits
+  only when correcting a recent unresponded worker comment.
 - When a GitHub Issues-backed task is closed through workers, workers must remove its queue labels
   before closing the issue.
 - Tracker selection and worker polling must no longer be hard-coded to a single repository.
