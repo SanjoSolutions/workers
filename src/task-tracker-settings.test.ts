@@ -8,7 +8,13 @@ import {
 } from "./task-tracker-settings.js";
 
 const BASE_SETTINGS: WorkersSettings = {
-  defaults: { cli: "codex", model: "gpt-5.4" },
+  defaults: {
+    cli: "codex",
+    model: "gpt-5.4",
+    autoModelSelection: false,
+    autoModelSelectionModels: ["gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex"],
+    autoReasoningEffort: false,
+  },
   assistant: { defaults: { cli: "codex" } },
   projects: [
     {

@@ -88,6 +88,8 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - The default external worktree layout must namespace each project to avoid collisions between repos
   that share the same directory name.
 - Reused worktrees must be synced with the latest project repository state before agent work starts.
+- Each claimed task must run on a fresh dedicated worker branch, even when workers reuse an
+  existing worktree path for that repo.
 - Claim selection must avoid tasks blocked by dependencies or active conflict-risk annotations.
 - Workers must leave completed work on the worker branch/worktree by default.
 - Workers must not automatically merge or push worker output back to the tracked branch; the
