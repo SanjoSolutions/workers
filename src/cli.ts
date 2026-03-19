@@ -37,6 +37,7 @@ export async function parseCliOptions(argv: string[]): Promise<CliOptions> {
         `Unsupported CLI: ${explicitCli} (expected: claude, codex, gemini)`,
       );
     }
+    await ensureWorkerCli(settings, undefined, { preferredCli: explicitCli });
     cli = explicitCli;
   } else {
     cli = await ensureWorkerCli(settings);

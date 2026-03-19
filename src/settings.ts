@@ -72,6 +72,13 @@ interface SettingsLoadOptions {
   configDir?: string;
 }
 
+interface EnsureCliOptions {
+  env?: NodeJS.ProcessEnv;
+  promptForCli?: (choices: CliName[]) => Promise<CliName>;
+  onNonTtyFailure?: () => void;
+  preferredCli?: CliName;
+}
+
 export function determinePackageRoot(): string {
   const currentFile = fileURLToPath(import.meta.url);
   return path.resolve(path.dirname(currentFile), "..");
@@ -413,10 +420,15 @@ async function ensureCli(
   settingsKey: string,
   current: CliName | undefined,
   persist: (chosen: CliName) => void,
-  options?: { env?: NodeJS.ProcessEnv; promptForCli?: (choices: CliName[]) => Promise<CliName>; onNonTtyFailure?: () => void },
+  options?: EnsureCliOptions,
 ): Promise<CliName> {
   if (current) {
     return current;
+  }
+
+  if (options?.preferredCli) {
+    persist(options.preferredCli);
+    return options.preferredCli;
   }
 
   const installed = detectInstalledClis(options?.env ?? process.env);
@@ -466,7 +478,7 @@ function persistCliSetting(
 export async function ensureWorkerCli(
   settings: WorkersSettings,
   cfgDir = configDir(),
-  options?: { env?: NodeJS.ProcessEnv; promptForCli?: (choices: CliName[]) => Promise<CliName> },
+  options?: EnsureCliOptions,
 ): Promise<CliName> {
   return ensureCli("worker", "worker.defaults.cli", settings.defaults.cli, (chosen) => {
     persistCliSetting(cfgDir, (parsed, cli) => {
@@ -494,6 +506,7 @@ export async function ensureWorkerCli(
 export async function ensureAssistantCli(
   settings: WorkersSettings,
   cfgDir = configDir(),
+  options?: EnsureCliOptions,
 ): Promise<CliName> {
   return ensureCli("assistant", "assistant.defaults.cli", settings.assistant.defaults.cli, (chosen) => {
     persistCliSetting(cfgDir, (parsed, cli) => {
@@ -505,6 +518,7 @@ export async function ensureAssistantCli(
     }, chosen);
     settings.assistant.defaults.cli = chosen;
   }, {
+    ...options,
     onNonTtyFailure: () => {
       const filePath = settingsPath(cfgDir);
       if (existsSync(filePath)) {
