@@ -32,6 +32,10 @@ function trimTrailingEmptyLines(lines: string[]): string[] {
   return lines.slice(0, end);
 }
 
+function filterGitHubIssueBodyLines(lines: string[]): string[] {
+  return lines.filter((line) => !/^\s+- Repo:\s*.+$/i.test(line));
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -312,6 +316,41 @@ async function getGitHubIssue(
   return JSON.parse(result.stdout) as GitHubIssue;
 }
 
+async function removeGitHubIssueLabelsIfPresent(
+  repository: string,
+  issueNumber: number,
+  labels: string[],
+): Promise<void> {
+  const issueResult =
+    await $`gh issue view ${String(issueNumber)} --repo ${repository} --json labels`
+      .quiet()
+      .nothrow();
+  if (issueResult.exitCode !== 0) {
+    throw new Error(
+      `Failed to inspect GitHub issue #${issueNumber} in ${repository}.`,
+    );
+  }
+
+  const issue = JSON.parse(issueResult.stdout) as GitHubIssue;
+  const existingLabels = new Set((issue.labels ?? []).map((label) => label.name));
+
+  for (const label of labels) {
+    if (!existingLabels.has(label)) {
+      continue;
+    }
+
+    const editResult =
+      await $`gh issue edit ${String(issueNumber)} --repo ${repository} --remove-label ${label}`
+        .quiet()
+        .nothrow();
+    if (editResult.exitCode !== 0) {
+      throw new Error(
+        `Failed to remove label "${label}" from GitHub issue #${issueNumber} in ${repository}.`,
+      );
+    }
+  }
+}
+
 async function listGitHubIssueComments(
   tracker: ResolvedGitHubIssuesTaskTracker,
   issueNumber: number,
@@ -547,6 +586,12 @@ export async function syncCompletedGitHubIssueTask(
     throw new Error(`Expected github-issues sync state for ${claimedTask.summary}.`);
   }
 
+  await removeGitHubIssueLabelsIfPresent(
+    syncState.repository,
+    syncState.issueNumber,
+    [syncState.labels.ready, syncState.labels.inProgress],
+  );
+
   const closeResult =
     await $`gh issue close ${String(syncState.issueNumber)} --repo ${syncState.repository} --reason completed`
       .quiet()
@@ -569,7 +614,7 @@ export async function createGitHubIssueTask(
   issueNumber?: number,
 ): Promise<string> {
   const title = itemLines[0].replace(/^- /, "").trim();
-  const body = itemLines.slice(1).join("\n").trim();
+  const body = filterGitHubIssueBodyLines(itemLines.slice(1)).join("\n").trim();
 
   if (issueNumber !== undefined) {
     const issue = await getGitHubIssue(tracker, issueNumber);
