@@ -31,7 +31,9 @@
     "src/scripts/",
     "agents/",
     "LICENSES/",
+    "settings.template.json",
     "THIRD_PARTY_NOTICES.md",
+    "TODO.template.md",
     "new-project-template/"
   ],
   "dependencies": {

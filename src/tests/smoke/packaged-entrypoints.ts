@@ -10,7 +10,7 @@ import {
 } from "fs";
 import os from "os";
 import path from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 
 interface FakeCliInvocation {
   argv: string[];
@@ -18,6 +18,19 @@ interface FakeCliInvocation {
   env: {
     WORK_MODE?: string;
     WORK_PRECLAIMED_TODO?: string;
+  };
+}
+
+interface PackagedSettingsFile {
+  worker?: {
+    defaults?: {
+      cli?: string;
+    };
+  };
+  assistant?: {
+    defaults?: {
+      cli?: string;
+    };
   };
 }
 
@@ -104,6 +117,15 @@ function readFakeCliInvocations(logDir: string): FakeCliInvocation[] {
     );
 }
 
+function resolveGitBinaryDir(): string {
+  const command = process.platform === "win32" ? "where" : "which";
+  const gitPath = runCommandOrThrow(command, ["git"]).trim().split(/\r?\n/, 1)[0];
+  if (!gitPath) {
+    throw new Error("Failed to resolve the git executable for the packaged smoke test.");
+  }
+  return path.dirname(gitPath);
+}
+
 async function main(): Promise<void> {
   const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
   const tempRoot = mkdtempSync(path.join(os.tmpdir(), "workers-packaged-smoke-"));
@@ -113,6 +135,7 @@ async function main(): Promise<void> {
   const packDir = path.join(tempRoot, "pack");
   const installDir = path.join(tempRoot, "install");
   const assistantRepo = path.join(tempRoot, "assistant-repo");
+  const todoRepo = path.join(tempRoot, "todo-repo");
   const workerRepo = path.join(tempRoot, "worker-repo");
   const worktreeDir = path.join(tempRoot, "worktrees");
 
@@ -123,31 +146,6 @@ async function main(): Promise<void> {
   mkdirSync(installDir, { recursive: true });
   mkdirSync(configDir, { recursive: true });
   mkdirSync(worktreeDir, { recursive: true });
-
-  writeFileSync(
-    path.join(configDir, "settings.json"),
-    `${JSON.stringify(
-      {
-        worker: {
-          defaults: {
-            cli: "claude",
-            model: "gpt-5.4",
-            autoModelSelection: false,
-            autoReasoningEffort: false,
-          },
-        },
-        assistant: {
-          defaults: {
-            cli: "claude",
-          },
-        },
-        projects: [],
-      },
-      null,
-      2,
-    )}\n`,
-    "utf8",
-  );
 
   runCommandOrThrow("npm", ["pack", "--pack-destination", packDir], { cwd: repoRoot });
   const tarballName = readdirSync(packDir).find((entry) => entry.endsWith(".tgz"));
@@ -165,9 +163,28 @@ async function main(): Promise<void> {
   const installedPackageRoot = path.join(installDir, "node_modules", "@sanjo", "workers");
   const assistantEntrypoint = path.join(installedPackageRoot, "build", "bin", "assistant.js");
   const workerEntrypoint = path.join(installedPackageRoot, "build", "bin", "worker.js");
+  const settingsTemplatePath = path.join(installedPackageRoot, "settings.template.json");
+  const todoTemplatePath = path.join(installedPackageRoot, "TODO.template.md");
 
   if (!existsSync(assistantEntrypoint) || !existsSync(workerEntrypoint)) {
     throw new Error("Installed package is missing the packaged assistant or worker entrypoint.");
+  }
+  if (!existsSync(settingsTemplatePath)) {
+    throw new Error("Installed package is missing settings.template.json.");
+  }
+  if (!existsSync(todoTemplatePath)) {
+    throw new Error("Installed package is missing TODO.template.md.");
+  }
+
+  const { initGitTodoRepo } = await import(
+    pathToFileURL(path.join(installedPackageRoot, "build", "init-task-tracker.js")).href
+  );
+  await initGitTodoRepo(todoRepo);
+
+  const initializedTodo = readFileSync(path.join(todoRepo, "TODO.md"), "utf8");
+  const packagedTodoTemplate = readFileSync(todoTemplatePath, "utf8");
+  if (initializedTodo !== packagedTodoTemplate) {
+    throw new Error("Installed package did not initialize TODO.md from the packaged TODO template.");
   }
 
   const {
@@ -179,7 +196,7 @@ async function main(): Promise<void> {
 
   const sharedEnv = {
     ...baseEnv,
-    PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ""}`,
+    PATH: `${fakeBinDir}${path.delimiter}${resolveGitBinaryDir()}`,
     WORKERS_CONFIG_DIR: configDir,
     WORKERS_FAKE_CLI_LOG_DIR: fakeLogDir,
   };
@@ -192,6 +209,16 @@ async function main(): Promise<void> {
     cwd: workerRepo,
     env: sharedEnv,
   });
+
+  const settings = JSON.parse(
+    readFileSync(path.join(configDir, "settings.json"), "utf8"),
+  ) as PackagedSettingsFile;
+  if (settings.assistant?.defaults?.cli !== "claude") {
+    throw new Error("Packaged assistant entrypoint did not bootstrap assistant CLI settings.");
+  }
+  if (settings.worker?.defaults?.cli !== "claude") {
+    throw new Error("Packaged worker entrypoint did not bootstrap worker CLI settings.");
+  }
 
   const invocations = readFakeCliInvocations(fakeLogDir);
   if (invocations.length !== 2) {
