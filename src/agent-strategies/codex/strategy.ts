@@ -23,6 +23,9 @@ export class CodexAgentStrategy implements AgentStrategy {
 
     let codexModel = explicitModel || context.options.modelDefault || "gpt-5.4";
     let reasoningEffort = explicitReasoningEffort || "high";
+    const shouldInheritShellEnvironment = Boolean(
+      context.env.GH_TOKEN || context.env.GITHUB_TOKEN,
+    );
 
     const shouldAutoSelectModel = !explicitModel
       && context.options.autoModelSelection !== false
@@ -66,6 +69,12 @@ export class CodexAgentStrategy implements AgentStrategy {
       "--config",
       "sandbox_workspace_write.network_access=true",
     );
+    if (shouldInheritShellEnvironment) {
+      codexArgs.push(
+        "--config",
+        "shell_environment_policy.inherit=all",
+      );
+    }
 
     if (context.noTodo) {
       const result = await spawnAgentProcess({

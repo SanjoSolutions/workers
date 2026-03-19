@@ -74,6 +74,8 @@ describe("CodexAgentStrategy", () => {
         "gpt-5.4-mini",
         "--config",
         "model_reasoning_effort=medium",
+        "--config",
+        "shell_environment_policy.inherit=all",
       ]),
       env: expect.objectContaining({
         ORIGINAL_ENV: "true",
@@ -170,8 +172,20 @@ describe("CodexAgentStrategy", () => {
       "codex_hooks",
       "--model",
       "gpt-5.4-mini",
+      "--config",
+      "shell_environment_policy.inherit=all",
       "Implement it\n\nWorkers session control...",
     ]));
     expect(call?.[1]).not.toContain("Implement it");
+  });
+
+  test("does not widen the Codex shell environment when no GitHub auth is present", async () => {
+    await strategy.launch({
+      ...baseContext,
+      env: { ORIGINAL_ENV: "true" },
+    } as any);
+
+    const call = vi.mocked(spawnAgentProcess).mock.calls[0]?.[0];
+    expect(call?.args).not.toContain("shell_environment_policy.inherit=all");
   });
 });
