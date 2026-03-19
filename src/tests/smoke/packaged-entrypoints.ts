@@ -49,10 +49,19 @@ function runCommandOrThrow(
     return result.stdout ?? "";
   }
 
+  const errorText = result.error instanceof Error
+    ? result.error.message
+    : "";
   const output = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim();
   throw new Error(
-    [`Command failed: ${command} ${args.join(" ")}`, output].filter(Boolean).join("\n"),
+    [`Command failed: ${command} ${args.join(" ")}`, errorText, output]
+      .filter(Boolean)
+      .join("\n"),
   );
+}
+
+function resolveNpmCommand(): string {
+  return process.platform === "win32" ? "npm.cmd" : "npm";
 }
 
 function createGitRepo(repoPath: string): void {
@@ -176,7 +185,9 @@ async function main(): Promise<void> {
   mkdirSync(configDir, { recursive: true });
   mkdirSync(worktreeDir, { recursive: true });
 
-  runCommandOrThrow("npm", ["pack", "--pack-destination", packDir], { cwd: repoRoot });
+  runCommandOrThrow(resolveNpmCommand(), ["pack", "--pack-destination", packDir], {
+    cwd: repoRoot,
+  });
   const tarballName = readdirSync(packDir).find((entry) => entry.endsWith(".tgz"));
   if (!tarballName) {
     throw new Error("Failed to create a package tarball for smoke testing.");
@@ -187,7 +198,9 @@ async function main(): Promise<void> {
     `${JSON.stringify({ private: true }, null, 2)}\n`,
     "utf8",
   );
-  runCommandOrThrow("npm", ["install", path.join(packDir, tarballName)], { cwd: installDir });
+  runCommandOrThrow(resolveNpmCommand(), ["install", path.join(packDir, tarballName)], {
+    cwd: installDir,
+  });
 
   const installedPackageRoot = path.join(installDir, "node_modules", "@sanjo", "workers");
   const assistantEntrypoint = path.join(installedPackageRoot, "build", "bin", "assistant.js");
