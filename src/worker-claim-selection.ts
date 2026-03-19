@@ -1,41 +1,41 @@
 import type { PollableTaskTracker } from "./task-tracker-settings.js";
 import {
-  claimTaskFromTracker,
-  type ClaimTaskResult,
-  type ClaimedTask,
+  claimItemFromTracker,
+  type ClaimItemResult,
+  type ClaimedItem,
 } from "./task-trackers.js";
 
-interface ClaimNextTodoDependencies {
-  claimTaskFromTracker: (
+interface ClaimNextItemDependencies {
+  claimItemFromTracker: (
     tracker: PollableTaskTracker,
     cli: string,
     invocationPath: string,
-  ) => Promise<ClaimTaskResult>;
+  ) => Promise<ClaimItemResult>;
 }
 
-const defaultDependencies: ClaimNextTodoDependencies = {
-  claimTaskFromTracker,
+const defaultDependencies: ClaimNextItemDependencies = {
+  claimItemFromTracker,
 };
 
-export async function claimNextTodoFromTrackers(
+export async function claimNextItemFromTrackers(
   trackers: PollableTaskTracker[],
   cli: string,
   invocationPath: string,
-  dependencies: ClaimNextTodoDependencies = defaultDependencies,
-): Promise<{ claimedTask: ClaimedTask } | { reason: string }> {
+  dependencies: ClaimNextItemDependencies = defaultDependencies,
+): Promise<{ claimedItem: ClaimedItem } | { reason: string }> {
   let sawMatchingIssue = false;
   let sawBlockedIssue = false;
   let sawReadyEmpty = false;
 
   for (const tracker of trackers) {
-    const claimResult = await dependencies.claimTaskFromTracker(
+    const claimResult = await dependencies.claimItemFromTracker(
       tracker,
       cli,
       invocationPath,
     );
-    if (claimResult.status === "claimed" && claimResult.claimedTask) {
+    if (claimResult.status === "claimed" && claimResult.claimedItem) {
       return {
-        claimedTask: claimResult.claimedTask,
+        claimedItem: claimResult.claimedItem,
       };
     }
 
@@ -58,3 +58,5 @@ export async function claimNextTodoFromTrackers(
           : "no-claimable-trackers",
   };
 }
+
+export const claimNextTodoFromTrackers = claimNextItemFromTrackers;

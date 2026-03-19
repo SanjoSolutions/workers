@@ -22,7 +22,7 @@ import { $ } from "zx";
 import { prepareSystemPrompt } from "../../assistant-system-prompt.js";
 
 const TODO_TEMPLATE = readFileSync(
-  path.join(process.cwd(), "TODO.template.md"),
+  path.join(process.cwd(), "todos-repo-template", "TODO.md"),
   "utf8",
 );
 
@@ -59,7 +59,7 @@ async function setupProject(root: string, name: string): Promise<string> {
       '  const content = readFileSync(todoFile, "utf8");',
       "  const updated = content.replace(section, section + \"\\n\\n\" + input);",
       '  writeFileSync(todoFile, updated, "utf8");',
-      "  console.log(`Added TODO to ${section} in ${todoFile}`);",
+      "  console.log(`Added item to ${section} in ${todoFile}`);",
       "});",
       "",
     ].join("\n"),

@@ -62,6 +62,126 @@ export interface ManagedSessionConfig {
   statusEnvVar: string;
 }
 
+export interface InteractiveStatus {
+  status: string;
+  source: string;
+  launcherPid?: number;
+  childPid?: number;
+  startedAt?: string;
+  updatedAt?: string;
+  finishedAt?: string;
+  sessionId?: string;
+  signal?: string;
+  error?: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseInteractiveStatus(content: string): InteractiveStatus | undefined {
+  try {
+    const parsed = JSON.parse(content) as unknown;
+    if (!isRecord(parsed) || typeof parsed.status !== "string") {
+      return undefined;
+    }
+
+    return {
+      status: parsed.status,
+      source: typeof parsed.source === "string" ? parsed.source : "workers",
+      launcherPid: typeof parsed.launcherPid === "number" ? parsed.launcherPid : undefined,
+      childPid: typeof parsed.childPid === "number" ? parsed.childPid : undefined,
+      startedAt: typeof parsed.startedAt === "string" ? parsed.startedAt : undefined,
+      updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : undefined,
+      finishedAt: typeof parsed.finishedAt === "string" ? parsed.finishedAt : undefined,
+      sessionId: typeof parsed.sessionId === "string" ? parsed.sessionId : undefined,
+      signal: typeof parsed.signal === "string" ? parsed.signal : undefined,
+      error: typeof parsed.error === "string" ? parsed.error : undefined,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function processIsAlive(pid: number | undefined): boolean {
+  if (!pid || !Number.isInteger(pid) || pid <= 0) {
+    return false;
+  }
+
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error instanceof Error && "code" in error && error.code === "EPERM";
+  }
+}
+
+function runningStatusIsStale(status: InteractiveStatus): boolean {
+  if (status.status !== "running") {
+    return false;
+  }
+
+  if (status.childPid !== undefined && !processIsAlive(status.childPid)) {
+    return true;
+  }
+
+  if (status.launcherPid !== undefined && !processIsAlive(status.launcherPid)) {
+    return true;
+  }
+
+  return false;
+}
+
+function readInteractiveStatusFile(statusFile: string): InteractiveStatus | undefined {
+  if (!existsSync(statusFile)) {
+    return undefined;
+  }
+
+  try {
+    return parseInteractiveStatus(readFileSync(statusFile, "utf8").trim());
+  } catch {
+    return undefined;
+  }
+}
+
+export function writeInteractiveStatus(
+  statusFile: string,
+  status: Partial<InteractiveStatus> & Pick<InteractiveStatus, "status">,
+): InteractiveStatus {
+  const existing = readInteractiveStatusFile(statusFile);
+  const now = new Date().toISOString();
+  const nextStatus: InteractiveStatus = {
+    ...existing,
+    ...status,
+    source: status.source ?? existing?.source ?? "workers",
+    startedAt: status.startedAt ?? existing?.startedAt ?? now,
+    updatedAt: now,
+  };
+
+  writeFileSync(statusFile, `${JSON.stringify(nextStatus)}\n`, "utf8");
+  return nextStatus;
+}
+
+export function readInteractiveStatus(
+  statusFile: string,
+  options?: { rewriteStale?: boolean },
+): InteractiveStatus | undefined {
+  const status = readInteractiveStatusFile(statusFile);
+  if (!status) {
+    return undefined;
+  }
+
+  if (options?.rewriteStale === false || !runningStatusIsStale(status)) {
+    return status;
+  }
+
+  return writeInteractiveStatus(statusFile, {
+    ...status,
+    status: "stale",
+    finishedAt: new Date().toISOString(),
+  });
+}
+
 export function setupManagedInteractiveSession(
   worktreePath: string,
   claimedTodoItem: string,
@@ -73,11 +193,11 @@ export function setupManagedInteractiveSession(
   mkdirSync(controlDir, { recursive: true });
 
   const statusFile = path.join(controlDir, "status.json");
-  writeFileSync(
-    statusFile,
-    `${JSON.stringify({ status: "running", source: "workers" })}\n`,
-    "utf8",
-  );
+  writeInteractiveStatus(statusFile, {
+    status: "running",
+    source: "workers",
+    launcherPid: process.pid,
+  });
 
   const configDir = path.join(worktreePath, config.configDirName);
   mkdirSync(configDir, { recursive: true });
@@ -146,6 +266,7 @@ export async function spawnManagedInteractiveAgent(
   return new Promise<AgentResult>((resolve) => {
     let managedDone = false;
     let stopRequested = false;
+    let interruptedBySignal: string | undefined;
     let forcedKillTimer: NodeJS.Timeout | undefined;
     let lastStatusJson = "";
 
@@ -154,36 +275,24 @@ export async function spawnManagedInteractiveAgent(
       env,
       stdio: ["inherit", "inherit", "inherit"],
     });
+    writeInteractiveStatus(statusFile, {
+      status: "running",
+      childPid: child.pid,
+    });
 
     const watchTimer = setInterval(() => {
-      if (!existsSync(statusFile)) {
+      const status = readInteractiveStatus(statusFile);
+      if (!status) {
         return;
       }
 
-      let rawStatus: string;
-      try {
-        rawStatus = readFileSync(statusFile, "utf8").trim();
-      } catch {
-        return;
-      }
-
-      if (!rawStatus || rawStatus === lastStatusJson) {
+      const rawStatus = JSON.stringify(status);
+      if (rawStatus === lastStatusJson) {
         return;
       }
       lastStatusJson = rawStatus;
 
-      let statusParsed: unknown;
-      try {
-        statusParsed = JSON.parse(rawStatus);
-      } catch {
-        return;
-      }
-
-      const status =
-        statusParsed && typeof statusParsed === "object" && "status" in statusParsed
-          ? (statusParsed.status as string | undefined)
-          : undefined;
-      if (status !== "done" || stopRequested) {
+      if (status.status !== "done" || stopRequested) {
         return;
       }
 
@@ -195,23 +304,76 @@ export async function spawnManagedInteractiveAgent(
       }, 5000);
     }, 250);
 
+    const signalHandlers = new Map<string, () => void>();
+    const installSignalHandler = (signal: NodeJS.Signals) => {
+      const handler = () => {
+        if (stopRequested || managedDone) {
+          return;
+        }
+
+        interruptedBySignal = signal;
+        stopRequested = true;
+        writeInteractiveStatus(statusFile, {
+          status: "interrupted",
+          signal,
+          finishedAt: new Date().toISOString(),
+        });
+        child.kill(signal);
+        forcedKillTimer = setTimeout(() => {
+          child.kill("SIGKILL");
+        }, 5000);
+      };
+
+      signalHandlers.set(signal, handler);
+      process.on(signal, handler);
+    };
+
+    installSignalHandler("SIGINT");
+    installSignalHandler("SIGTERM");
+
     const finish = (result: AgentResult) => {
       clearInterval(watchTimer);
       if (forcedKillTimer) {
         clearTimeout(forcedKillTimer);
+      }
+      for (const [signal, handler] of signalHandlers) {
+        process.off(signal, handler);
       }
       cleanup();
       resolve(result);
     };
 
     child.on("close", (code) => {
+      const currentStatus = readInteractiveStatus(statusFile, { rewriteStale: false });
+      const terminalStatus = currentStatus?.status;
+
+      if (!managedDone && terminalStatus !== "needs_user" && terminalStatus !== "done") {
+        if (interruptedBySignal) {
+          writeInteractiveStatus(statusFile, {
+            status: "interrupted",
+            signal: interruptedBySignal,
+            finishedAt: new Date().toISOString(),
+          });
+        } else {
+          writeInteractiveStatus(statusFile, {
+            status: code === 0 ? "stopped" : "error",
+            finishedAt: new Date().toISOString(),
+          });
+        }
+      }
+
       finish({
-        exitCode: managedDone ? 0 : code ?? 1,
+        exitCode: managedDone ? 0 : interruptedBySignal ? 130 : code ?? 1,
         output: "",
       });
     });
 
     child.on("error", (error) => {
+      writeInteractiveStatus(statusFile, {
+        status: "error",
+        error: error.message,
+        finishedAt: new Date().toISOString(),
+      });
       finish({
         exitCode: 1,
         output: error.message,

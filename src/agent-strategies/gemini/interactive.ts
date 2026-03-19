@@ -9,6 +9,7 @@ import path from "path";
 import { determinePackageRoot } from "../../settings.js";
 import {
   parseJsonConfig,
+  writeInteractiveStatus,
   workersInteractiveInstructions,
   type ManagedInteractiveSession,
 } from "../managed-interactive.js";
@@ -24,11 +25,11 @@ export function setupManagedInteractiveGeminiSession(
   const controlDir = path.join(worktreePath, ".tmp", "workers-gemini-interactive");
   mkdirSync(controlDir, { recursive: true });
   const statusFile = path.join(controlDir, "status.json");
-  writeFileSync(
-    statusFile,
-    `${JSON.stringify({ status: "running", source: "workers" })}\n`,
-    "utf8",
-  );
+  writeInteractiveStatus(statusFile, {
+    status: "running",
+    source: "workers",
+    launcherPid: process.pid,
+  });
 
   const declarativeSettingsPath = path.join(
     packageRoot,

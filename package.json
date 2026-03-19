@@ -33,7 +33,7 @@
     "LICENSES/",
     "settings.template.json",
     "THIRD_PARTY_NOTICES.md",
-    "TODO.template.md",
+    "todos-repo-template/",
     "new-project-template/"
   ],
   "dependencies": {

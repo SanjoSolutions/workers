@@ -19,13 +19,13 @@ function defaultPrompt(
 5. Do NOT add the local mirrored task file to the code-repo commit when it is untracked or ignored here.
    The workers runtime will sync task completion back to the configured task tracker after your work is done.`;
 
-  return `A task has been pre-claimed for you by the workers runtime.
-Do NOT claim another task — work on this one.
+  return `An item has been pre-claimed for you by the workers runtime.
+Do NOT claim another item — work on this one.
 
-Claimed task:
+Claimed item:
 ${todo}
 
-Task type: ${todoType}
+Item type: ${todoType}
 
 Instructions:
 1. Implement the required changes for this task

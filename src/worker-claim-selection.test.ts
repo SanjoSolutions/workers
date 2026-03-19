@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
-import { claimNextTodoFromTrackers } from "./worker-claim-selection.js";
+import { claimNextItemFromTrackers } from "./worker-claim-selection.js";
 import type { PollableTaskTracker } from "./task-tracker-settings.js";
-import type { ClaimedTask, ClaimTaskResult } from "./task-trackers.js";
+import type { ClaimedItem, ClaimItemResult } from "./task-trackers.js";
 
 const tracker = {
   tracker: {
@@ -13,7 +13,7 @@ const tracker = {
   source: "project",
 } satisfies PollableTaskTracker;
 
-function createClaimedTask(summary: string): ClaimedTask {
+function createClaimedItem(summary: string): ClaimedItem {
   return {
     trackerName: "demo",
     trackerKind: "git-todo",
@@ -32,55 +32,55 @@ function createClaimedTask(summary: string): ClaimedTask {
   };
 }
 
-describe("claimNextTodoFromTrackers", () => {
-  test("returns the first claimed task from the polling order", async () => {
-    const claimTaskFromTracker = vi
-      .fn<[PollableTaskTracker, string, string], Promise<ClaimTaskResult>>()
+describe("claimNextItemFromTrackers", () => {
+  test("returns the first claimed item from the polling order", async () => {
+    const claimItemFromTracker = vi
+      .fn<[PollableTaskTracker, string, string], Promise<ClaimItemResult>>()
       .mockResolvedValueOnce({ status: "no-claim", reason: "ready-empty" })
       .mockResolvedValueOnce({
         status: "claimed",
         reason: "claimed",
-        claimedTask: createClaimedTask("Ship the change"),
+        claimedItem: createClaimedItem("Ship the change"),
       });
 
-    const result = await claimNextTodoFromTrackers(
+    const result = await claimNextItemFromTrackers(
       [tracker, tracker],
       "codex",
       "/workspace/project",
-      { claimTaskFromTracker },
+      { claimItemFromTracker },
     );
 
-    expect(claimTaskFromTracker).toHaveBeenNthCalledWith(
+    expect(claimItemFromTracker).toHaveBeenNthCalledWith(
       1,
       tracker,
       "codex",
       "/workspace/project",
     );
-    expect(claimTaskFromTracker).toHaveBeenNthCalledWith(
+    expect(claimItemFromTracker).toHaveBeenNthCalledWith(
       2,
       tracker,
       "codex",
       "/workspace/project",
     );
     expect(result).toEqual({
-      claimedTask: expect.objectContaining({
+      claimedItem: expect.objectContaining({
         summary: "Ship the change",
       }),
     });
   });
 
   test("prefers conflict blocking over no matching agent and empty ready queues", async () => {
-    const claimTaskFromTracker = vi
-      .fn<[PollableTaskTracker, string, string], Promise<ClaimTaskResult>>()
+    const claimItemFromTracker = vi
+      .fn<[PollableTaskTracker, string, string], Promise<ClaimItemResult>>()
       .mockResolvedValueOnce({ status: "no-claim", reason: "ready-empty" })
       .mockResolvedValueOnce({ status: "no-claim", reason: "no-matching-agent" })
       .mockResolvedValueOnce({ status: "no-claim", reason: "all-blocked-by-conflict" });
 
-    const result = await claimNextTodoFromTrackers(
+    const result = await claimNextItemFromTrackers(
       [tracker, tracker, tracker],
       "codex",
       "/workspace/project",
-      { claimTaskFromTracker },
+      { claimItemFromTracker },
     );
 
     expect(result).toEqual({

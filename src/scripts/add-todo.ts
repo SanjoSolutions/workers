@@ -14,7 +14,7 @@ interface ParsedArgs {
 function printUsage(): void {
   console.log(`Usage: add-todo.js [options] [text...]
 
-Add a TODO item to the configured task tracker.
+Add an item to the configured task tracker.
 
 Options:
   --ready             Add to the "Ready to be picked up" section
@@ -24,7 +24,7 @@ Options:
   -h, --help          Print this help message and exit
 
 Arguments:
-  text                TODO item text (reads from stdin if omitted)`);
+  text                Item text (reads from stdin if omitted)`);
 }
 
 function parseArgs(argv: string[]): ParsedArgs {
@@ -91,7 +91,7 @@ async function readTodoText(argText: string): Promise<string> {
   }
 
   if (!process.stdout.isTTY) {
-    throw new Error("TODO text is required.");
+    throw new Error("Item text is required.");
   }
 
   const rl = readline.createInterface({
@@ -100,10 +100,10 @@ async function readTodoText(argText: string): Promise<string> {
   });
 
   try {
-    const answer = await rl.question("TODO text: ");
+    const answer = await rl.question("Item text: ");
     const text = answer.trim();
     if (!text) {
-      throw new Error("TODO text is required.");
+      throw new Error("Item text is required.");
     }
     return text;
   } finally {

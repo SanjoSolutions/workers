@@ -94,7 +94,7 @@ describe("addTodoToConfiguredTracker", () => {
       42,
     );
     expect(result).toBe(
-      "Updated TODO in ready in acme/widgets as GitHub issue https://github.com/acme/widgets/issues/42 (task tracker: demo)",
+      "Updated item in ready in acme/widgets as GitHub issue https://github.com/acme/widgets/issues/42 (task tracker: demo)",
     );
   });
 
@@ -142,7 +142,7 @@ describe("addTodoToConfiguredTracker", () => {
       "## Ready to be picked up\n\n- Document the workflow\n",
     );
     expect(result).toBe(
-      `Added TODO to ready in ${todoPath} (task tracker: local)`,
+      `Added item to ready in ${todoPath} (task tracker: local)`,
     );
   });
 });

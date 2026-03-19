@@ -79,7 +79,7 @@ SPEC.md captures the high-level requirements for a project.
 - The init command must ask where to initialize the repo.
 - The suggested default location is the current working directory.
 - If the target directory is not yet a git repo, the command must initialize one.
-- If `TODO.md` does not exist, the command must create it from `TODO.template.md`.
+- If `TODO.md` does not exist, the command must create it from `todos-repo-template/TODO.md`.
 - The init command should create an initial commit when it creates the first `TODO.md`.
 - The init command must update `WORKERS_TODO_REPO` in `~/.bashrc` automatically.
 
@@ -100,7 +100,7 @@ SPEC.md captures the high-level requirements for a project.
 
 ## 5. TODO Template
 
-- `TODO.template.md` is committed in the workers repo and defines the default section layout for new shared TODO repos.
+- `todos-repo-template/TODO.md` is committed in the workers repo and defines the default section layout for new shared TODO repos.
 - Local `TODO.md` files in the workers repo itself must not be committed.
 
 ## 6. Worktree Execution

@@ -6,8 +6,8 @@ import type {
   ResolvedGitHubIssuesTaskTracker,
 } from "../../task-tracker-settings.js";
 import type {
-  ClaimTaskResult,
-  ClaimedTask,
+  ClaimItemResult,
+  ClaimedItem,
   CompletionSyncResult,
   GitHubIssue,
   GitHubIssueClaimCommentMetadata,
@@ -596,24 +596,11 @@ async function publishGitHubIssueTaskSpecComment(
   }
 }
 
-async function resolveWinningGitHubIssueClaimComment(
-  tracker: ResolvedGitHubIssuesTaskTracker,
-  issueNumber: number,
-  ownComment?: GitHubIssueComment,
-): Promise<(GitHubIssueComment & ParsedGitHubIssueClaimComment) | undefined> {
-  const comments = await listGitHubIssueComments(tracker, issueNumber);
-  const commentsWithOwnComment =
-    ownComment && !comments.some((comment) => comment.id === ownComment.id)
-      ? [...comments, ownComment]
-      : comments;
-  return selectWinningGitHubIssueClaimComment(commentsWithOwnComment);
-}
-
 export async function claimTaskFromGitHubIssuesTracker(
   tracker: ResolvedGitHubIssuesTaskTracker,
   cli: string,
   invocationPath: string,
-): Promise<ClaimTaskResult> {
+): Promise<ClaimItemResult> {
   const openIssues = await listOpenGitHubIssues(tracker);
   const issuesBySection = partitionGitHubIssuesBySection(openIssues, tracker);
   const readyIssues = issuesBySection.ready;
@@ -665,30 +652,19 @@ export async function claimTaskFromGitHubIssuesTracker(
     }),
   );
 
-  const winningClaimBeforeLabelEdit = await resolveWinningGitHubIssueClaimComment(
-    tracker,
-    selectedIssue.number,
-    claimComment,
-  );
-  if (winningClaimBeforeLabelEdit?.id !== claimComment.id) {
-    await deleteGitHubIssueComment(tracker, claimComment.id);
-    return {
-      status: "no-claim",
-      reason: "claimed-by-other-worker",
-    };
-  }
-
   const editResult =
     await $`gh issue edit ${String(selectedIssue.number)} --repo ${tracker.repository} --remove-label ${tracker.labels.ready} --add-label ${tracker.labels.inProgress}`
       .quiet()
       .nothrow();
   if (editResult.exitCode !== 0) {
-    const winningClaimAfterFailedEdit = await resolveWinningGitHubIssueClaimComment(
-      tracker,
-      selectedIssue.number,
-      claimComment,
+    const refreshedOpenIssues = await listOpenGitHubIssues(tracker);
+    const refreshedSelectedIssue = refreshedOpenIssues.find(
+      (issue) => issue.number === selectedIssue.number,
     );
-    if (winningClaimAfterFailedEdit?.id !== claimComment.id) {
+    if (
+      refreshedSelectedIssue
+      && getGitHubIssueSection(refreshedSelectedIssue, tracker) !== "ready"
+    ) {
       await deleteGitHubIssueComment(tracker, claimComment.id);
       return {
         status: "no-claim",
@@ -699,19 +675,6 @@ export async function claimTaskFromGitHubIssuesTracker(
     throw new Error(
       `Failed to claim GitHub issue #${selectedIssue.number} in ${tracker.repository}.`,
     );
-  }
-
-  const winningClaimAfterLabelEdit = await resolveWinningGitHubIssueClaimComment(
-    tracker,
-    selectedIssue.number,
-    claimComment,
-  );
-  if (winningClaimAfterLabelEdit?.id !== claimComment.id) {
-    await deleteGitHubIssueComment(tracker, claimComment.id);
-    return {
-      status: "no-claim",
-      reason: "claimed-by-other-worker",
-    };
   }
 
   const refreshedOpenIssues = await listOpenGitHubIssues(tracker);
@@ -735,34 +698,37 @@ export async function claimTaskFromGitHubIssuesTracker(
     claimedItem += `\n  - Repo: ${tracker.defaultRepo}`;
   }
 
+  const claimedTrackerItem = {
+    trackerName: tracker.name,
+    trackerKind: "github-issues" as const,
+    trackerBasePath: tracker.defaultRepo || invocationPath,
+    item: claimedItem,
+    itemType: selection.itemType,
+    itemAgent: selection.itemAgent,
+    summary,
+    localTodoContent,
+    syncState: {
+      kind: "github-issues" as const,
+      repository: tracker.repository,
+      issueNumber: selectedIssue.number,
+      labels: tracker.labels,
+    },
+  };
+
   return {
     status: "claimed",
     reason: "claimed",
-    claimedTask: {
-      trackerName: tracker.name,
-      trackerKind: "github-issues",
-      trackerBasePath: tracker.defaultRepo || invocationPath,
-      item: claimedItem,
-      itemType: selection.itemType,
-      itemAgent: selection.itemAgent,
-      summary,
-      localTodoContent,
-      syncState: {
-        kind: "github-issues",
-        repository: tracker.repository,
-        issueNumber: selectedIssue.number,
-        labels: tracker.labels,
-      },
-    },
+    claimedItem: claimedTrackerItem,
+    claimedTask: claimedTrackerItem,
   };
 }
 
 export async function syncCompletedGitHubIssueTask(
-  claimedTask: ClaimedTask,
+  claimedItem: ClaimedItem,
 ): Promise<CompletionSyncResult> {
-  const syncState = claimedTask.syncState;
+  const syncState = claimedItem.syncState;
   if (syncState.kind !== "github-issues") {
-    throw new Error(`Expected github-issues sync state for ${claimedTask.summary}.`);
+    throw new Error(`Expected github-issues sync state for ${claimedItem.summary}.`);
   }
 
   return {

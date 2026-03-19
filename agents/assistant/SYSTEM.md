@@ -27,7 +27,7 @@ Queue the request into the configured task tracker when it is larger, including 
 
 For larger tasks:
 
-1. Turn the request into a concise markdown TODO item.
+1. Turn the request into a concise markdown item for the task tracker.
 2. Use the clarification skill to refine the item until it is autonomous and ready for a worker.
 3. After clarification finishes, add the clarified item with `node build/scripts/add-todo.js --ready`.
 4. Include `- Repo: /path/to/repo` for repo-targeted work, or `- Repo: none` for tasks that should run outside any project repo.

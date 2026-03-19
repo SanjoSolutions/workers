@@ -21,7 +21,9 @@ import {
 
 export type {
   ClaimTaskResult,
+  ClaimItemResult,
   ClaimedTask,
+  ClaimedItem,
   CompletionSyncResult,
   GitHubIssue,
   GitHubIssueSection,
@@ -36,37 +38,41 @@ export {
   partitionGitHubIssuesBySection,
 };
 
-export async function claimTaskFromTracker(
+export async function claimItemFromTracker(
   pollableTracker: PollableTaskTracker,
   cli: string,
   invocationPath: string,
-): Promise<import("./task-trackers/types.js").ClaimTaskResult> {
+): Promise<import("./task-trackers/types.js").ClaimItemResult> {
   return pollableTracker.tracker.kind === "github-issues"
     ? claimTaskFromGitHubIssuesTracker(pollableTracker.tracker, cli, invocationPath)
     : claimTaskFromGitTodoTracker(pollableTracker.tracker, cli);
 }
 
-export function syncClaimedTaskToLocal(
-  claimedTask: import("./task-trackers/types.js").ClaimedTask,
+export function syncClaimedItemToLocal(
+  claimedItem: import("./task-trackers/types.js").ClaimedItem,
   localTodoPath: string,
 ): void {
   mkdirSync(path.dirname(localTodoPath), { recursive: true });
-  writeFileSync(localTodoPath, claimedTask.localTodoContent, "utf8");
+  writeFileSync(localTodoPath, claimedItem.localTodoContent, "utf8");
 }
 
-export async function syncCompletedTask(
-  claimedTask: import("./task-trackers/types.js").ClaimedTask,
+export async function syncCompletedItem(
+  claimedItem: import("./task-trackers/types.js").ClaimedItem,
   localTodoPath: string,
 ): Promise<import("./task-trackers/types.js").CompletionSyncResult> {
   const localTodoContent = readFileSync(localTodoPath, "utf8");
-  if (todoContainsSummary(localTodoContent, claimedTask.summary)) {
+  if (todoContainsSummary(localTodoContent, claimedItem.summary)) {
     return {
       status: "pending",
     };
   }
 
-  const syncState = claimedTask.syncState;
+  const syncState = claimedItem.syncState;
   return syncState.kind === "git-todo"
-    ? syncCompletedGitTodoTask(claimedTask, localTodoPath)
-    : syncCompletedGitHubIssueTask(claimedTask);
+    ? syncCompletedGitTodoTask(claimedItem, localTodoPath)
+    : syncCompletedGitHubIssueTask(claimedItem);
 }
+
+export const claimTaskFromTracker = claimItemFromTracker;
+export const syncClaimedTaskToLocal = syncClaimedItemToLocal;
+export const syncCompletedTask = syncCompletedItem;

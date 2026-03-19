@@ -400,31 +400,7 @@ describe("claimTaskFromTracker", () => {
           user: { login: "codex" },
         }),
       },
-      {
-        exitCode: 0,
-        stdout: JSON.stringify([
-          {
-            id: 11,
-            body: "Can you clarify whether this should affect exports too?",
-            created_at: "2026-03-18T11:00:00Z",
-            updated_at: "2026-03-18T11:00:00Z",
-            user: { login: "teammate" },
-          },
-        ]),
-      },
       { exitCode: 0, stdout: "" },
-      {
-        exitCode: 0,
-        stdout: JSON.stringify([
-          {
-            id: 11,
-            body: "Can you clarify whether this should affect exports too?",
-            created_at: "2026-03-18T11:00:00Z",
-            updated_at: "2026-03-18T11:00:00Z",
-            user: { login: "teammate" },
-          },
-        ]),
-      },
       {
         exitCode: 0,
         stdout: JSON.stringify([
@@ -468,7 +444,7 @@ describe("claimTaskFromTracker", () => {
     expect(result.claimedTask?.summary).toBe("Latest worker spec");
     expect(result.claimedTask?.item).toBe("- Latest worker spec\n  - Type: Development task\n  - Agent: codex\n  - Repo: /tmp/widgets");
     expect(result.claimedTask?.localTodoContent).toContain("- Latest worker spec");
-    expect(ghCommands).toHaveLength(11);
+    expect(ghCommands).toHaveLength(9);
     expect(ghCommands.slice(0, 5)).toEqual([
       "gh issue list --repo acme/widgets --state open --limit 100 --search sort:created-asc --json number,title,body,createdAt,labels",
       "gh api repos/acme/widgets/issues/42/comments?per_page=100",
@@ -480,9 +456,7 @@ describe("claimTaskFromTracker", () => {
       /^gh api repos\/acme\/widgets\/issues\/42\/comments --method POST --field body=/,
     );
     expect(ghCommands.slice(6)).toEqual([
-      "gh api repos/acme/widgets/issues/42/comments?per_page=100",
       "gh issue edit 42 --repo acme/widgets --remove-label workers:ready-to-be-picked-up --add-label workers:in-progress",
-      "gh api repos/acme/widgets/issues/42/comments?per_page=100",
       "gh issue list --repo acme/widgets --state open --limit 100 --search sort:created-asc --json number,title,body,createdAt,labels",
       "gh api repos/acme/widgets/issues/42/comments?per_page=100",
     ]);
@@ -533,25 +507,6 @@ describe("claimTaskFromTracker", () => {
           updated_at: "2026-03-19T10:00:00.000Z",
           user: { login: "codex" },
         }),
-      },
-      {
-        exitCode: 0,
-        stdout: JSON.stringify([
-          {
-            id: 99,
-            body: renderGitHubIssueClaimComment("I will work on this.", {
-              sessionId: "codex-session",
-              cli: "codex",
-              trackerName: "demo",
-              repository: "acme/widgets",
-              issueNumber: 29,
-              claimedAt: "2026-03-19T10:00:00.000Z",
-            }),
-            created_at: "2026-03-19T10:00:00.000Z",
-            updated_at: "2026-03-19T10:00:00.000Z",
-            user: { login: "codex" },
-          },
-        ]),
       },
       { exitCode: 0, stdout: "" },
       {
@@ -650,25 +605,6 @@ describe("claimTaskFromTracker", () => {
           user: { login: "codex" },
         }),
       },
-      {
-        exitCode: 0,
-        stdout: JSON.stringify([
-          {
-            id: 99,
-            body: renderGitHubIssueClaimComment("I will work on this.", {
-              sessionId: "codex-session",
-              cli: "codex",
-              trackerName: "demo",
-              repository: "acme/widgets",
-              issueNumber: 29,
-              claimedAt: "2026-03-19T10:00:00.000Z",
-            }),
-            created_at: "2026-03-19T10:00:00.000Z",
-            updated_at: "2026-03-19T10:00:00.000Z",
-            user: { login: "codex" },
-          },
-        ]),
-      },
       { exitCode: 0, stdout: "" },
       {
         exitCode: 0,
@@ -718,6 +654,106 @@ describe("claimTaskFromTracker", () => {
 
     expect(result.status).toBe("claimed");
     expect(result.claimedTask?.summary).toBe("Move the TODO repo template into `todos-repo-template`");
+  });
+
+  test("treats the ready label as authoritative even when an old claim comment exists", async () => {
+    ghResults.push(
+      {
+        exitCode: 0,
+        stdout: JSON.stringify([
+          {
+            number: 27,
+            title: "Rename tracker-agnostic TODO terminology",
+            body: "",
+            createdAt: "2026-03-18T10:00:00Z",
+            labels: [{ name: "workers:ready-to-be-picked-up" }],
+          },
+        ]),
+      },
+      {
+        exitCode: 0,
+        stdout: JSON.stringify([
+          {
+            id: 41,
+            body: renderGitHubIssueClaimComment("I will work on this.", {
+              sessionId: "old-codex-session",
+              cli: "codex",
+              trackerName: "demo",
+              repository: "acme/widgets",
+              issueNumber: 27,
+              claimedAt: "2026-03-19T10:00:00.000Z",
+            }),
+            created_at: "2026-03-19T10:00:00.000Z",
+            updated_at: "2026-03-19T10:00:00.000Z",
+            user: { login: "codex" },
+          },
+        ]),
+      },
+      { exitCode: 0, stdout: "" },
+      { exitCode: 0, stdout: "" },
+      { exitCode: 0, stdout: "" },
+      {
+        exitCode: 0,
+        stdout: JSON.stringify({
+          id: 99,
+          body: renderGitHubIssueClaimComment("I will work on this.", {
+            sessionId: "new-codex-session",
+            cli: "codex",
+            trackerName: "demo",
+            repository: "acme/widgets",
+            issueNumber: 27,
+            claimedAt: "2026-03-19T11:00:00.000Z",
+          }),
+          created_at: "2026-03-19T11:00:00.000Z",
+          updated_at: "2026-03-19T11:00:00.000Z",
+          user: { login: "codex" },
+        }),
+      },
+      { exitCode: 0, stdout: "" },
+      {
+        exitCode: 0,
+        stdout: JSON.stringify([
+          {
+            number: 27,
+            title: "Rename tracker-agnostic TODO terminology",
+            body: "",
+            createdAt: "2026-03-18T10:00:00Z",
+            labels: [{ name: "workers:in-progress" }],
+          },
+        ]),
+      },
+      {
+        exitCode: 0,
+        stdout: JSON.stringify([
+          {
+            id: 41,
+            body: renderGitHubIssueClaimComment("I will work on this.", {
+              sessionId: "old-codex-session",
+              cli: "codex",
+              trackerName: "demo",
+              repository: "acme/widgets",
+              issueNumber: 27,
+              claimedAt: "2026-03-19T10:00:00.000Z",
+            }),
+            created_at: "2026-03-19T10:00:00.000Z",
+            updated_at: "2026-03-19T10:00:00.000Z",
+            user: { login: "codex" },
+          },
+        ]),
+      },
+    );
+
+    const result = await claimTaskFromTracker(
+      createPollableTracker(),
+      "codex",
+      tempDir,
+    );
+
+    expect(result.status).toBe("claimed");
+    expect(result.claimedTask?.summary).toBe("Rename tracker-agnostic TODO terminology");
+    expect(ghCommands).toContain(
+      "gh issue edit 27 --repo acme/widgets --remove-label workers:ready-to-be-picked-up --add-label workers:in-progress",
+    );
   });
 });
 

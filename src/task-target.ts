@@ -7,7 +7,7 @@ import { extractTodoField } from "./agent-prompt.js";
 import { findGitRepoRoot } from "./git-utils.js";
 import { expandHomePath, sanitizeSegment } from "./path-utils.js";
 
-export interface ClaimedTaskTarget {
+export interface ClaimedItemTarget {
   itemType: string;
   repoPath: string;
   repoFieldValue: string;
@@ -54,11 +54,11 @@ function inferRepoPathFromSummary(item: string): string {
   return "";
 }
 
-export function resolveClaimedTaskTarget(
+export function resolveClaimedItemTarget(
   item: string,
   itemType: string,
   sharedTodoRepoRoot: string,
-): ClaimedTaskTarget {
+): ClaimedItemTarget {
   const explicitRepo = extractTodoField(item, "Repo");
   const inferredRepo = explicitRepo ? "" : inferRepoPathFromSummary(item);
   const repoFieldValue = explicitRepo || inferredRepo;
@@ -77,8 +77,8 @@ export function resolveClaimedTaskTarget(
   if (!repoFieldValue) {
     throw new Error(
       itemType === "new-project"
-        ? "Claimed new-project TODO is missing a target repo path. Add '- Repo: /absolute/or/relative/path' or include a backticked path in the summary."
-        : "Claimed TODO is missing a target repo path. Add '- Repo: /absolute/or/relative/path', '- Repo: none', or include a backticked path in the summary.",
+        ? "Claimed new-project item is missing a target repo path. Add '- Repo: /absolute/or/relative/path' or include a backticked path in the summary."
+        : "Claimed item is missing a target repo path. Add '- Repo: /absolute/or/relative/path', '- Repo: none', or include a backticked path in the summary.",
     );
   }
 
@@ -156,7 +156,7 @@ async function ensureInitialCommit(repoRoot: string): Promise<void> {
 }
 
 export async function ensureTaskRepo(
-  target: ClaimedTaskTarget,
+  target: ClaimedItemTarget,
 ): Promise<{ repoRoot: string; bootstrapped: boolean }> {
   if (target.source === "no-repo") {
     mkdirSync(target.repoPath, { recursive: true });
@@ -184,7 +184,7 @@ export async function ensureTaskRepo(
 
   if (target.itemType !== "new-project") {
     throw new Error(
-      `Claimed TODO targets ${target.repoPath}, but no git repo exists there. Use '- Type: New project' when the worker should create a new repo.`,
+      `Claimed item targets ${target.repoPath}, but no git repo exists there. Use '- Type: New project' when the worker should create a new repo.`,
     );
   }
 
@@ -210,3 +210,6 @@ export async function ensureTaskRepo(
     bootstrapped: true,
   };
 }
+
+export type ClaimedTaskTarget = ClaimedItemTarget;
+export const resolveClaimedTaskTarget = resolveClaimedItemTarget;

@@ -16,7 +16,7 @@ export interface GitHubIssuesSyncState {
 
 export type TaskSyncState = GitTodoSyncState | GitHubIssuesSyncState;
 
-export interface ClaimedTask {
+export interface ClaimedItem {
   trackerName: string;
   trackerKind: "git-todo" | "github-issues";
   trackerBasePath: string;
@@ -28,11 +28,15 @@ export interface ClaimedTask {
   syncState: TaskSyncState;
 }
 
-export interface ClaimTaskResult {
+export interface ClaimItemResult {
   status: "claimed" | "no-claim";
   reason: string;
-  claimedTask?: ClaimedTask;
+  claimedItem?: ClaimedItem;
+  claimedTask?: ClaimedItem;
 }
+
+export type ClaimedTask = ClaimedItem;
+export type ClaimTaskResult = ClaimItemResult;
 
 export interface CompletionSyncResult {
   status: "synced" | "pending";

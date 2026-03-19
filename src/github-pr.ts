@@ -1,11 +1,11 @@
 import { $ } from "zx";
 import * as log from "./log.js";
-import type { ClaimedTask } from "./task-trackers.js";
+import type { ClaimedItem } from "./task-trackers.js";
 
 export interface CreatePullRequestOptions {
   repoRoot: string;
   branchName: string;
-  claimedTask: ClaimedTask;
+  claimedItem: ClaimedItem;
 }
 
 export interface CreatePullRequestResult {
@@ -34,12 +34,12 @@ async function ensurePullRequestReadyLabel(
   }
 }
 
-async function moveGitHubIssueToPullRequestReady(claimedTask: ClaimedTask): Promise<void> {
-  if (claimedTask.syncState.kind !== "github-issues") {
+async function moveGitHubIssueToPullRequestReady(claimedItem: ClaimedItem): Promise<void> {
+  if (claimedItem.syncState.kind !== "github-issues") {
     return;
   }
 
-  const { repository, issueNumber, labels } = claimedTask.syncState;
+  const { repository, issueNumber, labels } = claimedItem.syncState;
   await ensurePullRequestReadyLabel(repository, labels.prReady);
 
   const issueResult =
@@ -111,7 +111,7 @@ async function hasBranchCommits(repoRoot: string, branchName: string): Promise<b
   return result.stdout.trim().length > 0;
 }
 
-async function buildPrBody(repoRoot: string, branchName: string, claimedTask: ClaimedTask): Promise<string> {
+async function buildPrBody(repoRoot: string, branchName: string, claimedItem: ClaimedItem): Promise<string> {
   // Get commit log for summary
   const logResult =
     await $`git -C ${repoRoot} log --oneline --no-merges ${branchName} --not --remotes --not --exclude=${branchName} --branches`
@@ -119,7 +119,7 @@ async function buildPrBody(repoRoot: string, branchName: string, claimedTask: Cl
       .nothrow();
 
   const commits = logResult.exitCode === 0 ? logResult.stdout.trim() : "";
-  const cleanedItem = stripRuntimeMetadata(claimedTask.item).trim();
+  const cleanedItem = stripRuntimeMetadata(claimedItem.item).trim();
 
   let body = `## Summary\n\n${cleanedItem}\n`;
 
@@ -128,8 +128,8 @@ async function buildPrBody(repoRoot: string, branchName: string, claimedTask: Cl
   }
 
   // If task came from GitHub Issues, add "Closes #N" reference
-  if (claimedTask.syncState.kind === "github-issues") {
-    body += `\nCloses #${claimedTask.syncState.issueNumber}\n`;
+  if (claimedItem.syncState.kind === "github-issues") {
+    body += `\nCloses #${claimedItem.syncState.issueNumber}\n`;
   }
 
   return body;
@@ -138,7 +138,7 @@ async function buildPrBody(repoRoot: string, branchName: string, claimedTask: Cl
 export async function createWorkerPullRequest(
   options: CreatePullRequestOptions,
 ): Promise<CreatePullRequestResult> {
-  const { repoRoot, branchName, claimedTask } = options;
+  const { repoRoot, branchName, claimedItem } = options;
 
   // Verify there are commits to push
   const hasCommits = await hasBranchCommits(repoRoot, branchName);
@@ -171,10 +171,10 @@ export async function createWorkerPullRequest(
   }
 
   // Build PR title from TODO summary
-  const title = claimedTask.summary;
+  const title = claimedItem.summary;
 
   // Build PR body
-  const body = await buildPrBody(repoRoot, branchName, claimedTask);
+  const body = await buildPrBody(repoRoot, branchName, claimedItem);
 
   // Create the pull request
   log.info(`Creating GitHub PR for branch ${branchName}...`);
@@ -195,7 +195,7 @@ export async function createWorkerPullRequest(
   const prUrl = prResult.stdout.trim();
   log.info(`Created GitHub PR: ${prUrl}`);
 
-  await moveGitHubIssueToPullRequestReady(claimedTask);
+  await moveGitHubIssueToPullRequestReady(claimedItem);
 
   return {
     status: "created",

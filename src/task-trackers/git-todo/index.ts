@@ -9,15 +9,15 @@ import { resolveGitRepoRoot } from "../../git-utils.js";
 import type { ResolvedGitTodoTaskTracker } from "../../task-tracker-settings.js";
 import { commitAndPushTodoRepo, fastForwardRepo } from "./git-sync.js";
 import type {
-  ClaimTaskResult,
-  ClaimedTask,
+  ClaimItemResult,
+  ClaimedItem,
   CompletionSyncResult,
 } from "../types.js";
 
 export async function claimTaskFromGitTodoTracker(
   tracker: ResolvedGitTodoTaskTracker,
   cli: string,
-): Promise<ClaimTaskResult> {
+): Promise<ClaimItemResult> {
   const repoRoot = await resolveGitRepoRoot(tracker.repo);
   const todoPath = path.resolve(repoRoot, tracker.file);
   const todoRelativePath = path.relative(repoRoot, todoPath);
@@ -58,40 +58,43 @@ export async function claimTaskFromGitTodoTracker(
   const claimedContent = readFileSync(todoPath, "utf8");
   const summary = selection.item.split("\n")[0].replace(/^- /, "");
 
+  const claimedItem = {
+    trackerName: tracker.name,
+    trackerKind: "git-todo" as const,
+    trackerBasePath: repoRoot,
+    item: selection.item,
+    itemType: selection.itemType,
+    itemAgent: selection.itemAgent,
+    summary,
+    localTodoContent: claimedContent,
+    syncState: {
+      kind: "git-todo" as const,
+      todoPath,
+      repoRoot,
+      todoRelativePath,
+    },
+  };
+
   return {
     status: "claimed",
     reason: "claimed",
-    claimedTask: {
-      trackerName: tracker.name,
-      trackerKind: "git-todo",
-      trackerBasePath: repoRoot,
-      item: selection.item,
-      itemType: selection.itemType,
-      itemAgent: selection.itemAgent,
-      summary,
-      localTodoContent: claimedContent,
-      syncState: {
-        kind: "git-todo",
-        todoPath,
-        repoRoot,
-        todoRelativePath,
-      },
-    },
+    claimedItem,
+    claimedTask: claimedItem,
   };
 }
 
 export async function syncCompletedGitTodoTask(
-  claimedTask: ClaimedTask,
+  claimedItem: ClaimedItem,
   localTodoPath: string,
 ): Promise<CompletionSyncResult> {
-  const syncState = claimedTask.syncState;
+  const syncState = claimedItem.syncState;
   if (syncState.kind !== "git-todo") {
-    throw new Error(`Expected git-todo sync state for ${claimedTask.summary}.`);
+    throw new Error(`Expected git-todo sync state for ${claimedItem.summary}.`);
   }
 
   const syncedCompletion = await withTodoLock(syncState.todoPath, async () => {
     const sharedContent = readFileSync(syncState.todoPath, "utf8");
-    const removal = removeInProgressItemBySummary(sharedContent, claimedTask.summary);
+    const removal = removeInProgressItemBySummary(sharedContent, claimedItem.summary);
     if (removal.status !== "removed") {
       return true;
     }
@@ -100,13 +103,13 @@ export async function syncCompletedGitTodoTask(
     return commitAndPushTodoRepo(
       syncState.repoRoot,
       syncState.todoRelativePath,
-      `chore(todo): complete TODO — ${claimedTask.summary}`,
+      `chore(todo): complete TODO — ${claimedItem.summary}`,
     );
   });
 
   if (!syncedCompletion) {
     throw new Error(
-      `Failed to commit/push completed TODO in ${claimedTask.trackerName}.`,
+      `Failed to commit/push completed TODO in ${claimedItem.trackerName}.`,
     );
   }
 

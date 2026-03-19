@@ -5,7 +5,7 @@ import { execFileSync } from "child_process";
 import { describe, expect, test } from "vitest";
 import {
   ensureTaskRepo,
-  resolveClaimedTaskTarget,
+  resolveClaimedItemTarget,
 } from "./task-target.js";
 
 function git(args: string[], cwd: string): string {
@@ -26,7 +26,7 @@ function makeRepo(name: string): string {
   return repoRoot;
 }
 
-describe("claimed task target resolution", () => {
+describe("claimed item target resolution", () => {
   test("uses explicit repo metadata when present", () => {
     const sharedTodoRepoRoot = makeRepo("workers-shared-todo");
     const targetRepo = path.join(sharedTodoRepoRoot, "target-repo");
@@ -34,7 +34,7 @@ describe("claimed task target resolution", () => {
   - Type: Development task
   - Repo: ./target-repo`;
 
-    const target = resolveClaimedTaskTarget(
+    const target = resolveClaimedItemTarget(
       item,
       "development-task",
       sharedTodoRepoRoot,
@@ -48,7 +48,7 @@ describe("claimed task target resolution", () => {
     const sharedTodoRepoRoot = makeRepo("workers-summary-path");
     const item = "- Build plugin in `~/codex-openviking`\n  - Type: New project";
 
-    const target = resolveClaimedTaskTarget(
+    const target = resolveClaimedItemTarget(
       item,
       "new-project",
       sharedTodoRepoRoot,
@@ -63,7 +63,7 @@ describe("claimed task target resolution", () => {
     const item = "- Update workers docs\n  - Type: Development task";
 
     expect(() =>
-      resolveClaimedTaskTarget(
+      resolveClaimedItemTarget(
         item,
         "development-task",
         sharedTodoRepoRoot,
@@ -77,7 +77,7 @@ describe("claimed task target resolution", () => {
   - Type: Development task
   - Repo: none`;
 
-    const target = resolveClaimedTaskTarget(
+    const target = resolveClaimedItemTarget(
       item,
       "development-task",
       sharedTodoRepoRoot,
@@ -96,7 +96,7 @@ describe("claimed task target resolution", () => {
   - Type: New project
   - Repo: ./fresh-project`;
 
-    const target = resolveClaimedTaskTarget(
+    const target = resolveClaimedItemTarget(
       item,
       "new-project",
       sharedTodoRepoRoot,

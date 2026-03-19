@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "fs";
 import path from "path";
 import {
+  writeInteractiveStatus,
   workersInteractiveInstructions,
   type ManagedInteractiveSession,
 } from "../managed-interactive.js";
@@ -15,11 +16,11 @@ export function setupManagedInteractivePiSession(
   mkdirSync(controlDir, { recursive: true });
 
   const statusFile = path.join(controlDir, "status.json");
-  writeFileSync(
-    statusFile,
-    `${JSON.stringify({ status: "running", source: "workers" })}\n`,
-    "utf8",
-  );
+  writeInteractiveStatus(statusFile, {
+    status: "running",
+    source: "workers",
+    launcherPid: process.pid,
+  });
 
   const claimedSummary = claimedTodoItem.split("\n")[0].replace(/^- /, "");
   const localTodoPath = path.resolve(

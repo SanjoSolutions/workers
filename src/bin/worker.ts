@@ -26,7 +26,7 @@ import {
 import { resolveProjectWorktreeDir } from "../worktree-paths.js";
 import {
   ensureTaskRepo,
-  resolveClaimedTaskTarget,
+  resolveClaimedItemTarget,
 } from "../task-target.js";
 import { initializeProject, isCreatePullRequestEnabled, loadSettings, persistProjectSettings } from "../settings.js";
 import {
@@ -35,15 +35,13 @@ import {
   resolvePollingTaskTrackers,
 } from "../task-tracker-settings.js";
 import {
-  claimTaskFromTracker,
-  syncClaimedTaskToLocal,
-  syncCompletedTask,
-  type ClaimedTask,
+  syncClaimedItemToLocal,
+  syncCompletedItem,
 } from "../task-trackers.js";
 import { readEnv } from "../env-utils.js";
 import { findGitRepoRoot } from "../git-utils.js";
 import { createWorkerPullRequest } from "../github-pr.js";
-import { claimNextTodoFromTrackers } from "../worker-claim-selection.js";
+import { claimNextItemFromTrackers } from "../worker-claim-selection.js";
 
 interface ActiveWorkspace {
   repoRoot: string;
@@ -320,36 +318,36 @@ async function main(): Promise<void> {
       );
     }
 
-    const claimAttempt = await claimNextTodoFromTrackers(
+    const claimAttempt = await claimNextItemFromTrackers(
       pollableTrackers,
       options.cli,
       invocationPath,
     );
-    if (!("claimedTask" in claimAttempt)) {
+    if (!("claimedItem" in claimAttempt)) {
       if (claimAttempt.reason === "no-matching-agent") {
-        log.info("No claimable TODOs (no-matching-agent). Polling...");
+        log.info("No claimable items (no-matching-agent). Polling...");
       } else {
-        log.info("No claimable TODOs. Polling for new TODOs...");
+        log.info("No claimable items. Polling for new items...");
       }
       await sleep(pollIntervalMs);
       continue;
     }
-    const { claimedTask } = claimAttempt;
+    const { claimedItem } = claimAttempt;
 
     if (!firstTask) {
       console.log();
     }
     firstTask = false;
     taskSequence += 1;
-    log.heading("=== Starting next TODO ===");
-    log.info(`Claiming TODO: ${claimedTask.item.split("\n")[0]}`);
-    log.info(`Claimed task in task tracker: ${claimedTask.trackerName}.`);
+    log.heading("=== Starting next item ===");
+    log.info(`Claiming item: ${claimedItem.item.split("\n")[0]}`);
+    log.info(`Claimed item in task tracker: ${claimedItem.trackerName}.`);
 
     try {
-      const target = resolveClaimedTaskTarget(
-        claimedTask.item,
-        claimedTask.itemType,
-        claimedTask.trackerBasePath,
+      const target = resolveClaimedItemTarget(
+        claimedItem.item,
+        claimedItem.itemType,
+        claimedItem.trackerBasePath,
       );
       const ensuredRepo = await ensureTaskRepo(target);
       if (target.source === "no-repo") {
@@ -376,7 +374,7 @@ async function main(): Promise<void> {
       );
       console.log();
 
-      syncClaimedTaskToLocal(claimedTask, activeWorkspace.localTodoPath);
+      syncClaimedItemToLocal(claimedItem, activeWorkspace.localTodoPath);
 
       const agentEnv: NodeJS.ProcessEnv = { ...process.env };
       const launchSettings = await loadSettings();
@@ -384,22 +382,22 @@ async function main(): Promise<void> {
       const agentResult = await launchAgent(
         options,
         activeWorkspace.worktree.path,
-        claimedTask.item,
-        claimedTask.itemType,
+        claimedItem.item,
+        claimedItem.itemType,
         activeWorkspace.config,
         agentEnv,
       );
 
-      const completionSync = await syncCompletedTask(
-        claimedTask,
+      const completionSync = await syncCompletedItem(
+        claimedItem,
         activeWorkspace.localTodoPath,
       );
       if (completionSync.status === "pending") {
         log.info(
-          "Claimed TODO is still present in the local TODO copy; skipping task tracker completion sync.",
+          "Claimed item is still present in the local TODO copy; skipping task tracker completion sync.",
         );
       } else {
-        log.info("Synced TODO completion to task tracker.");
+        log.info("Synced item completion to task tracker.");
       }
 
       const currentSettings = await loadSettings();
@@ -407,7 +405,7 @@ async function main(): Promise<void> {
         const prResult = await createWorkerPullRequest({
           repoRoot: activeWorkspace.repoRoot,
           branchName: activeWorkspace.worktree.branchName,
-          claimedTask,
+          claimedItem,
         });
         if (prResult.status === "created") {
           log.info(`GitHub PR created: ${prResult.url}`);

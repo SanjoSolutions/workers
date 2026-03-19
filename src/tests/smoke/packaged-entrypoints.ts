@@ -164,7 +164,7 @@ async function main(): Promise<void> {
   const assistantEntrypoint = path.join(installedPackageRoot, "build", "bin", "assistant.js");
   const workerEntrypoint = path.join(installedPackageRoot, "build", "bin", "worker.js");
   const settingsTemplatePath = path.join(installedPackageRoot, "settings.template.json");
-  const todoTemplatePath = path.join(installedPackageRoot, "TODO.template.md");
+  const todoTemplatePath = path.join(installedPackageRoot, "todos-repo-template", "TODO.md");
 
   if (!existsSync(assistantEntrypoint) || !existsSync(workerEntrypoint)) {
     throw new Error("Installed package is missing the packaged assistant or worker entrypoint.");
@@ -173,7 +173,7 @@ async function main(): Promise<void> {
     throw new Error("Installed package is missing settings.template.json.");
   }
   if (!existsSync(todoTemplatePath)) {
-    throw new Error("Installed package is missing TODO.template.md.");
+    throw new Error("Installed package is missing todos-repo-template/TODO.md.");
   }
 
   const { initGitTodoRepo } = await import(
@@ -184,7 +184,7 @@ async function main(): Promise<void> {
   const initializedTodo = readFileSync(path.join(todoRepo, "TODO.md"), "utf8");
   const packagedTodoTemplate = readFileSync(todoTemplatePath, "utf8");
   if (initializedTodo !== packagedTodoTemplate) {
-    throw new Error("Installed package did not initialize TODO.md from the packaged TODO template.");
+    throw new Error("Installed package did not initialize TODO.md from the packaged TODO repo template.");
   }
 
   const {

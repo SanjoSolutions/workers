@@ -105,7 +105,7 @@ describe("new user E2E", () => {
     // Init the shared TODO repo ahead of time (assistant just stores the path)
     await initGitRepo(todoRepoPath);
     const templateContent = readFileSync(
-      path.join(process.cwd(), "TODO.template.md"),
+      path.join(process.cwd(), "todos-repo-template", "TODO.md"),
       "utf8",
     );
     writeFileSync(path.join(todoRepoPath, "TODO.md"), templateContent, "utf8");
@@ -228,7 +228,7 @@ describe("new user E2E", () => {
     expect(branchResult.stdout.trim()).toMatch(/^work\//);
 
     // --- Step 7: Verify output contains expected log messages ---
-    expect(workerOutput).toContain("Claiming TODO");
+    expect(workerOutput).toContain("Claiming item");
     expect(workerOutput).toContain("Build a hello world CLI");
     expect(workerOutput).toContain("Created SPEC.md");
     expect(workerOutput).toContain("Created AGENTS.md");

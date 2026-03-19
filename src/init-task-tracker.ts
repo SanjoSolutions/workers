@@ -23,7 +23,7 @@ export async function initGitTodoRepo(repoDir: string): Promise<void> {
 
   const todoPath = path.join(repoDir, "TODO.md");
   if (!existsSync(todoPath)) {
-    const templatePath = path.join(determinePackageRoot(), "TODO.template.md");
+    const templatePath = path.join(determinePackageRoot(), "todos-repo-template", "TODO.md");
     if (existsSync(templatePath)) {
       copyFileSync(templatePath, todoPath);
     } else {

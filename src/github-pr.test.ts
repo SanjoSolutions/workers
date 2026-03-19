@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import type { ClaimedTask } from "./task-trackers.js";
+import type { ClaimedItem } from "./task-trackers.js";
 
 const ghCommands: string[] = [];
 const ghResults: Array<{ exitCode: number; stdout: string; stderr?: string }> = [];
@@ -29,7 +29,7 @@ vi.mock("zx", () => ({
 
 const { createWorkerPullRequest } = await import("./github-pr.js");
 
-function createClaimedTask(): ClaimedTask {
+function createClaimedItem(): ClaimedItem {
   return {
     trackerName: "workers",
     trackerKind: "github-issues",
@@ -79,7 +79,7 @@ describe("createWorkerPullRequest", () => {
     const result = await createWorkerPullRequest({
       repoRoot: "/tmp/workers",
       branchName: "work/test-branch",
-      claimedTask: createClaimedTask(),
+      claimedItem: createClaimedItem(),
     });
 
     expect(result).toEqual({

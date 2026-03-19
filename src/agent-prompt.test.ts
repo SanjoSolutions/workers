@@ -12,6 +12,8 @@ describe("buildAgentPrompt", () => {
     expect(prompt).toContain("local mirrored task file");
     expect(prompt).toContain("configured");
     expect(prompt).toContain("task tracker");
+    expect(prompt).toContain("Claimed item:");
+    expect(prompt).toContain("Item type: Development task");
     expect(prompt).not.toContain("shared TODO repo");
   });
 });

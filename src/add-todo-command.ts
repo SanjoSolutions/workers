@@ -69,7 +69,7 @@ const defaultDependencies: AddTodoCommandDependencies = {
   createGitHubIssueTask,
 };
 
-export function normalizeTodoItem(text: string): string[] {
+export function normalizeTrackerItem(text: string): string[] {
   const lines = text
     .split(/\r?\n/)
     .map((line) => line.replace(/\s+$/, ""));
@@ -78,7 +78,7 @@ export function normalizeTodoItem(text: string): string[] {
   while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
 
   if (lines.length === 0) {
-    throw new Error("TODO text is required.");
+    throw new Error("Item text is required.");
   }
 
   if (!lines[0].startsWith("- ")) {
@@ -115,7 +115,7 @@ export async function addTodoToConfiguredTracker(
   }
 
   const tracker = dependencies.resolveTaskTrackerForRepo(targetRepo, settings);
-  const itemLines = normalizeTodoItem(input.text);
+  const itemLines = normalizeTrackerItem(input.text);
 
   if (tracker.kind === "github-issues") {
     const issueUrl = await dependencies.createGitHubIssueTask(
@@ -125,7 +125,7 @@ export async function addTodoToConfiguredTracker(
       input.issueNumber,
     );
     const verb = input.issueNumber !== undefined ? "Updated" : "Added";
-    return `${verb} TODO in ${input.section} in ${tracker.repository} as GitHub issue ${issueUrl} (task tracker: ${tracker.name})`;
+    return `${verb} item in ${input.section} in ${tracker.repository} as GitHub issue ${issueUrl} (task tracker: ${tracker.name})`;
   }
 
   const todoPath = path.resolve(tracker.repo, tracker.file);
@@ -145,5 +145,7 @@ export async function addTodoToConfiguredTracker(
     );
   });
 
-  return `Added TODO to ${input.section} in ${todoPath} (task tracker: ${tracker.name})${pushed ? "" : " (push failed)"}`;
+  return `Added item to ${input.section} in ${todoPath} (task tracker: ${tracker.name})${pushed ? "" : " (push failed)"}`;
 }
+
+export const normalizeTodoItem = normalizeTrackerItem;
