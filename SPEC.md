@@ -13,8 +13,17 @@ This document captures the high-level requirements for the workers tool. Update 
 
 An optimized process for humans that supports spontaneity, multiple projects and one communication partner.
 
+## Agents
+
+### Assistant
+
 The assistant is the communication partner to the human and handles handling the requests of the human efficiently.
 This includes delegating bigger work tasks to workers.
+
+### Worker
+
+A worker fulfills one specified task at a time.
+Multiple workers can run at the same time.
 
 ## 2. Multi-Project Workflow
 
@@ -160,7 +169,6 @@ This includes delegating bigger work tasks to workers.
 - Codex auto model selection must be configurable through this settings file, including the list of
   candidate models to consider.
 - Codex auto reasoning effort selection must be configurable through this settings file.
-- Codex worker system prompt variant selection must be configurable through this settings file.
 - The default task tracker must be configurable through this settings file.
 - Workers settings must support one shared `githubApp` configuration with `appId` and
   `privateKeyPath`.
