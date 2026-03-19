@@ -3,6 +3,8 @@
 import { Command } from "commander";
 import { VALID_CLI_SET, ensureAssistantCli, loadSettings, determinePackageRoot } from "../settings.js";
 import { getAgentStrategy } from "../agent-strategies/index.js";
+import { findGitRepoRoot } from "../git-utils.js";
+import { applyGitHubTokenForRepo } from "../task-tracker-settings.js";
 import type { CliName, CliOptions } from "../types.js";
 
 async function main(): Promise<void> {
@@ -15,8 +17,8 @@ async function main(): Promise<void> {
   program.parse(process.argv);
   const opts = program.opts();
 
-  const repoRoot = determinePackageRoot();
-  const settings = await loadSettings(repoRoot);
+  const packageRoot = determinePackageRoot();
+  const settings = await loadSettings(packageRoot);
 
   let cli: CliName;
   if (opts.cli) {
@@ -46,6 +48,9 @@ async function main(): Promise<void> {
   };
 
   const strategy = getAgentStrategy(cli);
+  const repoRoot = (await findGitRepoRoot(process.cwd())) ?? process.cwd();
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  await applyGitHubTokenForRepo(settings, repoRoot, env);
   const result = await strategy.launch({
     options,
     worktreePath: process.cwd(),
@@ -54,7 +59,7 @@ async function main(): Promise<void> {
     nextPrompt: "",
     workflowMode: "interactive",
     noTodo: true,
-    env: { ...process.env },
+    env,
   });
 
   if (result.exitCode !== 0) {

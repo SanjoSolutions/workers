@@ -10,6 +10,7 @@ export async function launchAgent(
   claimedTodoItem: string,
   claimedTodoItemType: string,
   config?: WorkConfig,
+  baseEnv: NodeJS.ProcessEnv = process.env,
 ): Promise<AgentResult> {
   const noTodo = !claimedTodoItem;
   const workflowMode = options.interactive ? "interactive" : "non-interactive";
@@ -23,7 +24,7 @@ export async function launchAgent(
       );
 
   const env: NodeJS.ProcessEnv = {
-    ...process.env,
+    ...baseEnv,
     WORK_MODE: workflowMode,
     WORK_PRECLAIMED_TODO: claimedTodoItem,
     WORK_PRECLAIMED_TODO_TYPE: claimedTodoItemType,

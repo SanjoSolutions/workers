@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 import type { WorkersSettings } from "./settings.js";
 import {
+  applyGitHubTokenForRepo,
+  applyGitHubTokenToEnv,
   resolveTaskTrackerForRepo,
   resolveTaskTrackers,
 } from "./task-tracker-settings.js";
@@ -69,5 +71,67 @@ describe("task tracker settings", () => {
       throw new Error("expected git-todo tracker");
     }
     expect(envTracker.repo).toBe("/home/jonas/todos");
+  });
+
+  test("injects GH_TOKEN into a provided env for a repo with a GitHub tracker", async () => {
+    const env: NodeJS.ProcessEnv = {};
+    const command = `"${process.execPath}" -e "process.stdout.write('repo-token')"`;
+    const settings: WorkersSettings = {
+      ...BASE_SETTINGS,
+      projects: [
+        {
+          repo: "/home/jonas/workers",
+          taskTracker: {
+            type: "github-issues",
+            repository: "SanjoSolutions/workers",
+            tokenCommand: command,
+          },
+        },
+      ],
+    };
+
+    await applyGitHubTokenForRepo(settings, "/home/jonas/workers", env);
+
+    expect(env.GH_TOKEN).toBe("repo-token");
+  });
+
+  test("leaves env untouched when the repo has no configured tracker", async () => {
+    const env: NodeJS.ProcessEnv = { GH_TOKEN: "existing-token" };
+
+    await applyGitHubTokenForRepo(
+      {
+        ...BASE_SETTINGS,
+        projects: [],
+      },
+      "/home/jonas/workers",
+      env,
+    );
+
+    expect(env.GH_TOKEN).toBe("existing-token");
+  });
+
+  test("injects GH_TOKEN without mutating process.env", async () => {
+    const env: NodeJS.ProcessEnv = {};
+    const trackers = {
+      workers: {
+        name: "workers",
+        kind: "github-issues" as const,
+        repository: "SanjoSolutions/workers",
+        defaultRepo: "/home/jonas/workers",
+        tokenCommand: `"${process.execPath}" -e "process.stdout.write('shared-token')"`,
+        githubApp: undefined,
+        labels: {
+          planned: "planned",
+          ready: "ready",
+          inProgress: "in-progress",
+        },
+      },
+    };
+
+    delete process.env.GH_TOKEN;
+    await applyGitHubTokenToEnv(trackers, env);
+
+    expect(env.GH_TOKEN).toBe("shared-token");
+    expect(process.env.GH_TOKEN).toBeUndefined();
   });
 });

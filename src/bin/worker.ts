@@ -31,6 +31,7 @@ import {
 import { initializeProject, isCreatePullRequestEnabled, loadSettings, persistProjectSettings } from "../settings.js";
 import {
   applyGitHubToken,
+  applyGitHubTokenForRepo,
   resolvePollingTaskTrackers,
   resolveTaskTrackers,
 } from "../task-tracker-settings.js";
@@ -295,12 +296,16 @@ async function runNoTodoMode(
 
   try {
     log.info("Launching agent without TODO (--no-todo mode).");
+    const agentEnv: NodeJS.ProcessEnv = { ...process.env };
+    const settings = await loadSettings();
+    await applyGitHubTokenForRepo(settings, invocationRepoRoot, agentEnv);
     const agentResult = await launchAgent(
       options,
       activeWorkspace.worktree.path,
       "",
       "",
       activeWorkspace.config,
+      agentEnv,
     );
 
     if (agentResult.exitCode !== 0) {
@@ -411,12 +416,16 @@ async function main(): Promise<void> {
 
       syncClaimedTaskToLocal(claimedTask, activeWorkspace.localTodoPath);
 
+      const agentEnv: NodeJS.ProcessEnv = { ...process.env };
+      const launchSettings = await loadSettings();
+      await applyGitHubTokenForRepo(launchSettings, ensuredRepo.repoRoot, agentEnv);
       const agentResult = await launchAgent(
         options,
         activeWorkspace.worktree.path,
         claimedTask.item,
         claimedTask.itemType,
         activeWorkspace.config,
+        agentEnv,
       );
 
       const completionSync = await syncCompletedTask(

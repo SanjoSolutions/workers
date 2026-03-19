@@ -189,6 +189,62 @@ export function resolvePollingTaskTrackers(
   return ordered;
 }
 
+async function resolveGitHubTokenFromTracker(
+  tracker: ResolvedGitHubIssuesTaskTracker,
+  env: NodeJS.ProcessEnv,
+): Promise<string | undefined> {
+  if (tracker.githubApp) {
+    const { getGitHubAppInstallationToken } = await import("./github-app-token.js");
+    return getGitHubAppInstallationToken(
+      tracker.githubApp.appId,
+      tracker.githubApp.privateKeyPath,
+    );
+  }
+
+  if (tracker.tokenCommand) {
+    const { execSync } = await import("child_process");
+    return execSync(tracker.tokenCommand, { encoding: "utf8", env }).trim() || undefined;
+  }
+
+  return undefined;
+}
+
+export async function applyGitHubTokenToEnv(
+  trackers: Record<string, ResolvedTaskTracker>,
+  env: NodeJS.ProcessEnv,
+): Promise<void> {
+  for (const tracker of Object.values(trackers)) {
+    if (tracker.kind !== "github-issues") {
+      continue;
+    }
+
+    const token = await resolveGitHubTokenFromTracker(tracker, env);
+    if (token) {
+      env.GH_TOKEN = token;
+    }
+    return;
+  }
+}
+
+export async function applyGitHubTokenForRepo(
+  settings: WorkersSettings,
+  repoPath: string,
+  env: NodeJS.ProcessEnv,
+): Promise<void> {
+  let tracker: ResolvedTaskTracker;
+  try {
+    tracker = resolveTaskTrackerForRepo(repoPath, settings, env);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.startsWith("No task tracker is configured for this project.")) {
+      return;
+    }
+    throw error;
+  }
+
+  await applyGitHubTokenToEnv({ [tracker.name]: tracker }, env);
+}
+
 /**
  * Obtain a fresh GitHub token from the first GitHub Issues tracker that has
  * a githubApp or tokenCommand configured, and set GH_TOKEN in process.env.
@@ -197,30 +253,5 @@ export function resolvePollingTaskTrackers(
 export async function applyGitHubToken(
   trackers: Record<string, ResolvedTaskTracker>,
 ): Promise<void> {
-  for (const tracker of Object.values(trackers)) {
-    if (tracker.kind !== "github-issues") {
-      continue;
-    }
-
-    if (tracker.githubApp) {
-      const { getGitHubAppInstallationToken } = await import("./github-app-token.js");
-      const token = await getGitHubAppInstallationToken(
-        tracker.githubApp.appId,
-        tracker.githubApp.privateKeyPath,
-      );
-      if (token) {
-        process.env.GH_TOKEN = token;
-      }
-      return;
-    }
-
-    if (tracker.tokenCommand) {
-      const { execSync } = await import("child_process");
-      const token = execSync(tracker.tokenCommand, { encoding: "utf8" }).trim();
-      if (token) {
-        process.env.GH_TOKEN = token;
-      }
-      return;
-    }
-  }
+  await applyGitHubTokenToEnv(trackers, process.env);
 }

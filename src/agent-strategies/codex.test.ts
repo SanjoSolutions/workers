@@ -22,7 +22,7 @@ describe("CodexAgentStrategy", () => {
     claimedTodoItemType: "feature",
     nextPrompt: "Implement it",
     workflowMode: "non-interactive",
-    env: { ORIGINAL_ENV: "true" },
+    env: { ORIGINAL_ENV: "true", GH_TOKEN: "shared-token" },
     options: {
       interactive: false,
       modelDefault: "gpt-5.4",
@@ -61,6 +61,7 @@ describe("CodexAgentStrategy", () => {
       ]),
       env: expect.objectContaining({
         ORIGINAL_ENV: "true",
+        GH_TOKEN: "shared-token",
       }),
     }));
 
@@ -93,9 +94,14 @@ describe("CodexAgentStrategy", () => {
       claimedTodoItem: "",
       claimedTodoItemType: "",
       nextPrompt: "",
+      env: {
+        ...baseContext.env,
+        GH_TOKEN: "shared-token",
+      },
     } as any);
 
     const call = vi.mocked(spawnAgentProcess).mock.calls[0]?.[0];
     expect(call?.args.at(-1)).toContain("# Assistant System Prompt");
+    expect(call?.env.GH_TOKEN).toBe("shared-token");
   });
 });
