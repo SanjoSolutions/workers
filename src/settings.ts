@@ -8,10 +8,18 @@ import type { CliName } from "./types.js"
 
 export const VALID_CLIS: CliName[] = ["claude", "codex", "gemini", "pi"];
 export const VALID_CLI_SET = new Set<CliName>(VALID_CLIS);
+export const DEFAULT_CODEX_AUTO_MODEL_SELECTION_MODELS = [
+  "gpt-5.4",
+  "gpt-5.4-mini",
+  "gpt-5.3-codex",
+];
 
 export interface WorkerDefaults {
   cli: CliName | undefined;
   model: string;
+  autoModelSelection: boolean;
+  autoModelSelectionModels: string[];
+  autoReasoningEffort: boolean;
 }
 
 export interface AssistantDefaults {
@@ -106,6 +114,23 @@ function parseSettingsFile(filePath: string): Record<string, unknown> {
   }
 
   return parsed as Record<string, unknown>;
+}
+
+function normalizeStringArray(raw: unknown, fallback: string[]): string[] {
+  if (!Array.isArray(raw)) {
+    return [...fallback];
+  }
+
+  const values = raw
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (values.length === 0) {
+    return [...fallback];
+  }
+
+  return [...new Set(values)];
 }
 
 function normalizeInlineTracker(
@@ -297,6 +322,18 @@ export async function loadSettings(
         typeof defaults.model === "string" && (defaults.model as string).trim()
           ? (defaults.model as string).trim()
           : "gpt-5.4",
+      autoModelSelection:
+        typeof defaults.autoModelSelection === "boolean"
+          ? defaults.autoModelSelection
+          : true,
+      autoModelSelectionModels: normalizeStringArray(
+        defaults.autoModelSelectionModels,
+        DEFAULT_CODEX_AUTO_MODEL_SELECTION_MODELS,
+      ),
+      autoReasoningEffort:
+        typeof defaults.autoReasoningEffort === "boolean"
+          ? defaults.autoReasoningEffort
+          : true,
     },
     assistant: {
       defaults: {

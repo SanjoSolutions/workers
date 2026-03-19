@@ -1,4 +1,8 @@
+import { readFileSync } from "fs";
+import path from "path";
 import { extractTodoField } from "../agent-prompt.js";
+import { evaluateCodexSelection } from "../model-selection.js";
+import { determinePackageRoot } from "../settings.js";
 import type { AgentStrategy } from "./types.js";
 import { spawnAgentProcess } from "./process.js";
 import {
@@ -33,16 +37,51 @@ export class CodexAgentStrategy implements AgentStrategy {
   readonly cli = "codex" as const;
 
   async launch(context: Parameters<AgentStrategy["launch"]>[0]) {
-    const codexModel =
+    const explicitModel =
       extractTodoField(context.claimedTodoItem, "Model") ||
       context.options.model ||
-      context.config?.agent?.model ||
-      context.options.modelDefault;
-    const reasoningEffort =
+      context.config?.agent?.model;
+    const explicitReasoningEffort =
       extractTodoField(context.claimedTodoItem, "Reasoning") ||
       context.options.reasoningEffort ||
-      context.config?.agent?.codexDefaultReasoning ||
-      "high";
+      context.config?.agent?.codexDefaultReasoning;
+
+    let codexModel = explicitModel || context.options.modelDefault || "gpt-5.4";
+    let reasoningEffort = explicitReasoningEffort || "high";
+
+    const shouldAutoSelectModel = !explicitModel
+      && context.options.autoModelSelection !== false
+      && Boolean(context.claimedTodoItem);
+    const shouldAutoSelectReasoningEffort = !explicitReasoningEffort
+      && context.options.autoReasoningEffort !== false
+      && Boolean(context.claimedTodoItem);
+
+    if (shouldAutoSelectModel || shouldAutoSelectReasoningEffort) {
+      const selection = await evaluateCodexSelection(context.claimedTodoItem, {
+        candidateModels: context.options.autoModelSelectionModels ?? [codexModel],
+        fallbackModel: codexModel,
+        fallbackReasoningEffort: reasoningEffort,
+      });
+
+      if (shouldAutoSelectModel) {
+        codexModel = selection.model;
+      }
+      if (shouldAutoSelectReasoningEffort) {
+        reasoningEffort = selection.reasoningEffort;
+      }
+    }
+
+    const packageRoot = determinePackageRoot();
+    const agentType = context.noTodo ? "assistant" : "worker";
+    const systemPromptFile = path.join(packageRoot, "agents", agentType, "SYSTEM.md");
+    const systemPrompt = readFileSync(systemPromptFile, "utf8").trim();
+    const codexPrompt = [
+      "Follow these instructions exactly:",
+      systemPrompt,
+      context.nextPrompt,
+    ]
+      .filter((section) => section.trim().length > 0)
+      .join("\n\n");
 
     const codexArgs = [
       ...(codexModel ? ["--model", codexModel] : []),
@@ -60,7 +99,7 @@ export class CodexAgentStrategy implements AgentStrategy {
     if (context.noTodo) {
       return spawnAgentProcess({
         command: "codex",
-        args: codexArgs,
+        args: [...codexArgs, codexPrompt],
         cwd: context.worktreePath,
         env: context.env,
         captureOutput: false,
@@ -76,7 +115,7 @@ export class CodexAgentStrategy implements AgentStrategy {
       );
       return spawnManagedInteractiveAgent(
         "codex",
-        ["--enable", "codex_hooks", ...codexArgs, managedSession.nextPrompt],
+        ["--enable", "codex_hooks", ...codexArgs, `${codexPrompt}\n\n${managedSession.nextPrompt}`],
         context.worktreePath,
         managedSession.env,
         managedSession.statusFile,
@@ -92,7 +131,7 @@ export class CodexAgentStrategy implements AgentStrategy {
         "--config",
         "approval_policy=never",
         ...codexArgs,
-        context.nextPrompt,
+        codexPrompt,
       ],
       cwd: context.worktreePath,
       env: context.env,

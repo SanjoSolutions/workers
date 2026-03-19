@@ -108,6 +108,15 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - When no explicit model is specified (via TODO metadata, CLI flag, or project config), the Claude
   strategy must auto-evaluate the best model by calling `claude --model opus` to classify the task
   as haiku, sonnet, or opus. The evaluation must fall back to sonnet on failure.
+- When the worker CLI is Codex and no explicit model is specified (via TODO metadata, CLI flag, or
+  project config), the strategy must auto-evaluate the best model when
+  `worker.defaults.autoModelSelection` is enabled. The candidate model list must come from
+  `worker.defaults.autoModelSelectionModels`, defaulting to `gpt-5.4`, `gpt-5.4-mini`, and
+  `gpt-5.3-codex`.
+- When the worker CLI is Codex and no explicit reasoning effort is specified (via TODO metadata,
+  CLI flag, or project config), the strategy must auto-evaluate the best reasoning effort when
+  `worker.defaults.autoReasoningEffort` is enabled. The evaluation must fall back to `high` on
+  failure.
 
 ## 8. Runtime Hooks
 
@@ -135,6 +144,9 @@ Workers orchestrates isolated development work for AI coding agents across multi
   again.
 - Default CLI selection must be configurable through this settings file.
 - The default agent model must be configurable through this settings file.
+- Codex auto model selection must be configurable through this settings file, including the list of
+  candidate models to consider.
+- Codex auto reasoning effort selection must be configurable through this settings file.
 - The default task tracker must be configurable through this settings file.
 - Settings must support named task trackers and project-to-task-tracker assignments.
 - Project registrations in settings must be stored as an ordered array, and worker polling must
@@ -142,8 +154,9 @@ Workers orchestrates isolated development work for AI coding agents across multi
 - Projects must be added to settings automatically when they are first mentioned or bootstrapped.
 - The coordinator intake flow must route queued work to the configured task tracker for the target
   project, falling back to the default task tracker when the project has no explicit assignment.
-- Workers must not persist a default Codex reasoning level in settings; TODO metadata may specify
-  `Reasoning`, and the runtime fallback remains `high` when it is omitted.
+- Workers must not persist a default Codex reasoning level value in settings; TODO metadata may
+  specify `Reasoning`, auto reasoning effort may be enabled in settings, and the runtime fallback
+  remains `high` when no explicit or auto-selected value is available.
 
 ## 8.2 Task Tracker Routing
 

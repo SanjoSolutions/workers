@@ -24,6 +24,13 @@ describe("settings bootstrap", () => {
 
     expect(settings.defaults.cli).toBeUndefined();
     expect(settings.defaults.model).toBe("gpt-5.4");
+    expect(settings.defaults.autoModelSelection).toBe(true);
+    expect(settings.defaults.autoModelSelectionModels).toEqual([
+      "gpt-5.4",
+      "gpt-5.4-mini",
+      "gpt-5.3-codex",
+    ]);
+    expect(settings.defaults.autoReasoningEffort).toBe(true);
     expect(settings.assistant.defaults.cli).toBeUndefined();
     expect(settings.projects).toEqual([]);
     expect(settings.projects).toEqual([]);
@@ -42,8 +49,45 @@ describe("settings bootstrap", () => {
 
     expect(settings.defaults.cli).toBe("gemini");
     expect(settings.defaults.model).toBe("gpt-5.3-codex");
+    expect(settings.defaults.autoModelSelection).toBe(true);
+    expect(settings.defaults.autoModelSelectionModels).toEqual([
+      "gpt-5.4",
+      "gpt-5.4-mini",
+      "gpt-5.3-codex",
+    ]);
+    expect(settings.defaults.autoReasoningEffort).toBe(true);
     expect(settings.projects).toEqual([]);
     expect(settings.projects).toEqual([]);
+  });
+
+  test("reads configurable Codex auto-selection settings", async () => {
+    const cfgDir = mkdtempSync(path.join(tmpdir(), "workers-settings-codex-auto-"));
+    writeFileSync(
+      path.join(cfgDir, "settings.json"),
+      JSON.stringify({
+        worker: {
+          defaults: {
+            cli: "codex",
+            model: "gpt-5.4",
+            autoModelSelection: false,
+            autoModelSelectionModels: ["gpt-5.4-mini", "gpt-5.3-codex"],
+            autoReasoningEffort: false,
+          },
+        },
+      }, null, 2),
+      "utf8",
+    );
+
+    const settings = await loadSettings(undefined, { configDir: cfgDir });
+
+    expect(settings.defaults.cli).toBe("codex");
+    expect(settings.defaults.model).toBe("gpt-5.4");
+    expect(settings.defaults.autoModelSelection).toBe(false);
+    expect(settings.defaults.autoModelSelectionModels).toEqual([
+      "gpt-5.4-mini",
+      "gpt-5.3-codex",
+    ]);
+    expect(settings.defaults.autoReasoningEffort).toBe(false);
   });
 });
 

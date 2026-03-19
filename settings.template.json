@@ -1,7 +1,14 @@
 {
   "worker": {
     "defaults": {
-      "model": "gpt-5.4"
+      "model": "gpt-5.4",
+      "autoModelSelection": true,
+      "autoModelSelectionModels": [
+        "gpt-5.4",
+        "gpt-5.4-mini",
+        "gpt-5.3-codex"
+      ],
+      "autoReasoningEffort": true
     }
   }
 }

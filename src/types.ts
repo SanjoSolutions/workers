@@ -11,6 +11,9 @@ export interface CliOptions {
   model?: string;
   reasoningEffort?: string;
   modelDefault?: string;
+  autoModelSelection?: boolean;
+  autoModelSelectionModels?: string[];
+  autoReasoningEffort?: boolean;
 }
 
 export interface WorktreeInfo {
@@ -46,9 +49,9 @@ export interface WorkConfig {
     claudeAllowedTools?: string[];
     /** Default claude model (default: "opus"). */
     claudeDefaultModel?: string;
-    /** Codex model (default: "gpt-5.4"). */
+    /** Default Codex model override. */
     model?: string;
-    /** Default codex reasoning effort (default: "high"). */
+    /** Default Codex reasoning effort override. */
     codexDefaultReasoning?: string;
     /** Codex --add-dir paths. */
     codexWritableDirs?: string[];

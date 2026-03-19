@@ -39,6 +39,9 @@ async function main(): Promise<void> {
     model: undefined,
     reasoningEffort: undefined,
     modelDefault: settings.defaults.model,
+    autoModelSelection: settings.defaults.autoModelSelection,
+    autoModelSelectionModels: settings.defaults.autoModelSelectionModels,
+    autoReasoningEffort: settings.defaults.autoReasoningEffort,
   };
 
   const strategy = getAgentStrategy(cli);
