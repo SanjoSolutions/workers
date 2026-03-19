@@ -1,4 +1,5 @@
 import { spawn } from "child_process";
+import path from "path";
 import type { AgentResult } from "./types.js";
 
 interface SpawnAgentProcessOptions {
@@ -7,6 +8,17 @@ interface SpawnAgentProcessOptions {
   cwd: string;
   env: NodeJS.ProcessEnv;
   captureOutput: boolean;
+}
+
+const WINDOWS_SHELL_COMMANDS = new Set(["claude", "codex", "gemini", "pi"]);
+
+export function shouldUseWindowsCommandShell(command: string): boolean {
+  if (process.platform !== "win32") {
+    return false;
+  }
+
+  const commandName = path.basename(command).toLowerCase();
+  return WINDOWS_SHELL_COMMANDS.has(commandName) || commandName.endsWith(".cmd") || commandName.endsWith(".bat");
 }
 
 export async function spawnAgentProcess(
@@ -18,7 +30,7 @@ export async function spawnAgentProcess(
     const child = spawn(options.command, options.args, {
       cwd: options.cwd,
       env: options.env,
-      shell: process.platform === "win32",
+      shell: shouldUseWindowsCommandShell(options.command),
       stdio: options.captureOutput
         ? ["inherit", "pipe", "pipe"]
         : ["inherit", "inherit", "inherit"],

@@ -27,7 +27,7 @@ describe("spawnAgentProcess", () => {
     vi.restoreAllMocks();
   });
 
-  test("uses the Windows shell for CLI commands", async () => {
+  test("uses the Windows shell for agent CLI commands", async () => {
     const child = createMockChildProcess();
     spawnMock.mockReturnValueOnce(child);
     vi.spyOn(process, "platform", "get").mockReturnValue("win32");
@@ -51,6 +51,34 @@ describe("spawnAgentProcess", () => {
       ["--help"],
       expect.objectContaining({
         shell: true,
+      }),
+    );
+  });
+
+  test("does not use the Windows shell for node", async () => {
+    const child = createMockChildProcess();
+    spawnMock.mockReturnValueOnce(child);
+    vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+
+    const resultPromise = spawnAgentProcess({
+      command: "node",
+      args: ["--version"],
+      cwd: process.cwd(),
+      env: process.env,
+      captureOutput: false,
+    });
+
+    child.emit("close", 0);
+
+    await expect(resultPromise).resolves.toEqual({
+      exitCode: 0,
+      output: "",
+    });
+    expect(spawnMock).toHaveBeenCalledWith(
+      "node",
+      ["--version"],
+      expect.objectContaining({
+        shell: false,
       }),
     );
   });

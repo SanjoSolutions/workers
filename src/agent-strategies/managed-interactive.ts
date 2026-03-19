@@ -8,6 +8,7 @@ import {
 import path from "path";
 import { spawn } from "child_process";
 import { determinePackageRoot } from "../settings.js";
+import { shouldUseWindowsCommandShell } from "./process.js";
 import type { AgentResult } from "./types.js";
 
 export function shellQuote(value: string): string {
@@ -273,7 +274,7 @@ export async function spawnManagedInteractiveAgent(
     const child = spawn(command, args, {
       cwd,
       env,
-      shell: process.platform === "win32",
+      shell: shouldUseWindowsCommandShell(command),
       stdio: ["inherit", "inherit", "inherit"],
     });
     writeInteractiveStatus(statusFile, {
