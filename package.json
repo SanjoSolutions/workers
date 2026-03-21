@@ -1,6 +1,6 @@
 {
   "name": "@sanjo/workers",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A human-first process that supports spontaneity.",
   "license": "MIT",
   "type": "module",
