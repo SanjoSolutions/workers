@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdirSync, readFileSync, writeFileSync } from "fs";
+import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "fs";
 import path from "path";
 import { pathToFileURL } from "url";
 import { parseCliOptions } from "../cli.js";
@@ -434,7 +434,7 @@ export async function runWorkerCli(argv = process.argv): Promise<void> {
   }
 }
 
-const invokedPath = process.argv[1] ? pathToFileURL(process.argv[1]).href : "";
+const invokedPath = process.argv[1] ? pathToFileURL(realpathSync(process.argv[1])).href : "";
 if (import.meta.url === invokedPath) {
   runWorkerCli().catch((err) => {
     log.error(

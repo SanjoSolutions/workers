@@ -1,3 +1,4 @@
+import { realpathSync } from "fs";
 import { open, readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { pathToFileURL } from "url";
@@ -580,7 +581,7 @@ export async function runCli(argv = process.argv.slice(2)): Promise<void> {
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }
 
-const invokedPath = process.argv[1] ? pathToFileURL(process.argv[1]).href : "";
+const invokedPath = process.argv[1] ? pathToFileURL(realpathSync(process.argv[1])).href : "";
 if (import.meta.url === invokedPath) {
   runCli().catch((error) => {
     const message = error instanceof Error ? error.message : String(error);

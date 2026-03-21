@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { realpathSync } from "fs";
 import { pathToFileURL } from "url";
 import { runInitTaskTrackerCli } from "../init-task-tracker-cli.js";
 import { runAddTodoCli } from "../scripts/add-todo.js";
@@ -91,7 +92,7 @@ export async function runOrchestrateCli(
   return 1;
 }
 
-const invokedPath = process.argv[1] ? pathToFileURL(process.argv[1]).href : "";
+const invokedPath = process.argv[1] ? pathToFileURL(realpathSync(process.argv[1])).href : "";
 if (import.meta.url === invokedPath) {
   runOrchestrateCli()
     .then((exitCode) => {

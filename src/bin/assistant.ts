@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
+import { realpathSync } from "fs";
 import { pathToFileURL } from "url";
 import { VALID_CLI_SET, ensureAssistantCli, loadSettings, determinePackageRoot } from "../settings.js";
 import { getAgentStrategy } from "../agent-strategies/index.js";
@@ -72,7 +73,7 @@ export async function runAssistantCli(argv = process.argv): Promise<void> {
   }
 }
 
-const invokedPath = process.argv[1] ? pathToFileURL(process.argv[1]).href : "";
+const invokedPath = process.argv[1] ? pathToFileURL(realpathSync(process.argv[1])).href : "";
 if (import.meta.url === invokedPath) {
   runAssistantCli().catch((err) => {
     console.error(err instanceof Error ? err.message : String(err));

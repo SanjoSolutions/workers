@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync } from "fs";
+import { existsSync, readFileSync, realpathSync } from "fs";
 import path from "path";
 import { pathToFileURL } from "url";
 import { $ } from "zx";
@@ -544,7 +544,7 @@ export async function runListTodosCli(argv = process.argv): Promise<void> {
   }
 }
 
-const invokedPath = process.argv[1] ? pathToFileURL(process.argv[1]).href : "";
+const invokedPath = process.argv[1] ? pathToFileURL(realpathSync(process.argv[1])).href : "";
 if (import.meta.url === invokedPath) {
   runListTodosCli().catch((error) => {
     console.error(error instanceof Error ? error.message : String(error));

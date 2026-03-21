@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import readline from "readline/promises";
+import { realpathSync } from "fs";
 import { pathToFileURL } from "url";
 import { SECTION_HEADERS, type TodoSection } from "../add-todo.js";
 import { addTodoToConfiguredTracker } from "../add-todo-command.js";
@@ -123,7 +124,7 @@ export async function runAddTodoCli(argv = process.argv): Promise<void> {
   console.log(message);
 }
 
-const invokedPath = process.argv[1] ? pathToFileURL(process.argv[1]).href : "";
+const invokedPath = process.argv[1] ? pathToFileURL(realpathSync(process.argv[1])).href : "";
 if (import.meta.url === invokedPath) {
   runAddTodoCli().catch((error) => {
     console.error(error instanceof Error ? error.message : String(error));
