@@ -55,6 +55,14 @@ interface ActiveWorkspace {
   localTodoPath: string;
 }
 
+export function finishedBranchFollowUpMessage(
+  createPullRequestEnabled: boolean,
+): string {
+  return createPullRequestEnabled
+    ? "Use this branch to review or open a pull request, then remove it when done."
+    : "Use this branch for review/cherry-pick/merge, then remove it when done.";
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -209,6 +217,7 @@ async function setupWorkspaceForRepo(
 async function finalizeWorkspace(
   workspace: ActiveWorkspace,
   options: CliOptions,
+  createPullRequestEnabled: boolean,
 ): Promise<void> {
   if (!options.cleanup) {
     console.log();
@@ -216,7 +225,7 @@ async function finalizeWorkspace(
     if (workspace.runtimeInfo) {
       log.info("Isolated runtime is still running for reuse.");
     }
-    log.info("Use this branch for review/cherry-pick/merge, then remove it when done.");
+    log.info(finishedBranchFollowUpMessage(createPullRequestEnabled));
   }
 
   await cleanup(
@@ -237,6 +246,7 @@ async function runNoTodoMode(
   }
 
   let activeWorkspace: ActiveWorkspace | null = null;
+  let createPullRequestEnabled = false;
   setupSignalHandlers(() =>
     activeWorkspace
       ? cleanup(
@@ -260,6 +270,10 @@ async function runNoTodoMode(
     log.info("Launching agent without TODO (--no-todo mode).");
     const agentEnv: NodeJS.ProcessEnv = { ...process.env };
     const settings = await loadSettings();
+    createPullRequestEnabled = isCreatePullRequestEnabled(
+      invocationRepoRoot,
+      settings.projects,
+    );
     await applyGitHubTokenForRepo(settings, invocationRepoRoot, agentEnv);
     const agentResult = await launchAgent(
       options,
@@ -268,6 +282,7 @@ async function runNoTodoMode(
       "",
       activeWorkspace.config,
       agentEnv,
+      invocationRepoRoot,
     );
 
     if (agentResult.exitCode !== 0) {
@@ -275,7 +290,7 @@ async function runNoTodoMode(
       process.exitCode = agentResult.exitCode;
     }
   } finally {
-    await finalizeWorkspace(activeWorkspace, options);
+    await finalizeWorkspace(activeWorkspace, options, createPullRequestEnabled);
   }
 }
 
@@ -345,6 +360,7 @@ export async function runWorkerCli(argv = process.argv): Promise<void> {
     log.info(`Claimed item in task tracker: ${claimedItem.trackerName}.`);
 
     try {
+      let createPullRequestEnabled = false;
       const target = resolveClaimedItemTarget(
         claimedItem.item,
         claimedItem.itemType,
@@ -387,6 +403,7 @@ export async function runWorkerCli(argv = process.argv): Promise<void> {
         claimedItem.itemType,
         activeWorkspace.config,
         agentEnv,
+        ensuredRepo.repoRoot,
       );
 
       const completionSync = await syncCompletedItem(
@@ -402,7 +419,11 @@ export async function runWorkerCli(argv = process.argv): Promise<void> {
       }
 
       const currentSettings = await loadSettings();
-      if (isCreatePullRequestEnabled(activeWorkspace.repoRoot, currentSettings.projects)) {
+      createPullRequestEnabled = isCreatePullRequestEnabled(
+        activeWorkspace.repoRoot,
+        currentSettings.projects,
+      );
+      if (createPullRequestEnabled) {
         const prResult = await createWorkerPullRequest({
           repoRoot: activeWorkspace.repoRoot,
           branchName: activeWorkspace.worktree.branchName,
@@ -425,7 +446,12 @@ export async function runWorkerCli(argv = process.argv): Promise<void> {
       break;
     } finally {
       if (activeWorkspace) {
-        await finalizeWorkspace(activeWorkspace, options);
+        const currentSettings = await loadSettings();
+        await finalizeWorkspace(
+          activeWorkspace,
+          options,
+          isCreatePullRequestEnabled(activeWorkspace.repoRoot, currentSettings.projects),
+        );
         activeWorkspace = null;
       }
     }

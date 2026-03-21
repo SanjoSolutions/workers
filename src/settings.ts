@@ -428,13 +428,20 @@ export function isCreatePullRequestEnabled(
   repoPath: string,
   projects: ProjectSettings[],
 ): boolean {
+  return getCreatePullRequestSetting(repoPath, projects) === true;
+}
+
+export function getCreatePullRequestSetting(
+  repoPath: string,
+  projects: ProjectSettings[],
+): boolean | undefined {
   const normalizedRepo = path.resolve(expandHomePath(repoPath));
   for (const project of projects) {
     if (path.resolve(expandHomePath(project.repo)) === normalizedRepo) {
-      return project.createPullRequest === true;
+      return project.createPullRequest;
     }
   }
-  return false;
+  return undefined;
 }
 
 export function persistProjectSettings(

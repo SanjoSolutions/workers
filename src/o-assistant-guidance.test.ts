@@ -29,6 +29,12 @@ describe("assistant guidance", () => {
     expect(buildAssistantStartupPrompt()).toContain("finished branches");
   });
 
+  test("does not suggest pull requests when the project disables them", () => {
+    expect(buildAssistantStartupPrompt({ createPullRequest: false })).toContain(
+      "Do not suggest opening a pull request",
+    );
+  });
+
   test("does not require a first-mention pull request question", () => {
     const content = readFileSync(
       path.join(process.cwd(), "agents", "assistant", "SYSTEM.md"),

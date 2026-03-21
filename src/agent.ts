@@ -3,7 +3,7 @@ import * as log from "./log.js";
 import { buildAgentPrompt } from "./agent-prompt.js";
 import { getAgentStrategy } from "./agent-strategies/index.js";
 import type { AgentResult } from "./agent-strategies/types.js";
-import { loadSettings } from "./settings.js";
+import { getCreatePullRequestSetting, loadSettings } from "./settings.js";
 import { applyGitHubTokenFromSettings } from "./task-tracker-settings.js";
 
 export async function launchAgent(
@@ -13,6 +13,7 @@ export async function launchAgent(
   claimedTodoItemType: string,
   config?: WorkConfig,
   baseEnv: NodeJS.ProcessEnv = process.env,
+  repoPathForSettings = worktreePath,
 ): Promise<AgentResult> {
   const settings = await loadSettings();
   await applyGitHubTokenFromSettings(settings);
@@ -26,6 +27,12 @@ export async function launchAgent(
         claimedTodoItem,
         claimedTodoItemType,
         config,
+        {
+          createPullRequest: getCreatePullRequestSetting(
+            repoPathForSettings,
+            settings.projects,
+          ),
+        },
       );
 
   const env: NodeJS.ProcessEnv = {

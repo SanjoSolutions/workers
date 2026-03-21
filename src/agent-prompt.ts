@@ -1,5 +1,9 @@
 import type { WorkConfig } from "./types.js";
 
+interface AgentPromptOptions {
+  createPullRequest?: boolean;
+}
+
 export function extractTodoField(item: string, field: string): string {
   const match = item.match(new RegExp(`^\\s+- ${field}:\\s*(.+)$`, "im"));
   return match ? match[1].trim() : "";
@@ -8,7 +12,12 @@ export function extractTodoField(item: string, field: string): string {
 function defaultPrompt(
   todo: string,
   todoType: string,
+  options: AgentPromptOptions = {},
 ): string {
+  const pullRequestInstruction = options.createPullRequest === false
+    ? `
+6. This project has \`createPullRequest: false\`. Do not suggest opening a pull request unless the user explicitly asks for one.`
+    : "";
   const taskSyncInstruction = `2. Remove the completed task entry from the local mirrored task file maintained by the workers runtime.
    Delete the entire item, including all indented sub-items. Do not leave it in place or mark it as done.
 3. Commit your implementation changes on the worker branch for this repo. If this task bootstraps
@@ -17,7 +26,7 @@ function defaultPrompt(
 4. Do NOT merge back to the tracked branch or push directly to main. The assistant lands finished
    worker branches later.
 5. Do NOT add the local mirrored task file to the code-repo commit when it is untracked or ignored here.
-   The workers runtime will sync task completion back to the configured task tracker after your work is done.`;
+   The workers runtime will sync task completion back to the configured task tracker after your work is done.${pullRequestInstruction}`;
 
   return `An item has been pre-claimed for you by the workers runtime.
 Do NOT claim another item — work on this one.
@@ -43,9 +52,10 @@ export function buildAgentPrompt(
   claimedTodoItem: string,
   claimedTodoItemType: string,
   config: WorkConfig | undefined,
+  options: AgentPromptOptions = {},
 ): string {
   const cleanedItem = stripRuntimeMetadata(claimedTodoItem);
   return config?.agent?.buildPrompt
     ? config.agent.buildPrompt(cleanedItem, claimedTodoItemType)
-    : defaultPrompt(cleanedItem, claimedTodoItemType);
+    : defaultPrompt(cleanedItem, claimedTodoItemType, options);
 }

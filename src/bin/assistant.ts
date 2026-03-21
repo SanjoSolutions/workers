@@ -3,7 +3,13 @@
 import { Command } from "commander";
 import { realpathSync } from "fs";
 import { pathToFileURL } from "url";
-import { VALID_CLI_SET, ensureAssistantCli, loadSettings, determinePackageRoot } from "../settings.js";
+import {
+  VALID_CLI_SET,
+  ensureAssistantCli,
+  getCreatePullRequestSetting,
+  loadSettings,
+  determinePackageRoot,
+} from "../settings.js";
 import { getAgentStrategy } from "../agent-strategies/index.js";
 import { findGitRepoRoot } from "../git-utils.js";
 import { buildAssistantStartupPrompt } from "../assistant-startup-prompt.js";
@@ -63,7 +69,9 @@ export async function runAssistantCli(argv = process.argv): Promise<void> {
     worktreePath: process.cwd(),
     claimedTodoItem: "",
     claimedTodoItemType: "",
-    nextPrompt: buildAssistantStartupPrompt(),
+    nextPrompt: buildAssistantStartupPrompt({
+      createPullRequest: getCreatePullRequestSetting(repoRoot, settings.projects),
+    }),
     workflowMode: "interactive",
     noTodo: true,
     env,

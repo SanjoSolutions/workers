@@ -126,6 +126,8 @@ SPEC.md captures the high-level requirements for a project.
   assistant is responsible for landing completed work.
 - When a project has `createPullRequest: true` in its settings, workers must push the completed
   branch and create a GitHub PR after task completion.
+- When a project's `createPullRequest` setting is `false` or unset, workers must not suggest
+  opening a pull request for the finished branch.
 - The PR title must be derived from the TODO item summary.
 - The PR body must include the full TODO item text and the list of commits on the branch.
 - If the task originated from a GitHub issue, the PR body must reference it with `Closes #N`.
