@@ -2,6 +2,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
 import { beforeEach, describe, expect, test, vi } from "vitest";
+import { buildAssistantStartupPrompt } from "../assistant-startup-prompt.js";
 import { GeminiAgentStrategy } from "./gemini.js";
 import { spawnAgentProcess } from "./process.js";
 import { determinePackageRoot } from "../settings.js";
@@ -54,7 +55,11 @@ describe("GeminiAgentStrategy", () => {
   });
 
   test("sets GEMINI_SYSTEM_MD for noTodo (assistant)", async () => {
-    await strategy.launch({ ...baseContext, noTodo: true } as any);
+    await strategy.launch({
+      ...baseContext,
+      noTodo: true,
+      nextPrompt: buildAssistantStartupPrompt(),
+    } as any);
 
     const call = vi.mocked(spawnAgentProcess).mock.calls[0]?.[0];
     const renderedPromptPath = call?.env.GEMINI_SYSTEM_MD as string;
@@ -67,6 +72,7 @@ describe("GeminiAgentStrategy", () => {
     expect(renderedPromptPath).toContain("workers-system-prompt-cache");
     expect(readFileSync(renderedPromptPath, "utf8")).toContain("`write_todos`");
     expect(readFileSync(renderedPromptPath, "utf8")).toContain("Do not rely on plan mode.");
+    expect(call?.args).toContain(buildAssistantStartupPrompt());
   });
 
   test("sets GEMINI_SYSTEM_MD for interactive worker", async () => {

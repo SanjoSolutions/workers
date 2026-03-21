@@ -40,7 +40,13 @@ export class ClaudeAgentStrategy implements AgentStrategy {
     if (context.noTodo) {
       const result = await spawnAgentProcess({
         command: "claude",
-        args: [...modelArgs, ...systemPromptArgs, "--allowedTools", claudeAllowedTools],
+        args: [
+          ...modelArgs,
+          ...systemPromptArgs,
+          "--allowedTools",
+          claudeAllowedTools,
+          ...(context.nextPrompt ? ["--", context.nextPrompt] : []),
+        ],
         cwd: context.worktreePath,
         env: context.env,
         captureOutput: false,

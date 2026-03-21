@@ -1,4 +1,4 @@
-import { $ } from "zx";
+import { runGit } from "../../git-cli.js";
 import { fetchBranchTarget, resolveBranchTarget } from "../../git-target.js";
 
 export async function fastForwardRepo(repoRoot: string): Promise<boolean> {
@@ -12,10 +12,14 @@ export async function fastForwardRepo(repoRoot: string): Promise<boolean> {
     return false;
   }
 
-  const pullResult =
-    await $`git -C ${repoRoot} pull --ff-only ${branchTarget.remoteName!} ${branchTarget.remoteBranch!}`
-      .quiet()
-      .nothrow();
+  const pullResult = await runGit([
+    "-C",
+    repoRoot,
+    "pull",
+    "--ff-only",
+    branchTarget.remoteName!,
+    branchTarget.remoteBranch!,
+  ]);
   return pullResult.exitCode === 0;
 }
 
@@ -27,22 +31,36 @@ export async function commitAndPushTodoRepo(
   const branchTarget = await resolveBranchTarget(repoRoot);
   const branch = branchTarget.branch;
 
-  const addResult =
-    await $`git -C ${repoRoot} add ${todoRelativePath}`.quiet().nothrow();
+  const addResult = await runGit([
+    "-C",
+    repoRoot,
+    "add",
+    todoRelativePath,
+  ]);
   if (addResult.exitCode !== 0) {
     return false;
   }
 
-  const stagedResult =
-    await $`git -C ${repoRoot} diff --cached --quiet -- ${todoRelativePath}`
-      .quiet()
-      .nothrow();
+  const stagedResult = await runGit([
+    "-C",
+    repoRoot,
+    "diff",
+    "--cached",
+    "--quiet",
+    "--",
+    todoRelativePath,
+  ]);
   if (stagedResult.exitCode === 0) {
     return true;
   }
 
-  const commitResult =
-    await $`git -C ${repoRoot} commit -m ${message}`.quiet().nothrow();
+  const commitResult = await runGit([
+    "-C",
+    repoRoot,
+    "commit",
+    "-m",
+    message,
+  ]);
   if (commitResult.exitCode !== 0) {
     return false;
   }
@@ -52,16 +70,25 @@ export async function commitAndPushTodoRepo(
       return true;
     }
 
-    const pushResult =
-      await $`git -C ${repoRoot} push ${branchTarget.remoteName!} HEAD:${branch}`.quiet().nothrow();
+    const pushResult = await runGit([
+      "-C",
+      repoRoot,
+      "push",
+      branchTarget.remoteName!,
+      `HEAD:${branch}`,
+    ]);
     if (pushResult.exitCode === 0) {
       return true;
     }
 
-    const rebaseResult =
-      await $`git -C ${repoRoot} pull --rebase ${branchTarget.remoteName!} ${branch}`
-        .quiet()
-        .nothrow();
+    const rebaseResult = await runGit([
+      "-C",
+      repoRoot,
+      "pull",
+      "--rebase",
+      branchTarget.remoteName!,
+      branch,
+    ]);
     if (rebaseResult.exitCode !== 0) {
       return false;
     }

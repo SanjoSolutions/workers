@@ -79,7 +79,7 @@ export class CodexAgentStrategy implements AgentStrategy {
     if (context.noTodo) {
       const result = await spawnAgentProcess({
         command: "codex",
-        args: codexArgs,
+        args: context.nextPrompt ? [...codexArgs, context.nextPrompt] : codexArgs,
         cwd: context.worktreePath,
         env: context.env,
         captureOutput: false,

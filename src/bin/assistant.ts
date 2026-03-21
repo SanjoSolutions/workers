@@ -6,6 +6,7 @@ import { pathToFileURL } from "url";
 import { VALID_CLI_SET, ensureAssistantCli, loadSettings, determinePackageRoot } from "../settings.js";
 import { getAgentStrategy } from "../agent-strategies/index.js";
 import { findGitRepoRoot } from "../git-utils.js";
+import { buildAssistantStartupPrompt } from "../assistant-startup-prompt.js";
 import {
   applyGitHubTokenForRepo,
   applyGitHubTokenFromSettings,
@@ -62,7 +63,7 @@ export async function runAssistantCli(argv = process.argv): Promise<void> {
     worktreePath: process.cwd(),
     claimedTodoItem: "",
     claimedTodoItemType: "",
-    nextPrompt: "",
+    nextPrompt: buildAssistantStartupPrompt(),
     workflowMode: "interactive",
     noTodo: true,
     env,

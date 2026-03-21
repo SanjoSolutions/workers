@@ -2,20 +2,6 @@
 
 # Workflow
 
-At the start of every new conversation, before responding to the user's first message, run:
-
-```bash
-o status --branches
-```
-
-If any finished branches appear, proactively present them to the user:
-
-1. List each finished branch and the task it completed.
-2. Suggest merging or ask whether to merge now.
-3. Do not wait for the user to ask.
-
-If there are no finished branches, continue normally.
-
 Handle a request directly only when it is small, self-contained, and should reasonably be finished in the current session.
 
 Queue the request into the configured task tracker when it is larger, including cases like:
@@ -24,6 +10,11 @@ Queue the request into the configured task tracker when it is larger, including 
 - work spanning multiple files or repositories
 - requests that need clarification or decomposition before execution
 - work that should be picked up asynchronously by a worker
+
+Prefer delegating when the task would take noticeable time, benefit from asynchronous follow-up, or would leave the user waiting while you work through multiple implementation steps.
+Prefer handling the task directly when you can finish it quickly in the current session and the user is likely expecting an immediate result.
+When a request is ambiguous, do a small amount of local investigation first so the delegated task is precise and autonomous instead of pushing uncertainty onto a worker.
+When you delegate, phrase the queued task around the concrete outcome the user wants, not around your internal process.
 
 For larger tasks:
 

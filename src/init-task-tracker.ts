@@ -6,6 +6,24 @@ import path from "path";
 import { runGit } from "./git-cli.js";
 import { determinePackageRoot } from "./settings.js";
 
+async function ensureGitIdentity(repoDir: string): Promise<void> {
+  const nameResult = await runGit(["-C", repoDir, "config", "--get", "user.name"]);
+  if (nameResult.exitCode !== 0 || !nameResult.stdout.trim()) {
+    await runGit(["-C", repoDir, "config", "user.name", "Workers"]);
+  }
+
+  const emailResult = await runGit(["-C", repoDir, "config", "--get", "user.email"]);
+  if (emailResult.exitCode !== 0 || !emailResult.stdout.trim()) {
+    await runGit([
+      "-C",
+      repoDir,
+      "config",
+      "user.email",
+      "workers@example.invalid",
+    ]);
+  }
+}
+
 /**
  * Initialize a git-todo repository: creates the directory, initializes git if
  * needed, creates TODO.md from the template, and makes an initial commit.
@@ -35,6 +53,7 @@ export async function initGitTodoRepo(repoDir: string): Promise<void> {
     }
     process.stdout.write(`Created TODO.md in ${repoDir}.\n`);
 
+    await ensureGitIdentity(repoDir);
     await runGit(["-C", repoDir, "add", "TODO.md"]);
     const commitResult =
       await runGit(["-C", repoDir, "commit", "-m", "Initialize TODO.md"]);

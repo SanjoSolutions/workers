@@ -212,7 +212,7 @@ describe("spawnManagedInteractiveAgent", () => {
     expect(status.signal).toBe("SIGINT");
   });
 
-  test("writes interrupted status on SIGTERM from child process", async () => {
+  test("writes platform-appropriate terminal status on SIGTERM from child process", async () => {
     const worktreePath = createTempDir("workers-managed-signal-");
     const statusFile = path.join(worktreePath, "status.json");
     writeInteractiveStatus(
@@ -238,7 +238,9 @@ describe("spawnManagedInteractiveAgent", () => {
       () => {},
     );
 
-    expect(JSON.parse(readFileSync(statusFile, "utf8")).status).toBe("interrupted");
+    expect(JSON.parse(readFileSync(statusFile, "utf8")).status).toBe(
+      process.platform === "win32" ? "error" : "interrupted",
+    );
   });
 });
 

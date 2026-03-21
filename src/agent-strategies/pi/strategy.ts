@@ -39,7 +39,7 @@ export class PiAgentStrategy implements AgentStrategy {
     if (context.noTodo) {
       const result = await spawnAgentProcess({
         command: "pi",
-        args: baseArgs,
+        args: context.nextPrompt ? [...baseArgs, context.nextPrompt] : baseArgs,
         cwd: context.worktreePath,
         env: context.env,
         captureOutput: false,

@@ -33,7 +33,7 @@ export class GeminiAgentStrategy implements AgentStrategy {
     if (context.noTodo) {
       const result = await spawnAgentProcess({
         command: "gemini",
-        args,
+        args: context.nextPrompt ? [...args, context.nextPrompt] : args,
         cwd: context.worktreePath,
         env,
         captureOutput: false,

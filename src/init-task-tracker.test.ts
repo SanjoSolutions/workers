@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { runGit } from "./git-cli.js";
 import { initGitTodoRepo, promptAndInitTaskTracker, updateShellConfig } from "./init-task-tracker.js";
 
 async function isGitRepo(dir: string): Promise<boolean> {
@@ -41,6 +42,59 @@ describe("initGitTodoRepo", () => {
 
     expect(existsSync(repoDir)).toBe(true);
     expect(await isGitRepo(repoDir)).toBe(true);
+  });
+
+  test("creates an initial branch even when git identity is not preset", async () => {
+    const tmpDir = mkdtempSync(path.join(tmpdir(), "workers-init-identity-"));
+    const repoDir = path.join(tmpDir, "todo-repo");
+    const originalEnv = {
+      GIT_CONFIG_GLOBAL: process.env.GIT_CONFIG_GLOBAL,
+      GIT_CONFIG_NOSYSTEM: process.env.GIT_CONFIG_NOSYSTEM,
+      HOME: process.env.HOME,
+      USERPROFILE: process.env.USERPROFILE,
+      XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME,
+    };
+
+    delete process.env.HOME;
+    delete process.env.USERPROFILE;
+    delete process.env.XDG_CONFIG_HOME;
+    process.env.GIT_CONFIG_GLOBAL = path.join(tmpDir, "missing-gitconfig");
+    process.env.GIT_CONFIG_NOSYSTEM = "1";
+
+    try {
+      await initGitTodoRepo(repoDir);
+
+      const branchResult = await runGit(["-C", repoDir, "rev-parse", "--abbrev-ref", "HEAD"]);
+      expect(branchResult.exitCode).toBe(0);
+      expect(branchResult.stdout.trim()).not.toBe("");
+      expect(branchResult.stdout.trim()).not.toBe("HEAD");
+    } finally {
+      if (originalEnv.GIT_CONFIG_GLOBAL === undefined) {
+        delete process.env.GIT_CONFIG_GLOBAL;
+      } else {
+        process.env.GIT_CONFIG_GLOBAL = originalEnv.GIT_CONFIG_GLOBAL;
+      }
+      if (originalEnv.GIT_CONFIG_NOSYSTEM === undefined) {
+        delete process.env.GIT_CONFIG_NOSYSTEM;
+      } else {
+        process.env.GIT_CONFIG_NOSYSTEM = originalEnv.GIT_CONFIG_NOSYSTEM;
+      }
+      if (originalEnv.HOME === undefined) {
+        delete process.env.HOME;
+      } else {
+        process.env.HOME = originalEnv.HOME;
+      }
+      if (originalEnv.USERPROFILE === undefined) {
+        delete process.env.USERPROFILE;
+      } else {
+        process.env.USERPROFILE = originalEnv.USERPROFILE;
+      }
+      if (originalEnv.XDG_CONFIG_HOME === undefined) {
+        delete process.env.XDG_CONFIG_HOME;
+      } else {
+        process.env.XDG_CONFIG_HOME = originalEnv.XDG_CONFIG_HOME;
+      }
+    }
   });
 });
 

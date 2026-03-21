@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
+import { buildAssistantStartupPrompt } from "../assistant-startup-prompt.js";
 import { ClaudeAgentStrategy } from "./claude.js";
 import { spawnAgentProcess } from "./process.js";
 
@@ -48,7 +49,7 @@ describe("ClaudeAgentStrategy", () => {
       noTodo: true,
       claimedTodoItem: "",
       claimedTodoItemType: "",
-      nextPrompt: "",
+      nextPrompt: buildAssistantStartupPrompt(),
     } as any);
 
     expect(spawnAgentProcess).toHaveBeenCalledWith(expect.objectContaining({

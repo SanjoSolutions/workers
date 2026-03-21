@@ -1,5 +1,6 @@
 import { describe, expect, test, vi, beforeEach } from "vitest";
 import path from "path";
+import { buildAssistantStartupPrompt } from "../assistant-startup-prompt.js";
 import { CodexAgentStrategy } from "./codex.js";
 import { spawnAgentProcess } from "./process.js";
 import { spawnManagedInteractiveAgent } from "./managed-interactive.js";
@@ -116,7 +117,7 @@ describe("CodexAgentStrategy", () => {
       noTodo: true,
       claimedTodoItem: "",
       claimedTodoItemType: "",
-      nextPrompt: "",
+      nextPrompt: buildAssistantStartupPrompt(),
       env: {
         ...baseContext.env,
         GH_TOKEN: "shared-token",
@@ -133,6 +134,7 @@ describe("CodexAgentStrategy", () => {
     expect(renderedPromptPath).not.toBe(path.join("agents", "assistant", "SYSTEM.md"));
     expect(renderedPromptPath).toContain("workers-system-prompt-cache");
     expect(call?.args).not.toContain("");
+    expect(call?.args).toContain(buildAssistantStartupPrompt());
     expect(call?.env.GH_TOKEN).toBe("shared-token");
   });
 
