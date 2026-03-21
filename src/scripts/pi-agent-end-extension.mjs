@@ -33,6 +33,7 @@ export default function (pi) {
       process.env.WORKERS_LOCAL_TODO_PATH,
       process.env.WORKERS_TODO_SUMMARY,
     );
+
     writeStatus(statusFile, { status });
   });
 }

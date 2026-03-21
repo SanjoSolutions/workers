@@ -10,6 +10,21 @@ import { spawn } from "child_process";
 import { determinePackageRoot } from "../settings.js";
 import { shouldUseWindowsCommandShell } from "./process.js";
 import type { AgentResult } from "./types.js";
+import {
+  determineTerminalInteractiveStatus,
+  isInteractiveStatusStale,
+  normalizeInteractiveStatus,
+  readInteractiveStatus,
+  writeInteractiveStatus,
+} from "./interactive-status.js";
+
+export {
+  determineTerminalInteractiveStatus,
+  isInteractiveStatusStale,
+  normalizeInteractiveStatus,
+  readInteractiveStatus,
+  writeInteractiveStatus,
+};
 
 export function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
@@ -63,126 +78,6 @@ export interface ManagedSessionConfig {
   statusEnvVar: string;
 }
 
-export interface InteractiveStatus {
-  status: string;
-  source: string;
-  launcherPid?: number;
-  childPid?: number;
-  startedAt?: string;
-  updatedAt?: string;
-  finishedAt?: string;
-  sessionId?: string;
-  signal?: string;
-  error?: string;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function parseInteractiveStatus(content: string): InteractiveStatus | undefined {
-  try {
-    const parsed = JSON.parse(content) as unknown;
-    if (!isRecord(parsed) || typeof parsed.status !== "string") {
-      return undefined;
-    }
-
-    return {
-      status: parsed.status,
-      source: typeof parsed.source === "string" ? parsed.source : "workers",
-      launcherPid: typeof parsed.launcherPid === "number" ? parsed.launcherPid : undefined,
-      childPid: typeof parsed.childPid === "number" ? parsed.childPid : undefined,
-      startedAt: typeof parsed.startedAt === "string" ? parsed.startedAt : undefined,
-      updatedAt: typeof parsed.updatedAt === "string" ? parsed.updatedAt : undefined,
-      finishedAt: typeof parsed.finishedAt === "string" ? parsed.finishedAt : undefined,
-      sessionId: typeof parsed.sessionId === "string" ? parsed.sessionId : undefined,
-      signal: typeof parsed.signal === "string" ? parsed.signal : undefined,
-      error: typeof parsed.error === "string" ? parsed.error : undefined,
-    };
-  } catch {
-    return undefined;
-  }
-}
-
-function processIsAlive(pid: number | undefined): boolean {
-  if (!pid || !Number.isInteger(pid) || pid <= 0) {
-    return false;
-  }
-
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return error instanceof Error && "code" in error && error.code === "EPERM";
-  }
-}
-
-function runningStatusIsStale(status: InteractiveStatus): boolean {
-  if (status.status !== "running") {
-    return false;
-  }
-
-  if (status.childPid !== undefined && !processIsAlive(status.childPid)) {
-    return true;
-  }
-
-  if (status.launcherPid !== undefined && !processIsAlive(status.launcherPid)) {
-    return true;
-  }
-
-  return false;
-}
-
-function readInteractiveStatusFile(statusFile: string): InteractiveStatus | undefined {
-  if (!existsSync(statusFile)) {
-    return undefined;
-  }
-
-  try {
-    return parseInteractiveStatus(readFileSync(statusFile, "utf8").trim());
-  } catch {
-    return undefined;
-  }
-}
-
-export function writeInteractiveStatus(
-  statusFile: string,
-  status: Partial<InteractiveStatus> & Pick<InteractiveStatus, "status">,
-): InteractiveStatus {
-  const existing = readInteractiveStatusFile(statusFile);
-  const now = new Date().toISOString();
-  const nextStatus: InteractiveStatus = {
-    ...existing,
-    ...status,
-    source: status.source ?? existing?.source ?? "workers",
-    startedAt: status.startedAt ?? existing?.startedAt ?? now,
-    updatedAt: now,
-  };
-
-  writeFileSync(statusFile, `${JSON.stringify(nextStatus)}\n`, "utf8");
-  return nextStatus;
-}
-
-export function readInteractiveStatus(
-  statusFile: string,
-  options?: { rewriteStale?: boolean },
-): InteractiveStatus | undefined {
-  const status = readInteractiveStatusFile(statusFile);
-  if (!status) {
-    return undefined;
-  }
-
-  if (options?.rewriteStale === false || !runningStatusIsStale(status)) {
-    return status;
-  }
-
-  return writeInteractiveStatus(statusFile, {
-    ...status,
-    status: "stale",
-    finishedAt: new Date().toISOString(),
-  });
-}
-
 export function setupManagedInteractiveSession(
   worktreePath: string,
   claimedTodoItem: string,
@@ -194,11 +89,16 @@ export function setupManagedInteractiveSession(
   mkdirSync(controlDir, { recursive: true });
 
   const statusFile = path.join(controlDir, "status.json");
-  writeInteractiveStatus(statusFile, {
-    status: "running",
-    source: "workers",
-    launcherPid: process.pid,
-  });
+  writeInteractiveStatus(
+    statusFile,
+    {
+      status: "running",
+      source: "workers",
+      launcherPid: process.pid,
+      startedAt: new Date().toISOString(),
+    },
+    { mergeExisting: false },
+  );
 
   const configDir = path.join(worktreePath, config.configDirName);
   mkdirSync(configDir, { recursive: true });
@@ -267,7 +167,7 @@ export async function spawnManagedInteractiveAgent(
   return new Promise<AgentResult>((resolve) => {
     let managedDone = false;
     let stopRequested = false;
-    let interruptedBySignal: string | undefined;
+    let interruptedBySignal: NodeJS.Signals | undefined;
     let forcedKillTimer: NodeJS.Timeout | undefined;
     let lastStatusJson = "";
 
@@ -277,10 +177,16 @@ export async function spawnManagedInteractiveAgent(
       shell: shouldUseWindowsCommandShell(command),
       stdio: ["inherit", "inherit", "inherit"],
     });
-    writeInteractiveStatus(statusFile, {
-      status: "running",
-      childPid: child.pid,
-    });
+
+    if (typeof child.pid === "number") {
+      writeInteractiveStatus(statusFile, {
+        status: "running",
+        source: "workers",
+        childPid: child.pid,
+      });
+    }
+
+    normalizeInteractiveStatus(statusFile);
 
     const watchTimer = setInterval(() => {
       const status = readInteractiveStatus(statusFile);
@@ -317,6 +223,7 @@ export async function spawnManagedInteractiveAgent(
         stopRequested = true;
         writeInteractiveStatus(statusFile, {
           status: "interrupted",
+          source: "workers",
           signal,
           finishedAt: new Date().toISOString(),
         });
@@ -345,25 +252,12 @@ export async function spawnManagedInteractiveAgent(
       resolve(result);
     };
 
-    child.on("close", (code) => {
-      const currentStatus = readInteractiveStatus(statusFile, { rewriteStale: false });
-      const terminalStatus = currentStatus?.status;
-
-      if (!managedDone && terminalStatus !== "needs_user" && terminalStatus !== "done") {
-        if (interruptedBySignal) {
-          writeInteractiveStatus(statusFile, {
-            status: "interrupted",
-            signal: interruptedBySignal,
-            finishedAt: new Date().toISOString(),
-          });
-        } else {
-          writeInteractiveStatus(statusFile, {
-            status: code === 0 ? "stopped" : "error",
-            finishedAt: new Date().toISOString(),
-          });
-        }
+    child.on("close", (code, signal) => {
+      const currentStatus = normalizeInteractiveStatus(statusFile);
+      const terminalStatus = determineTerminalInteractiveStatus(currentStatus, code, signal);
+      if (terminalStatus) {
+        writeInteractiveStatus(statusFile, terminalStatus);
       }
-
       finish({
         exitCode: managedDone ? 0 : interruptedBySignal ? 130 : code ?? 1,
         output: "",
@@ -371,11 +265,14 @@ export async function spawnManagedInteractiveAgent(
     });
 
     child.on("error", (error) => {
-      writeInteractiveStatus(statusFile, {
-        status: "error",
-        error: error.message,
-        finishedAt: new Date().toISOString(),
-      });
+      const currentStatus = normalizeInteractiveStatus(statusFile);
+      if (currentStatus && currentStatus.status !== "done" && currentStatus.status !== "needs_user") {
+        writeInteractiveStatus(statusFile, {
+          ...currentStatus,
+          status: "error",
+          error: error.message,
+        });
+      }
       finish({
         exitCode: 1,
         output: error.message,

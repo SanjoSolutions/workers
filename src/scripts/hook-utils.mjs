@@ -56,22 +56,22 @@ export function determineStatus(message, localTodoPath, todoSummary) {
 }
 
 export function writeStatus(statusFile, statusData) {
-  let existing = {};
+  let existingStatus = undefined;
   if (existsSync(statusFile)) {
     try {
       const parsed = JSON.parse(readFileSync(statusFile, "utf8"));
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        existing = parsed;
+        existingStatus = parsed;
       }
     } catch {
-      existing = {};
+      existingStatus = undefined;
     }
   }
 
   writeFileSync(
     statusFile,
     `${JSON.stringify({
-      ...existing,
+      ...(existingStatus ?? {}),
       ...statusData,
       updatedAt: new Date().toISOString(),
     })}\n`,

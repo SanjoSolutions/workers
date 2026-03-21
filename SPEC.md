@@ -165,6 +165,7 @@ SPEC.md captures the high-level requirements for a project.
 - Project-specific runtime setup and teardown may still be configured per repo.
 - Project-specific worktree hooks may still be configured per repo.
 - Shared TODO ownership must not depend on repo-local config files.
+- Managed interactive worker sessions must record live session metadata and clear stale running status on exit, error, or interruption.
 
 ## 8.1 Workers Settings
 

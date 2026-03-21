@@ -43,8 +43,12 @@ describe("pi interactive workers session", () => {
 
     const statusJson = JSON.parse(readFileSync(session.statusFile, "utf8")) as {
       status: string;
+      launcherPid: number;
+      startedAt: string;
     };
     expect(statusJson.status).toBe("running");
+    expect(statusJson.launcherPid).toBe(process.pid);
+    expect(statusJson.startedAt).toBeTruthy();
 
     // Cleanup is a no-op; just verify it does not throw
     expect(() => session.cleanup()).not.toThrow();
