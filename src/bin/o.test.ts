@@ -23,7 +23,7 @@ describe("runOrchestrateCli", () => {
   test("dispatches assistant subcommands", async () => {
     const assistant = vi.fn(async () => {});
 
-    await runOrchestrateCli(["node", "o", "assistant", "--cli", "pi"], {
+    await runOrchestrateCli(["node", "o", "assistant", "--cli", "gemini"], {
       handlers: {
         add: vi.fn(),
         assistant,
@@ -33,7 +33,7 @@ describe("runOrchestrateCli", () => {
       },
     });
 
-    expect(assistant).toHaveBeenCalledWith(["node", "assistant", "--cli", "pi"]);
+    expect(assistant).toHaveBeenCalledWith(["node", "assistant", "--cli", "gemini"]);
   });
 
   test("dispatches status to the list handler", async () => {

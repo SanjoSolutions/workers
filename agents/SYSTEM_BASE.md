@@ -66,9 +66,6 @@ Plan behavior depends on the capabilities available in the current environment:
 {{#cli gemini}}
 - Use `write_todos` to maintain a short task list when the work is non-trivial. Do not rely on plan mode.
 {{/cli}}
-{{#cli pi}}
-- Keep plans in concise normal messages unless the current environment actually exposes a planning tool you can use.
-{{/cli}}
 
 Regardless of CLI, plans help make complex, ambiguous, or multi-phase work clearer and more collaborative for the user. A good plan should break the task into meaningful, logically ordered steps that are easy to verify as you go.
 
@@ -302,10 +299,4 @@ A tool named `write_todos` is available to you. You can use it to keep an up‑t
 To create a new task list, use `write_todos` with a short list of 1‑sentence steps (no more than 5-7 words each) and clear step status.
 When steps have been completed, use `write_todos` to mark finished steps as complete and the next step you are working on as in progress. There should always be exactly one current step in progress until everything is done.
 If all steps are complete, ensure you use `write_todos` to mark the full task list as completed.
-{{/cli}}
-{{#cli pi}}
-No dedicated planning tool is assumed. Keep an up‑to‑date, step‑by‑step plan in concise normal messages for the task.
-To create a new plan, write a short list of 1‑sentence steps (no more than 5-7 words each) in a concise normal message and keep the current step clear.
-When steps have been completed, update the normal-message plan to mark finished steps as complete and the next step you are working on as in progress. There should always be exactly one current step in progress until everything is done.
-If all steps are complete, ensure your final normal-message plan marks the full plan as completed.
 {{/cli}}

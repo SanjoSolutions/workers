@@ -38,7 +38,7 @@ describe("parseCliOptions", () => {
     });
   });
 
-  test("reports pi in the unsupported cli error", async () => {
+  test("reports supported CLIs in the unsupported cli error", async () => {
     const cfgDir = mkdtempSync(path.join(os.tmpdir(), "workers-cli-invalid-"));
     writeFileSync(
       path.join(cfgDir, "settings.json"),
@@ -48,7 +48,7 @@ describe("parseCliOptions", () => {
     process.env.WORKERS_CONFIG_DIR = cfgDir;
 
     await expect(parseCliOptions(["node", "worker", "--cli", "invalid-cli"])).rejects.toThrow(
-      "Unsupported CLI: invalid-cli (expected: claude, codex, gemini, pi)",
+      "Unsupported CLI: invalid-cli (expected: claude, codex, gemini)",
     );
   });
 });

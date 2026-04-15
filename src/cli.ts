@@ -9,7 +9,7 @@ export async function parseCliOptions(argv: string[]): Promise<CliOptions> {
   program
     .name("worker")
     .description("Orchestrate isolated dev environments for AI coding agents")
-    .argument("[cli]", "CLI to use (claude, codex, gemini, or pi)")
+    .argument("[cli]", "CLI to use (claude, codex, or gemini)")
     .option("--cli <name>", "CLI to use")
     .option("--worktree-dir <dir>", "Worktree root directory", "~/.worktrees")
     .option("--reuse-worktree", "Reuse latest worktree (default)")
@@ -34,7 +34,7 @@ export async function parseCliOptions(argv: string[]): Promise<CliOptions> {
   if (explicitCli) {
     if (!VALID_CLI_SET.has(explicitCli)) {
       throw new Error(
-        `Unsupported CLI: ${explicitCli} (expected: claude, codex, gemini, pi)`,
+        `Unsupported CLI: ${explicitCli} (expected: claude, codex, gemini)`,
       );
     }
     await ensureWorkerCli(settings, undefined, { preferredCli: explicitCli });

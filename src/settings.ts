@@ -6,7 +6,7 @@ import { fileURLToPath } from "url"
 import { expandHomePath } from "./path-utils.js"
 import type { CliName } from "./types.js"
 
-export const VALID_CLIS: CliName[] = ["claude", "codex", "gemini", "pi"];
+export const VALID_CLIS: CliName[] = ["claude", "codex", "gemini"];
 export const VALID_CLI_SET = new Set<CliName>(VALID_CLIS);
 export const DEFAULT_CODEX_AUTO_MODEL_SELECTION_MODELS = [
   "gpt-5.4",
@@ -523,7 +523,6 @@ async function ensureCli(
         "  Codex CLI    https://github.com/openai/codex",
         "  Claude Code  https://docs.anthropic.com/en/docs/claude-code/getting-started",
         "  Gemini CLI   https://github.com/google-gemini/gemini-cli",
-        "  Pi CLI",
       ].join("\n"),
     );
   }

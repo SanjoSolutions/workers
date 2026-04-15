@@ -10,7 +10,7 @@ interface SpawnAgentProcessOptions {
   captureOutput: boolean;
 }
 
-const WINDOWS_SHELL_COMMANDS = new Set(["claude", "codex", "gemini", "pi"]);
+const WINDOWS_SHELL_COMMANDS = new Set(["claude", "codex", "gemini"]);
 
 export function shouldUseWindowsCommandShell(command: string): boolean {
   if (process.platform !== "win32") {

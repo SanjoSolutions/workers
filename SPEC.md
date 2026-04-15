@@ -135,7 +135,7 @@ SPEC.md captures the high-level requirements for a project.
 
 ## 7. Agent Support
 
-- Workers supports Claude Code CLI, Codex CLI, Gemini CLI, and Pi CLI.
+- Workers supports Claude Code CLI, Codex CLI, and Gemini CLI.
 - Shared skills can live under `.agents/skills`.
 - Clarification must remain an assistant-only capability under `agents/assistant/.agents/skills/clarification`.
 - `.claude/skills` may point to the shared skills location.

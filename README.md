@@ -12,7 +12,7 @@ A human-first process that supports spontaneity.
     It delegates bigger tasks to workers for high throughput.
   * Each worker works on one task at a time.
 * Multi-project support.
-* Supports codex, claude, gemini and pi CLIs.
+* Supports codex, claude, and gemini CLIs.
 * Supported task trackers (can be extended):
   * GitHub Issues
   * TODO.md: A lightweight task management system.

@@ -24,7 +24,7 @@ export async function runAssistantCli(argv = process.argv): Promise<void> {
   program
     .name("assistant")
     .description("Launch an interactive assistant agent session")
-    .option("--cli <name>", "CLI to use (claude, codex, gemini, or pi)");
+    .option("--cli <name>", "CLI to use (claude, codex, or gemini)");
 
   program.parse(argv);
   const opts = program.opts();
@@ -36,7 +36,7 @@ export async function runAssistantCli(argv = process.argv): Promise<void> {
   let cli: CliName;
   if (opts.cli) {
     if (!VALID_CLI_SET.has(opts.cli as CliName)) {
-      throw new Error(`Unsupported CLI: ${opts.cli} (expected: claude, codex, gemini, pi)`);
+      throw new Error(`Unsupported CLI: ${opts.cli} (expected: claude, codex, gemini)`);
     }
     await ensureAssistantCli(settings, undefined, { preferredCli: opts.cli as CliName });
     cli = opts.cli as CliName;

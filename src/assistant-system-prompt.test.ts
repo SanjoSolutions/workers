@@ -15,8 +15,8 @@ const TEMPLATE = [
   "{{#cli claude}}",
   "Claude only",
   "{{/cli}}",
-  "{{#cli gemini pi}}",
-  "Gemini and pi",
+  "{{#cli claude gemini}}",
+  "Claude and gemini",
   "{{/cli}}",
 ].join("\n");
 
@@ -27,7 +27,7 @@ describe("assistant system prompt templating", () => {
     expect(rendered).toContain("Common line");
     expect(rendered).toContain("Codex only");
     expect(rendered).not.toContain("Claude only");
-    expect(rendered).not.toContain("Gemini and pi");
+    expect(rendered).not.toContain("Claude and gemini");
   });
 
   test("supports multiple CLIs in one block", () => {
@@ -36,7 +36,7 @@ describe("assistant system prompt templating", () => {
     expect(rendered).toContain("Common line");
     expect(rendered).not.toContain("Codex only");
     expect(rendered).not.toContain("Claude only");
-    expect(rendered).toContain("Gemini and pi");
+    expect(rendered).toContain("Claude and gemini");
   });
 
   test("includes markdown files relative to the current file", () => {
